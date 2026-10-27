@@ -808,10 +808,18 @@ export function createRoomInDb(room: {
   listingTitle?: string;
   participants: string[];
 }) {
+  const existing = getRoomByIdFromDb(room.id);
+  if (existing) {
+    return existing;
+  }
   const now = Date.now();
   db.prepare(`
     INSERT INTO rooms (id, listing_id, listing_title, participants_json, status, created_at, updated_at)
     VALUES (?, ?, ?, ?, 'active', ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      listing_id = COALESCE(excluded.listing_id, rooms.listing_id),
+      listing_title = COALESCE(excluded.listing_title, rooms.listing_title),
+      updated_at = excluded.updated_at
   `).run(
     room.id,
     room.listingId || null,
@@ -834,7 +842,7 @@ export function addMessageToRoomInDb(message: {
 }) {
   const now = message.timestamp || Date.now();
   db.prepare(`
-    INSERT INTO messages (id, room_id, sender, role, text, tool_call_json, timestamp)
+    INSERT OR IGNORE INTO messages (id, room_id, sender, role, text, tool_call_json, timestamp)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(
     message.id,

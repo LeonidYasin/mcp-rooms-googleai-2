@@ -145,8 +145,16 @@ const mcpGeminiTools: FunctionDeclaration[] = [
 // 1. Official Model Context Protocol (MCP) JSON-RPC 2.0 Endpoint
 // -------------------------------------------------------------
 app.post('/mcp', async (req, res) => {
-  const result = await handleMcpJsonRpcRequest(req.body);
-  res.json(result);
+  try {
+    const result = await handleMcpJsonRpcRequest(req.body);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({
+      jsonrpc: '2.0',
+      id: req.body?.id || null,
+      error: { code: -32603, message: err?.message || 'Internal MCP server error' },
+    });
+  }
 });
 
 // -------------------------------------------------------------
@@ -407,12 +415,13 @@ app.post('/api/agent/negotiate', async (req, res) => {
 // 3. Angel Agent Conversational Endpoint with MCP & Autonomy
 // -------------------------------------------------------------
 app.post('/api/chat', async (req, res) => {
-  const { messages, targetListingId } = req.body;
+  try {
+    const { messages, targetListingId } = req.body;
 
-  if (!messages || !Array.isArray(messages)) {
-    res.status(400).json({ error: 'Параметр messages обязателен и должен быть массивом' });
-    return;
-  }
+    if (!messages || !Array.isArray(messages)) {
+      res.status(400).json({ error: 'Параметр messages обязателен и должен быть массивом' });
+      return;
+    }
 
   const userPrompt = messages[messages.length - 1]?.content || '';
   const promptLower = userPrompt.toLowerCase();
@@ -717,11 +726,19 @@ app.post('/api/chat', async (req, res) => {
     return;
   }
 
-  // 5. Context-aware guidance with SQLite categories
-  res.json({
-    text: `Я проанализировал ваш запрос «${userPrompt}». В базе данных SQLite площадки **MCP Rooms** доступны следующие направления:\n\n🏢 **Недвижимость** — аренда коворкингов, офисов и поиск сожителей;\n🏛️ **Сообщества и Парламент** — команды проектов, инициативы и открытое самоуправление;\n🤝 **Бизнес** — кофаундеры и B2B AI-партнёрства;\n💼 **Вакансии** — Senior инженеры и удалённые позиции;\n🔧 **Услуги** — проверенные мастера и ремонт;\n🌲 **Знакомства** — совместные походы и веловыезды.\n\nУкажите конкретную задачу (например: *«Снять коворкинг в Казани»* или *«Вступить в Парламент сообществ»*), и я автономно найду совпадения и запущу раунд согласования условий в защищённой комнате!`,
-    executedTools: [],
-  });
+    // 5. Context-aware guidance with SQLite categories
+    res.json({
+      text: `Я проанализировал ваш запрос «${userPrompt}». В базе данных SQLite площадки **MCP Rooms** доступны следующие направления:\n\n🏢 **Недвижимость** — аренда коворкингов, офисов и поиск сожителей;\n🏛️ **Сообщества и Парламент** — команды проектов, инициативы и открытое самоуправление;\n🤝 **Бизнес** — кофаундеры и B2B AI-партнёрства;\n💼 **Вакансии** — Senior инженеры и удалённые позиции;\n🔧 **Услуги** — проверенные мастера и ремонт;\n🌲 **Знакомства** — совместные походы и веловыезды.\n\nУкажите конкретную задачу (например: *«Снять коворкинг в Казани»* или *«Вступить в Парламент сообществ»*), и я автономно найду совпадения и запущу раунд согласования условий в защищённой комнате!`,
+      executedTools: [],
+    });
+  } catch (chatErr: any) {
+    console.error('Unhandled error in /api/chat:', chatErr);
+    res.status(500).json({
+      error: chatErr?.message || 'Внутренняя ошибка обработки чата',
+      text: 'Извините, произошла техническая ошибка при обработке запроса. База данных SQLite сохранена и доступна.',
+      executedTools: [],
+    });
+  }
 });
 
 async function start() {
@@ -743,4 +760,8 @@ async function start() {
   });
 }
 
-start();
+if (process.env.NODE_ENV !== 'test') {
+  start();
+}
+
+export { app, start };

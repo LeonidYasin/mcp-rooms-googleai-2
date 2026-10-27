@@ -506,7 +506,7 @@ export async function runAutonomousNegotiation(
   };
 
   const createdInDb = (createListingInDb(newListing) || newListing) as any;
-  const roomId = `room-${createdInDb.id}-pending`;
+  const roomId = options?.roomId || `room-${createdInDb.id}-pending`;
 
   createRoomInDb({
     id: roomId,
