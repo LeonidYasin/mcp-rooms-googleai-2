@@ -23,6 +23,9 @@ NODE_ENV=production
 EMBEDDING_PROVIDER=google
 EMBEDDING_MODEL=text-embedding-004
 GEMINI_API_KEY=ваш_ключ_google_gemini_api
+
+# Персистентное хранилище SQLite на хосте
+DATABASE_PATH=./data/mcp_rooms.db
 ```
 
 ### 3. Запуск одной командой
@@ -89,6 +92,8 @@ sudo systemctl reload caddy
 
 - **Веб-интерфейс каталога и чата:** `https://yourdomain.com/`
 - **MCP JSON-RPC 2.0 сервер:** `https://yourdomain.com/mcp`
+- **Server-Sent Events (SSE) стриминг переговоров:** `GET https://yourdomain.com/api/rooms/:id/stream`
+- **Запуск автономных переговоров через MCP:** `POST https://yourdomain.com/api/agent/negotiate/start`
 - **Статус эмбеддингов:** `https://yourdomain.com/api/embedding/status`
 - **Семантический асимметричный матчинг:** `POST https://yourdomain.com/api/match`
-- **Профили пользователей/компаний:** `https://yourdomain.com/api/profiles`
+- **Профили участников:** `https://yourdomain.com/api/profiles`
