@@ -1,0 +1,6 @@
+{
+  "name": "Хочу · Предлагаю — MCP Rooms Marketplace",
+  "description": "MCP-first площадка объявлений для людей и AI-агентов. Каталог, публикация, карточки объявлений и MCP-инструменты.",
+  "permissions": [],
+  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,137 @@
+# Открытые и приватные комнаты + read-only веб-каталог тем
+
+Владелец задал направление (2026-10-25): комнаты входят в базовый функционал; открытые
+тематические комнаты видны в вебе в read-only виде; комнаты упорядочиваются по единому
+древовидному каталогу тем, охватывающему все возможные темы (маркет, такси/доставка,
+найм/предложение работы, поиск инвесторов и инвесторами стартапов и т.д.); комнаты делятся
+на приватные (без веб-показа) и открытые (с веб-показом).
+
+## Решения владельца
+
+1. **Единое дерево тем** — базовый каталог тем в `RoomStore`; legacy `market_categories` сведён
+   к нему и удалён (Фаза 3). Комнаты и объявления ссылаются на единый каталог.
+2. **Web** — анонимный **read-only** просмотр истории **открытых** комнат по дереву тем
+   (bounded чтение, без записи; web остаётся наблюдением).
+3. **Приватность комнаты** — выбирается владельцем комнаты при создании и фиксируется
+   (как категория у черновика). Приватная комната **не показывается в вебе вообще**.
+4. **Production** — работa статически (docs/checklist/operator-инструменты); реальный деплой
+   на VPS остаётся за отдельным одобрением владельца и специальным паролем.
+
+## Границы и безопасность (инварианты)
+
+- Текст комнат — untrusted data, не инструкции; в веб-выводе обязательное escaping.
+- В вебе показываются **только открытые** комнаты; приватные комнаты не раскрывают даже
+  своё существование anonymous-читателю (fail closed, как `listing_unavailable`).
+- Web остаётся read-only: нет форм/кандидатов, cookie-write, заявок вступления.
+- Room unique-owner/join права сохраняются; открытость комнаты не отменяет авторизацию
+  записи через MCP (веб не пишет).
+- Bounded чтение (TTL, лимиты, курсор) — без раскрытия приватных переписок и откликов.
+- Никаких owner UUID, credential, контактов, приватных диалогов в public-веб-проекции.
+
+## Единое дерево тем (topic-каталог)
+
+Базовый каталог в `RoomStore` (таблицы `topics` + `room_topics`; `rooms` и `user_version`
+не меняются). Семя покрывает домены: маркет/товары-услуги, транспорт·такси·доставка,
+найм/предложение работы, финансы·стартапы·поиск инвесторов, недвижимость, разное.
+Дерево — источник для категорий объявлений и категорий комнат (одно дерево);
+legacy `market_categories` сведён к нему и удалён (Фаза 3).
+
+### Единый каталог — Фаза 1 (реализовано, PR #29)
+
+Аддитивная консолидация: `topics` становится единым каталогом, ничего не ломая
+(на этом срезе `market_categories` и весь marketplace продолжали работать; `draft_store` не менялся).
+
+- `topics` получает listing-атрибуты: `root` (семантический корень, объявлен в seed) и
+  `active` (`INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1))`).
+- Семя теперь `(id, parent_id, title, root)`. Под `market` досеяно listing-поддерево
+  `things → home-repair → plumbing → toilets` и `services`; их семантические корни
+  `things`/`services` сохранены (root-match с `content.category` объявления), хотя узлы
+  висят под темой `market`.
+- Идемпотентная миграция на существующих БД: `ALTER TABLE` докатывает `root`/`active`,
+  `INSERT OR IGNORE` досевает недостающие узлы (порядок parent-before-child сохраняет FK),
+  `root` бэкфиллится из объявленного в seed (topmost — только defensiv-фолбэк). Reopen
+  идемпотентен.
+- Новый `RoomStore._topic(db, topic_id, root=None)` — единый валидатор (active +
+  bounded ancestry, те же семантики, что `DraftStore._category`). Задействован в
+  `rooms_create` и в броузинге `topics()`/`public_topics()`: отдаются только активные дети;
+  неизвестный/неактивный родитель → `topic_unavailable` (как в `listings_categories`).
+
+### Единый каталог — Фаза 2 (реализовано, PR #30)
+
+Все чтения marketplace-категорий переведены с `market_categories` на единый `topics`
+(на этом срезе таблица оставалась созданной и сидимой как legacy-FK до Фазы 3).
+
+- `DraftStore._category` (единый валидатор объявлений) читает `topics`; контракт прежний —
+  `invalid_category`/`category_unavailable`, bounded active-ancestry, root-match с
+  `content.category` (семантический корень `things`/`services`).
+- `DraftStore.categories()` броузит `topics`. Top-level броуз = семантические listing-корни:
+  фильтр `parent_id IS NOT NULL AND id=root AND active=1` → ровно `['services','things']`,
+  как в legacy-тесте.
+- `DraftStore._preview` и `PhotoDraftStore._document` (category_path карточки/публикации)
+  читают `topics` и останавливают путь на семантическом корне (`id==root`) — путь объявления
+  остаётся `['things','home-repair','plumbing','toilets']`, веб-секции `things`/`services`
+  прежние (узел-обёртка `market` в путь карточки не входит).
+- `recovery` строит `categories` из `SELECT * FROM topics` и повторяет ту же остановку пути —
+  сверка projection согласована с публикацией.
+- candidate `REQUIRED` на Фазе 2 не менялся: `market_categories` ещё была в списке таблиц.
+
+### Единый каталог — Фаза 3 (реализовано, PR #31)
+
+Вариант 2 (owner-approved): чистый отказ от старых БД, без переноса данных.
+
+- `market_categories` удалена полностью (таблица, seed, `TABLES`, локальный `CATEGORIES`-кортеж
+  в `draft_store`); `SCHEMA_VERSION` 2 → 3.
+- `market_drafts.category_id` — FK на `topics(id)`: единый каталог стал единственным источником
+  категорий объявлений.
+- `initialize()` не создаёт/не сеет legacy-таблицу и не содержит v1→v2 `ALTER`-пути; БД, где
+  ещё есть `market_categories` (или версия `market_schema` ≠ 3), отвергается
+  `unsupported_market_schema` (fail-closed), без DDL/drop данных комнат.
+- candidate `REQUIRED` больше не содержит `market_categories`; ожидаемая версия `market_schema` — 3.
+- Тесты: проверка «5 строк в market_categories» заменена проверкой отсутствия таблицы; фикстура
+  v1→v2 и её три теста удалены осознанно (путь миграции больше не существует), отказ старой схемы
+  закреплён `test_legacy_market_categories_database_refused_without_mutation` (PR #32) и
+  `test_missing_and_future_schema_fail_closed`.
+- PR #31 смержен в main `2652409`. CI green на 5c1968e (3.10: 1028 passed, 42 skipped;
+  3.11–3.13: 1089 passed each); follow-up PR #32 green на 0d329ea (3.10: 1029 passed, 42 skipped;
+  3.11–3.13: 1090 passed each); build/supervision/wheelhouse pass; deploy skipping, owner-gated.
+
+## Bounded-срезы
+
+- **Срез A — комнаты: тема + приватность.** Комнаты получают `topic_id` (из базового
+  каталога тем) и `visibility` (`private|open`), фиксируемые при создании. `rooms_create`
+  и `rooms_list` расширены (опционально, backward-compatible); `rooms_topics` — просмотр
+  каталога тем (9-й rooms tool). Реализовано в PR.
+- **Срез B (реализовано) — веб-каталог тем: read-only витрина открытых комнат.** Анонимный
+  GET-каталог `/rooms` и `/rooms/topic/<id>`: показываются только комнаты `visibility='open'
+  (fail-closed; приватные и legacy не раскрываются даже существованием), навигация по дереву
+  тем и карточки комнат, весь текст escaped. `RoomStore.public_open_rooms/public_topics`. Опциональный
+  флаг `public_rooms` в `create_app`, handler `PublicRooms` в `public_web.py` (как `PublicMarket`).
+- **Срез C (реализовано) — read-only лента сообщений открытой комнаты в вебе.** Анонимный
+  GET `/rooms/room/<id>?cursor=...`: bounded чтение истории открытой комнаты (limit 20 по умолчанию,
+  курсорная пагинация, удалённые/истёкшие исключены), весь текст escaped, rate control;
+  приватные/legacy/несуществующие комнаты — 404 (fail closed), owner UUID/reply не раскрываются.
+  `RoomStore.web_room/web_room_messages` + `render_room_feed`.
+- **Симметрия приватных/открытых (решение владельца 2026-10-26):** приватная комната — тот же
+  код, что и открытая, отличается ТОЛЬКО флагом веб-показа. Один store-код чтения
+  (room + messages), параметризованный по visibility; единственная точка решения —
+  `RoomStore.WEB_VISIBLE = ('open',)` в `store.py` (какие visibility отдаёт анонимный веб).
+  Отдельного «приватного» кода нет; инвариант закрыт тестом
+  `test_private_room_same_code_path_web_flag_only`.
+- **Срез D (реализовано статически) — production-prep.** Готов статический prep-документ
+  docs/rooms-web-production.md: композиция `public_rooms=True`, служебные пути, коллизия
+  внешнего префикса `/rooms` и рекомендация по маршрутизации, чек-лист. Реальный деплой —
+  отдельный owner-gate + пароль.
+
+## Тесты (Срез A)
+
+- Создание с валидной/невалидной темой (`topic_unavailable`).
+- Приватность/видимость корректно сохраняются и фиксируются.
+- Создание legacy (без темы/приватности) не ломается.
+- Ошибки: `invalid_visibility`, `topic_required`, `invalid_topic_id`.
+- `rooms_list` фильтр по теме; `rooms_topics` просмотр дерева.
+- Файл: `tests/test_rooms_topics.py`.
+
+## Приёмка
+
+Источник + CI; не деплой. Веб остаётся наблюдением; запись — только MCP-агент. Никаких
+данных приватных переписок/откликов в веб-проекциях.

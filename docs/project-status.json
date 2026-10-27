@@ -1,0 +1,468 @@
+{
+  "schema": 1,
+  "channel": "development",
+  "runtime_note": "Основной интерфейс — чат пользователя со своим ИИ-агентом через MCP. Web ближайшего этапа — read-only витрина. Rooms TEST остановлен; production отсутствует.",
+  "components": [
+    {
+      "id": "identity",
+      "title": "Локальная идентификация",
+      "stage": "TEST",
+      "summary": "UUID, ключи агентов, scopes и отзыв; без обязательного GitHub. Проверено в прежнем изолированном пилоте.",
+      "doc": "docs/identity.md",
+      "source": "src/mcp_rooms/identity.py",
+      "evidence": "docs/acceptance-2026-10-19.md",
+      "depends_on": []
+    },
+    {
+      "id": "rooms",
+      "title": "Общие комнаты",
+      "stage": "TEST",
+      "summary": "Восемь rooms_*; только допущенные участники. Это не приватные переговоры и не публичный архив. TEST остановлен.",
+      "doc": "docs/api.md",
+      "source": "src/mcp_rooms/store.py",
+      "evidence": "docs/acceptance-2026-10-19.md",
+      "depends_on": [
+        "identity"
+      ]
+    },
+    {
+      "id": "qwen",
+      "title": "Qwen ↔ Notion",
+      "stage": "TEST",
+      "summary": "Локальный адаптер для Qwen; реальный обмен и права проверены в историческом TEST. Не обещание доступного сейчас endpoint.",
+      "doc": "clients/qwen/README.md",
+      "source": "clients/qwen/mcp_proxy_v2.py",
+      "evidence": "docs/acceptance-2026-10-19.md",
+      "depends_on": [
+        "rooms"
+      ]
+    },
+    {
+      "id": "drafts",
+      "title": "Приватные объявления",
+      "stage": "CI",
+      "summary": "Черновик, revision CAS, повтор команды, квоты, категории, навигация и архив. Внутренний opt-in слой, не публичный API.",
+      "doc": "docs/private-draft-lifecycle.md",
+      "source": "src/mcp_rooms/draft_store.py",
+      "evidence": "docs/ci-m1b1.md",
+      "depends_on": [
+        "identity"
+      ]
+    },
+    {
+      "id": "intent",
+      "title": "Предпросмотр и намерение",
+      "stage": "CI",
+      "summary": "Точная версия, digest, отдельный scope и короткий срок. Всегда published=false; живую публикацию не разрешает.",
+      "doc": "docs/publication-intent.md",
+      "source": "src/mcp_rooms/preview_contract.py",
+      "evidence": "docs/ci-m1b2.md",
+      "depends_on": [
+        "drafts"
+      ]
+    },
+    {
+      "id": "normalize",
+      "title": "Подготовка фотографий",
+      "stage": "CI",
+      "summary": "JPEG/PNG → новый JPEG: лимиты, EXIF orientation, удаление метаданных. Не upload endpoint и не OS sandbox.",
+      "doc": "docs/media-image-safety.md",
+      "source": "src/mcp_rooms/media_image.py",
+      "evidence": "docs/ci-m2a.md",
+      "depends_on": []
+    },
+    {
+      "id": "worker",
+      "title": "Изоляция декодера",
+      "stage": "CI",
+      "summary": "Linux subprocess resource containment проверен в CI: rlimits до Pillow, bounded pipes/deadline и admission. Не полноценный OS sandbox; публичная загрузка закрыта.",
+      "doc": "docs/media-worker.md",
+      "source": "src/mcp_rooms/media_worker.py",
+      "evidence": "docs/ci-m2b1.md",
+      "depends_on": [
+        "normalize"
+      ]
+    },
+    {
+      "id": "media_files",
+      "title": "Приватные файлы производных фото",
+      "stage": "CI",
+      "summary": "Приватные dirfd/O_EXCL/fsync, quota/digest read и общий guard writer/cleanup проверены CI. Права/manifest — отдельный staging; не direct API.",
+      "doc": "docs/media-private-files.md",
+      "source": "src/mcp_rooms/media_files.py",
+      "evidence": "docs/ci-m2b4.md",
+      "depends_on": [
+        "worker"
+      ]
+    },
+    {
+      "id": "media_stage",
+      "title": "Приватный staging и владелец фото",
+      "stage": "CI",
+      "summary": "Private STAGED manifest, schema3: persisted owner/scope/resource checks, replay и coordinated write/cleanup. Explicit1/2→3 migration проверена CI; нет публичного upload.",
+      "doc": "docs/media-staging.md",
+      "source": "src/mcp_rooms/media_stage.py",
+      "evidence": "docs/ci-m2c1.md",
+      "depends_on": [
+        "identity",
+        "drafts",
+        "worker",
+        "media_files"
+      ]
+    },
+    {
+      "id": "media_cleanup",
+      "title": "Проверяемая очистка и возврат квот",
+      "stage": "CI",
+      "summary": "В CI проверены dry-run/recheck, PURGING/PURGED, durable absence, возврат квот, tombstones и гонки writer/cleanup. Orphans блокируют удаление; не admin API.",
+      "doc": "docs/media-cleanup.md",
+      "source": "src/mcp_rooms/media_cleanup.py",
+      "evidence": "docs/ci-m2b4.md",
+      "depends_on": [
+        "media_stage",
+        "media_files"
+      ]
+    },
+    {
+      "id": "photo_drafts",
+      "title": "Фото версии объявления и точный preview",
+      "stage": "CI",
+      "summary": "CI: atomic ordered attachment, photo-aware text edits, verified private preview/intent v2, retention, legacy bypass refusal и media1/2→3 migration. Не публикация.",
+      "doc": "docs/photo-drafts.md",
+      "source": "src/mcp_rooms/photo_drafts.py",
+      "evidence": "docs/ci-m2c1.md",
+      "depends_on": [
+        "drafts",
+        "media_stage",
+        "media_files",
+        "media_cleanup"
+      ]
+    },
+    {
+      "id": "media",
+      "title": "Хранение и права на фото",
+      "stage": "SPEC",
+      "summary": "Worker/files/staging/retention и photo attachment/private preview проверены отдельно в CI. Полный DB+files restore, orphan recovery, OS и public media lifecycle ещё не приняты.",
+      "doc": "docs/media-storage-design.md",
+      "source": null,
+      "evidence": null,
+      "depends_on": [
+        "identity",
+        "worker",
+        "media_files",
+        "media_stage",
+        "media_cleanup",
+        "photo_drafts"
+      ]
+    },
+    {
+      "id": "publish",
+      "title": "Публикация объявления",
+      "stage": "CI",
+      "summary": "CI: consent/consume/snapshot/receipt/audit, withdrawal и epoch. Пользовательский MCP проверен отдельно как opt-in; публичного HTTP/web ещё нет.",
+      "doc": "docs/live-publication.md",
+      "source": "src/mcp_rooms/publication_store.py",
+      "evidence": "docs/ci-m2c2.md",
+      "depends_on": [
+        "intent",
+        "photo_drafts"
+      ]
+    },
+    {
+      "id": "user_market_mcp",
+      "title": "Пользовательский MCP объявлений",
+      "stage": "CI",
+      "summary": "CI:12 opt-in listing tools +8 rooms, actual Bearer/SDK/ContextVar, отдельные scopes, typed inputs, same DB/resource и bounded self-delegation. Не upload/browser/onboarding или CLI deploy.",
+      "doc": "docs/user-market-mcp.md",
+      "source": "src/mcp_rooms/market_tools.py",
+      "evidence": "docs/ci-m3a1.md",
+      "depends_on": [
+        "identity",
+        "publish",
+        "photo_drafts"
+      ]
+    },
+    {
+      "id": "web",
+      "title": "Web и пользовательский MCP",
+      "stage": "SPEC",
+      "summary": "Одна карточка и одни правила, защищённые сессии, публичная allowlist-проекция, поиск и доступная галерея. В CI: public card/photo routes и read-only market index (навигация) — не production.",
+      "doc": "docs/web-marketplace-plan.md",
+      "source": null,
+      "evidence": null,
+      "depends_on": [
+        "publish",
+        "user_market_mcp",
+        "media_http",
+        "browser_sessions",
+        "browser_http",
+        "public_card"
+      ]
+    },
+    {
+      "id": "response",
+      "title": "Приватный отклик",
+      "stage": "SOURCE",
+      "summary": "ResponseStore: приватный отклик R-01 (владелец и автор видят тело), публичная статус-метка allowlist, web показывает счётчик+метки; p1 уведомление диалога — контент-безопасный unread_messages + read-метки (namespace v3). Не превращает общие Rooms в личную переписку. В тестовом прогоне CI, но exact-SHA evidence ещё не принят.",
+      "doc": "docs/private-response.md",
+      "source": "src/mcp_rooms/response_store.py",
+      "evidence": null,
+      "depends_on": [
+        "drafts",
+        "identity",
+        "publish"
+      ]
+    },
+    {
+      "id": "admin",
+      "title": "Отдельный admin MCP",
+      "stage": "SPEC",
+      "summary": "Отдельный вход, audience, credentials и роли; typed операции, подтверждение, audit. Никакого shell/SQL/root.",
+      "doc": "docs/admin-mcp-design.md",
+      "source": null,
+      "evidence": null,
+      "depends_on": [
+        "identity"
+      ]
+    },
+    {
+      "id": "pilot",
+      "title": "Первая настоящая публикация",
+      "stage": "SPEC",
+      "summary": "Реальная вещь, честные фото и условия, независимый поиск/отклик, отдельное разрешение на TEST. Не обещание продажи.",
+      "doc": "docs/first-sale-acceptance.md",
+      "source": null,
+      "evidence": null,
+      "depends_on": [
+        "web",
+        "response",
+        "admin"
+      ]
+    },
+    {
+      "id": "opportunities",
+      "title": "Следующие рынки",
+      "stage": "SPEC",
+      "summary": "Услуги, работа, команды, проекты, стартапы, партнёры и инвесторы. По спросу; не реализовывать все вертикали в MVP.",
+      "doc": "docs/opportunity-model.md",
+      "source": null,
+      "evidence": null,
+      "depends_on": [
+        "pilot"
+      ]
+    },
+    {
+      "id": "media_http",
+      "title": "Приватная HTTP-загрузка фото",
+      "stage": "CI",
+      "summary": "Общий бинарный transport для будущей web-формы и агента: owner/revision/scopes, bounded body, private JPEG read. Explicit opt-in; не публичная публикация и не VPS.",
+      "doc": "docs/media-http.md",
+      "source": "src/mcp_rooms/media_http.py",
+      "evidence": "docs/ci-m3a2.md",
+      "depends_on": [
+        "user_market_mcp",
+        "photo_drafts"
+      ]
+    },
+    {
+      "id": "browser_sessions",
+      "title": "Ядро браузерных сессий",
+      "stage": "CI",
+      "summary": "Отдельный digest-only namespace, least-privilege scopes, parent revoke/expiry, idle/absolute TTL и CSRF primitive. Не HTTP login, не форма.",
+      "doc": "docs/browser-sessions.md",
+      "source": "src/mcp_rooms/browser_sessions.py",
+      "evidence": "docs/ci-m3b1.md",
+      "depends_on": [
+        "identity",
+        "drafts"
+      ]
+    },
+    {
+      "id": "browser_http",
+      "title": "HTTP bridge браузерной сессии",
+      "stage": "CI",
+      "summary": "Explicit opt-in HTTPS/same-origin login по существующему ключу, Secure HttpOnly cookie, CSRF logout, bounded body/budgets. Не onboarding и не cookie-auth market commands.",
+      "doc": "docs/browser-http.md",
+      "source": "src/mcp_rooms/browser_http.py",
+      "evidence": "docs/ci-m3b2.md",
+      "depends_on": [
+        "browser_sessions",
+        "user_market_mcp"
+      ]
+    },
+    {
+      "id": "public_card",
+      "title": "Read-only карточка по ссылке",
+      "stage": "TEST",
+      "summary": "Anonymous card/photo read и withdrawal 404 проверены в loopback synthetic flow; карточка подписана allowlisted display_name автора (без owner UUID/контактов/комнаты), раздел показан явно. Внешний HTTPS/Caddy и реальная карточка ещё не приняты.",
+      "doc": "docs/owner-first-test.md",
+      "source": "src/mcp_rooms/public_web.py",
+      "evidence": "docs/owner-first-vps-test-2026-10-23.md",
+      "depends_on": [
+        "user_market_mcp",
+        "publish"
+      ]
+    },
+    {
+      "id": "test_candidate",
+      "title": "Fresh owner-first TEST candidate",
+      "stage": "TEST",
+      "summary": "Fresh bootstrap/startup composition проверен в Actions и в isolated VPS loopback: install/bootstrap/start, native photo, synthetic publication, restart и stop-only rollback. HTTPS/external не принят.",
+      "doc": "docs/test-candidate.md",
+      "source": "src/mcp_rooms/test_candidate.py",
+      "evidence": "docs/owner-first-vps-test-2026-10-23.md",
+      "depends_on": [
+        "public_card",
+        "media_http",
+        "worker",
+        "media_files",
+        "native_sandbox"
+      ]
+    },
+    {
+      "id": "native_sandbox",
+      "title": "OS-изоляция native photo child",
+      "stage": "CI",
+      "summary": "Landlock ABI≥3 + seccomp x86_64: synthetic secrets/metadata/network/process denial, real codecs and fail-closed candidate startup проверены в Actions. Не VPS probe или полная VM.",
+      "doc": "docs/media-sandbox.md",
+      "source": "src/mcp_rooms/media_sandbox.py",
+      "evidence": "docs/ci-f3a.md",
+      "depends_on": [
+        "worker"
+      ]
+    },
+    {
+      "id": "candidate_recovery",
+      "title": "DB+photos recovery quarantine",
+      "stage": "CI",
+      "summary": "Офлайн DB+photos snapshot/restore с locks, current auth narrowing и withdrawals принят в Actions. Копия в карантине, current original обязателен; не полноценный disaster recovery.",
+      "doc": "docs/recovery-candidate.md",
+      "source": "src/mcp_rooms/recovery.py",
+      "evidence": "docs/ci-f3b.md",
+      "depends_on": [
+        "test_candidate",
+        "media_files",
+        "publish"
+      ]
+    },
+    {
+      "id": "operator_bundle",
+      "title": "Офлайн hash-pinned wheelhouse",
+      "stage": "TEST",
+      "summary": "Pinned offline pre-release bundle скачан и проверен на VPS; install использует локальный wheelhouse. Артефакт не является production release.",
+      "doc": "docs/operator-package.md",
+      "source": "tools/operator_bundle.py",
+      "evidence": "docs/ci-f3c1.md",
+      "depends_on": [
+        "test_candidate",
+        "native_sandbox",
+        "candidate_recovery"
+      ]
+    },
+    {
+      "id": "operator_plan",
+      "title": "Read-only operator proposal",
+      "stage": "CI",
+      "summary": "Trusted real-wheelhouse verifier and fixed isolated seven-stage proposal accepted in Actions. Observations unattested; no host probe/effects/resources accepted. Lifecycle implementation F3c.2b remains.",
+      "doc": "docs/operator-plan.md",
+      "source": "tools/operator_plan.py",
+      "evidence": "docs/ci-f3c2a.md",
+      "depends_on": [
+        "operator_bundle"
+      ]
+    },
+    {
+      "id": "operator_lifecycle",
+      "title": "Unprivileged offline lifecycle rehearsal",
+      "stage": "CI",
+      "summary": "Real fresh offline venv install, occupied-port refusal and interrupted-start cleanup, authenticated loopback MCP, stop/restart preserving listing/key and stop-only rollback accepted in Actions. Not root/systemd/cgroup supervision; aggregate resources pending.",
+      "doc": "docs/operator-lifecycle.md",
+      "source": "tools/operator_lifecycle.py",
+      "evidence": "docs/ci-f3c2b.md",
+      "depends_on": [
+        "operator_bundle",
+        "operator_plan",
+        "test_candidate"
+      ]
+    },
+    {
+      "id": "operator_supervision",
+      "title": "Fixed unit and cgroup supervision proof",
+      "stage": "CI",
+      "summary": "Fixed review unit renderer; real isolated systemd/cgroup accounting and TERM-resistant descendant cleanup accepted in Actions. Not actual candidate-in-unit, installer or VPS capacity acceptance.",
+      "doc": "docs/operator-supervision.md",
+      "source": "tools/operator_unit.py",
+      "evidence": "docs/ci-f3c2c1.md",
+      "depends_on": [
+        "operator_lifecycle",
+        "operator_plan"
+      ]
+    },
+    {
+      "id": "candidate_unit_ci",
+      "title": "Real candidate under exact systemd unit",
+      "stage": "CI",
+      "summary": "Actual installed nonroot candidate under exact root-owned unit accepted in Actions: real TCP MCP/native12MP photo/body admission-disconnect-timeouts, forced native504/reap/slot reuse, card/photo/withdraw/restart and cgroup measurements. Not a production installer or VPS capacity acceptance.",
+      "doc": "docs/candidate-unit-ci.md",
+      "source": "tools/ci_candidate_unit.py",
+      "evidence": "docs/ci-f3c2c2.md",
+      "depends_on": [
+        "operator_supervision",
+        "operator_bundle",
+        "operator_lifecycle"
+      ]
+    },
+    {
+      "id": "operator_capacity_ci",
+      "title": "Aggregate capacity measurement under exact unit",
+      "stage": "CI",
+      "summary": "Aggregate cgroup capacity измерения (memory.peak, CPU, sampled tasks/native, state disk) под точным systemd unit приняты в Actions через tools/ci_candidate_unit.py. Нет OOM kill, peak < 1 GiB, tasks <= 64, cpu > 0. fixture_capacity_bounds_only=true, vps_capacity_accepted=false. Не установщик, не VPS capacity acceptance, не production.",
+      "doc": "docs/ci-f3c2c3c.md",
+      "source": "tools/ci_candidate_unit.py",
+      "evidence": "docs/ci-f3c2c3c.md",
+      "depends_on": [
+        "candidate_unit_ci",
+        "operator_supervision"
+      ]
+    },
+    {
+      "id": "operator_install",
+      "title": "Fresh-only root-trusted offline install",
+      "stage": "TEST",
+      "summary": "Fresh-only offline install/inspect выполнен на VPS из pinned pre-release; installer не создавал профиль и не запускал сервис. Bootstrap/start — отдельный controller PASS.",
+      "doc": "docs/operator-install.md",
+      "source": "tools/operator_install.py",
+      "evidence": "docs/owner-first-vps-test-2026-10-23.md",
+      "depends_on": [
+        "candidate_unit_ci",
+        "operator_bundle",
+        "operator_supervision"
+      ]
+    },
+    {
+      "id": "operator_control",
+      "title": "Guarded lifecycle controller",
+      "stage": "TEST",
+      "summary": "Guarded capacity/bootstrap/start/stop выполнен на VPS: loopback synthetic MCP PASS, stop сохранил state, restart и повторный flow PASS. HTTPS/Caddy не менялись.",
+      "doc": "docs/operator-install.md",
+      "source": "tools/operator_control.py",
+      "evidence": "docs/owner-first-vps-test-2026-10-23.md",
+      "depends_on": [
+        "operator_install",
+        "candidate_unit_ci"
+      ]
+    },
+    {
+      "id": "operator_preflight",
+      "title": "Read-only VPS preflight (CI-accepted)",
+      "stage": "TEST",
+      "summary": "Root-console read-only checks: trusted python3.12, Linux x86_64, cgroup v2, Landlock ABI≥3, seccomp actions + живая allow-all filter-проба, отсутствие candidate account/unit/path/port, ancestor modes, capacity floors и состояние защищённых units; только sanitized JSON. Protected-набор: caddy, mcp-server, mcp-test, x-ui. Первый прогон — STOP по памяти, после апгрейда до 4 GiB — PASS; установка тогда не выполнялась. Позже отдельный gate — fresh loopback install/start.",
+      "doc": "docs/operator-install.md",
+      "source": "tools/operator_preflight.py",
+      "evidence": "docs/ci-f3c2d2.md",
+      "depends_on": [
+        "operator_control"
+      ]
+    }
+  ]
+}
