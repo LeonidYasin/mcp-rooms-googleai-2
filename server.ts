@@ -496,6 +496,9 @@ app.post('/api/chat', async (req, res) => {
   const promptLower = userPrompt.toLowerCase();
 
   // Try real Gemini API with autonomous MCP Function Calling
+  // Every response below declares whether a model was actually used: the UI must
+  // never present rule-based answers as model-driven work.
+  let llmDegradedReason: string | null = null;
   const aiClient = getGenAiClient();
   if (aiClient) {
     try {
@@ -631,7 +634,14 @@ app.post('/api/chat', async (req, res) => {
         lastInvalidKeyTimestamp = Date.now();
       }
       console.warn('Gemini API call failed, switching to dynamic SQLite fallback:', errStr);
+      llmDegradedReason = errStr;
     }
+  }
+
+  if (!llmDegradedReason) {
+    llmDegradedReason = aiClient
+      ? 'gemini returned no text for this prompt'
+      : 'GEMINI_API_KEY is not configured';
   }
 
   // -----------------------------------------------------------------
@@ -665,28 +675,22 @@ app.post('/api/chat', async (req, res) => {
     try {
       const negotiationResult = await runAutonomousNegotiation(userPrompt, targetListingId);
       res.json({
-        text: negotiationResult.summary,
+        text:
+          '⚠️ Переговоры выполнил встроенный демо-сценарий (модель не вызывалась).\n\n' +
+          negotiationResult.summary,
         negotiation: negotiationResult,
+        degraded: true,
+        degradedReason: llmDegradedReason,
         executedTools: [
           {
-            name: 'match_listings',
-            args: { query: userPrompt, targetListingId },
+            name: 'negotiate_agreement',
+            args: { goal: userPrompt, target_listing_id: targetListingId ?? null },
             result: {
-              matched_listing: negotiationResult.targetListing?.content?.title,
-              similarity_score: negotiationResult.similarityScore,
-              match_method: negotiationResult.matchMethod,
-              match_reason: negotiationResult.matchReason,
+              room_id: negotiationResult.roomId,
+              status: negotiationResult.status,
+              rounds: negotiationResult.dialogue.length,
+              target_listing: negotiationResult.targetListing?.content?.title ?? null,
             },
-          },
-          {
-            name: 'join_room',
-            args: { room_id: negotiationResult.roomId },
-            result: { room_created: true },
-          },
-          {
-            name: 'send_message',
-            args: { rounds_count: negotiationResult.dialogue.length },
-            result: { agreement: negotiationResult.status },
           },
         ],
         createdListing: negotiationResult.status === 'listing_created' ? negotiationResult.targetListing : null,
@@ -734,6 +738,8 @@ app.post('/api/chat', async (req, res) => {
 
       res.json({
         text: `✅ Я успешно создал и сохранил в постоянную базу данных SQLite ваше объявление «${toolResult.created_listing.content.title}» в категории «${detectedCategory}». Карточка опубликована в каталоге площадки!`,
+        degraded: true,
+        degradedReason: llmDegradedReason,
         executedTools: [{ name: 'create_listing', args: { prompt: userPrompt }, result: toolResult }],
         createdListing: toolResult.created_listing,
       });
@@ -746,8 +752,14 @@ app.post('/api/chat', async (req, res) => {
   // 3. Safety & Privacy Intent
   if (promptLower.includes('безопасн') || promptLower.includes('приватн') || promptLower.includes('телефон') || promptLower.includes('адрес') || promptLower.includes('правил')) {
     res.json({
-      text: `🛡️ **Принципы безопасности и приватности MCP Rooms:**\n\n1. **Личные данные — не витрина:** телефон и точный домашний адрес никогда не отображаются в открытом интернете. Обмен контактами происходит только по взаимному согласию участников в защищённой комнате переговоров.\n2. **Открыта для всех:** город и регион служат фильтром для удобства поиска, а не барьером для регистрации.\n3. **Осознанная публикация:** сначала создаётся черновик и проходит предпросмотр.\n4. **Защита сделки:** переговоры между агентами фиксируются в SQLite, встречи проводятся в безопасных местах или онлайн.`,
-      executedTools: [{ name: 'inspect_safety_guidelines', args: { topic: 'privacy' }, result: { verified: true } }],
+      text: `🛡️ **Что верно сейчас:** в карточках витрины нет телефонов и точных адресов — этих полей в объявлении нет вообще.
+
+**Чего пока нет:** изолированных комнат. Сейчас любую переписку комнаты может прочитать любой клиент API — это известное ограничение, зафиксированное в аудите; оно исправляется отдельным этапом. Публикация тоже пока прямая, без черновика и предпросмотра.
+
+Поэтому не передавайте в комнату личные данные, пока доступ не ограничен.`,
+      degraded: true,
+      degradedReason: llmDegradedReason,
+      executedTools: [],
     });
     return;
   }
@@ -791,13 +803,17 @@ app.post('/api/chat', async (req, res) => {
           result: { count: foundItems.length, top_item: foundItems[0].content.title },
         },
       ],
+      degraded: true,
+      degradedReason: llmDegradedReason,
     });
     return;
   }
 
     // 5. Context-aware guidance with SQLite categories
     res.json({
-      text: `Я проанализировал ваш запрос «${userPrompt}». В базе данных SQLite площадки **MCP Rooms** доступны следующие направления:\n\n🏢 **Недвижимость** — аренда коворкингов, офисов и поиск сожителей;\n🏛️ **Сообщества и Парламент** — команды проектов, инициативы и открытое самоуправление;\n🤝 **Бизнес** — кофаундеры и B2B AI-партнёрства;\n💼 **Вакансии** — Senior инженеры и удалённые позиции;\n🔧 **Услуги** — проверенные мастера и ремонт;\n🌲 **Знакомства** — совместные походы и веловыезды.\n\nУкажите конкретную задачу (например: *«Снять коворкинг в Казани»* или *«Вступить в Парламент сообществ»*), и я автономно найду совпадения и запущу раунд согласования условий в защищённой комнате!`,
+      text: `Я проанализировал ваш запрос «${userPrompt}». В базе данных SQLite площадки **MCP Rooms** доступны следующие направления:\n\n🏢 **Недвижимость** — аренда коворкингов, офисов и поиск сожителей;\n🏛️ **Сообщества и Парламент** — команды проектов, инициативы и открытое самоуправление;\n🤝 **Бизнес** — кофаундеры и B2B AI-партнёрства;\n💼 **Вакансии** — Senior инженеры и удалённые позиции;\n🔧 **Услуги** — проверенные мастера и ремонт;\n🌲 **Знакомства** — совместные походы и веловыезды.\n\nУкажите конкретную задачу (например: *«Снять коворкинг в Казани»* или *«Вступить в Парламент сообществ»*), и я найду совпадения в каталоге.`,
+      degraded: true,
+      degradedReason: llmDegradedReason,
       executedTools: [],
     });
   } catch (chatErr: any) {
@@ -805,6 +821,7 @@ app.post('/api/chat', async (req, res) => {
     res.status(500).json({
       error: chatErr?.message || 'Внутренняя ошибка обработки чата',
       text: 'Извините, произошла техническая ошибка при обработке запроса. База данных SQLite сохранена и доступна.',
+      degraded: true,
       executedTools: [],
     });
   }

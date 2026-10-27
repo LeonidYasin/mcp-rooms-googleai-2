@@ -13,6 +13,8 @@ export interface ChatMessage {
     result: any;
   }>;
   createdListing?: any;
+  degraded?: boolean;
+  degradedReason?: string;
 }
 
 interface McpChatProps {
@@ -349,6 +351,8 @@ export const McpChat: React.FC<McpChatProps> = ({
         negotiation: data.negotiation,
         executedTools: data.executedTools || [],
         createdListing: data.createdListing,
+        degraded: data.degraded === true,
+        degradedReason: data.degradedReason,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -523,6 +527,14 @@ export const McpChat: React.FC<McpChatProps> = ({
               </span>
               <span>·</span>
               <span>{new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              {m.degraded && (
+                <span
+                  className="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 font-semibold"
+                  title={m.degradedReason || 'Модель не вызывалась'}
+                >
+                  без модели
+                </span>
+              )}
             </div>
 
             <div
