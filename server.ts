@@ -239,9 +239,78 @@ app.get('/api/listings/:id', (req, res) => {
   }
 });
 
+// Minimal input validation for the flat REST body. The full draft -> preview ->
+// publish contract replaces this in PR-5; until then the endpoint must at least
+// reject malformed input instead of writing garbage into SQLite.
+const LISTING_CATEGORIES = [
+  'business', 'jobs', 'services', 'real_estate', 'communities', 'things', 'dating', 'rides', 'delivery', 'other',
+];
+const LISTING_MODES = ['pickup', 'shipping', 'online'];
+
+function normalizeListingInput(body: any): { ok: true; listing: any } | { ok: false; errors: string[] } {
+  const errors: string[] = [];
+  const text = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+
+  const title = text(body.title);
+  const description = text(body.description);
+  const category = text(body.category);
+  const kind = text(body.kind);
+  const locality = text(body.locality);
+
+  if (title.length < 3 || title.length > 200) errors.push('title: 3..200 characters');
+  if (description.length < 3 || description.length > 5000) errors.push('description: 3..5000 characters');
+  if (!LISTING_CATEGORIES.includes(category)) errors.push(`category: one of ${LISTING_CATEGORIES.join(', ')}`);
+  if (!['offer', 'request'].includes(kind)) errors.push('kind: offer|request');
+  if (!locality) errors.push('locality: required');
+
+  const priceRubles = body.price_rubles === undefined || body.price_rubles === null ? 0 : Number(body.price_rubles);
+  if (!Number.isFinite(priceRubles) || priceRubles < 0) errors.push('price_rubles: non-negative number');
+
+  const rawModes = body.modes === undefined ? ['pickup', 'online'] : body.modes;
+  const modes = Array.isArray(rawModes) ? rawModes.filter((m: unknown) => LISTING_MODES.includes(String(m))) : [];
+  if (!Array.isArray(rawModes) || modes.length !== rawModes.length) errors.push(`modes: subset of ${LISTING_MODES.join(', ')}`);
+
+  if (errors.length > 0) return { ok: false, errors };
+
+  const now = Date.now();
+  return {
+    ok: true,
+    listing: {
+      id: 'listing-' + now + '-' + Math.random().toString(36).substring(2, 8),
+      owner: 'user:web-guest',
+      author_name: text(body.author_name) || 'Гость площадки',
+      content: {
+        title,
+        description,
+        category,
+        subcategory: text(body.subcategory) || undefined,
+        kind,
+        modes,
+        locality,
+        price_minor: priceRubles > 0 ? Math.floor(priceRubles * 100) : null,
+        currency: 'RUB',
+        condition: text(body.condition) || 'Указано в описании',
+      },
+      status: 'active',
+      visibility: 'public',
+      revision: 1,
+      created_at: now,
+      updated_at: now,
+      expires_at: now + 3600000 * 24 * 90,
+      photos: [],
+      responses_count: 0,
+    },
+  };
+}
+
 app.post('/api/listings', (req, res) => {
+  const normalized = normalizeListingInput(req.body || {});
+  if (!normalized.ok) {
+    res.status(422).json({ error: 'invalid_listing', errors: normalized.errors });
+    return;
+  }
   try {
-    const created = createListingInDb(req.body);
+    const created = createListingInDb(normalized.listing);
     res.status(201).json(created);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
