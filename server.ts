@@ -14,8 +14,9 @@ import {
   getProfileByIdFromDb,
 } from './server/db';
 import { handleMcpJsonRpcRequest, executeMcpToolCall, MCP_TOOLS_MANIFEST } from './server/mcp';
-import { runAutonomousNegotiation } from './server/negotiator';
+import { runAutonomousNegotiation, prepareNegotiationRoom } from './server/negotiator';
 import { getEmbeddingProviderStatus, matchListingAsymmetric } from './server/embeddings';
+import { roomEventBus } from './server/events';
 
 const app = express();
 const PORT = 3000;
@@ -168,11 +169,72 @@ app.get('/api/rooms/:id', (req, res) => {
   }
 });
 
+// -------------------------------------------------------------
+// Server-Sent Events (SSE) Endpoint for Real-Time Room Streaming
+// -------------------------------------------------------------
+app.get('/api/rooms/:id/stream', (req, res) => {
+  const roomId = req.params.id;
+  const room = getRoomByIdFromDb(roomId);
+  if (!room) {
+    res.status(404).json({ error: `Комната ${roomId} не найдена` });
+    return;
+  }
+
+  // Set SSE Headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+
+  // Client lastEventId for reconnection support
+  const lastEventId = (req.headers['last-event-id'] as string) || '';
+
+  // Current negotiation if exists
+  const negs = getNegotiationsFromDb();
+  const roomNeg = negs.find((n) => n.roomId === roomId) || null;
+
+  // Send initial snapshot with all SQLite messages
+  const initialPayload = {
+    roomId: room.id,
+    listingTitle: room.listingTitle,
+    participants: room.participants,
+    status: room.status,
+    messages: room.messages, // All messages loaded directly from SQLite
+    negotiation: roomNeg,
+    serverTime: Date.now(),
+    lastEventId,
+  };
+
+  res.write(`retry: 2500\n`);
+  res.write(`id: init-${Date.now()}\n`);
+  res.write(`event: init\n`);
+  res.write(`data: ${JSON.stringify(initialPayload)}\n\n`);
+
+  // Subscribe to live room event bus
+  const unsubscribe = roomEventBus.subscribe(roomId, (event) => {
+    res.write(`id: ${event.id}\n`);
+    res.write(`event: ${event.type}\n`);
+    res.write(`data: ${JSON.stringify(event.data)}\n\n`);
+  });
+
+  // Heartbeat ping every 15s to keep connection alive through proxies
+  const heartbeat = setInterval(() => {
+    res.write(`event: ping\ndata: ${Date.now()}\n\n`);
+  }, 15000);
+
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    unsubscribe();
+  });
+});
+
 app.post('/api/rooms/:id/messages', (req, res) => {
   try {
     const { sender, role, text } = req.body;
     const message = {
-      id: 'msg-' + Date.now(),
+      id: 'msg-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
       roomId: req.params.id,
       sender: sender || 'user:guest',
       role: role || 'human',
@@ -180,6 +242,8 @@ app.post('/api/rooms/:id/messages', (req, res) => {
       timestamp: Date.now(),
     };
     addMessageToRoomInDb(message);
+    // Broadcast live event to SSE subscribers
+    roomEventBus.broadcast(req.params.id, 'message', message);
     res.status(201).json(message);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -190,6 +254,43 @@ app.get('/api/negotiations', (_req, res) => {
   try {
     const negs = getNegotiationsFromDb();
     res.json(negs);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/agent/negotiate/start', (req, res) => {
+  try {
+    const { prompt, targetListingId } = req.body;
+    if (!prompt) {
+      res.status(400).json({ error: 'Prompt is required' });
+      return;
+    }
+
+    const { roomId, bestMatch, targetListingTitle, isExistingMatch } = prepareNegotiationRoom(
+      prompt,
+      targetListingId
+    );
+
+    // Run autonomous negotiation in background with live pacing for SSE stream
+    setTimeout(async () => {
+      try {
+        await runAutonomousNegotiation(prompt, targetListingId, {
+          roomId,
+          livePacing: true,
+        });
+      } catch (err) {
+        console.error('Error during autonomous negotiation:', err);
+      }
+    }, 100);
+
+    res.json({
+      roomId,
+      targetListingTitle,
+      isExistingMatch,
+      bestMatch,
+      streamUrl: `/api/rooms/${roomId}/stream`,
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

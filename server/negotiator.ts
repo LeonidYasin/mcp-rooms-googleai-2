@@ -11,6 +11,14 @@ import {
   matchListingAsymmetric,
   getEmbeddingProviderStatus,
 } from './embeddings';
+import { roomEventBus } from './events';
+
+export interface NegotiationOptions {
+  livePacing?: boolean;
+  roomId?: string;
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export interface NegotiationStep {
   type: 'search' | 'room_created' | 'agent_round' | 'agreement_recorded';
@@ -52,7 +60,8 @@ export interface NegotiationResult {
 
 export async function runAutonomousNegotiation(
   userPrompt: string,
-  targetListingId?: string
+  targetListingId?: string,
+  options?: NegotiationOptions
 ): Promise<NegotiationResult> {
   const promptLower = userPrompt.toLowerCase();
   const now = Date.now();
@@ -150,7 +159,7 @@ export async function runAutonomousNegotiation(
 
   // Case A: Found existing listing -> Autonomous Multi-Agent Negotiation in Shared Room
   if (bestMatch) {
-    const roomId = `room-${bestMatch.id}-${Date.now().toString(36).substring(4)}`;
+    const roomId = options?.roomId || `room-${bestMatch.id}-${Date.now().toString(36).substring(4)}`;
     const roomTitle = `Переговоры: ${bestMatch.content.title}`;
 
     steps.push({
@@ -161,13 +170,17 @@ export async function runAutonomousNegotiation(
       timestamp: now + 200,
     });
 
-    // Create room in SQLite
+    // Create room in SQLite if not yet existing
     createRoomInDb({
       id: roomId,
       listingId: bestMatch.id,
       listingTitle: bestMatch.content.title,
       participants: ['user:client', bestMatch.owner, 'agent:angel', 'agent:counterpart'],
     });
+
+    // Broadcast initial steps to room event bus
+    roomEventBus.broadcast(roomId, 'step', steps[0]);
+    roomEventBus.broadcast(roomId, 'step', steps[1]);
 
     // Generate Contextual Dialogue between Angel Agent and Counterpart Agent
     let angelMessage1 = '';
@@ -238,95 +251,164 @@ export async function runAutonomousNegotiation(
       };
     }
 
-    // Save dialogue turns to SQLite
+    // Prepare turns and messages
     const turn1Time = now + 400;
     const turn2Time = now + 900;
     const turn3Time = now + 1400;
     const turn4Time = now + 1900;
 
-    addMessageToRoomInDb({
+    const msg1 = {
       id: 'msg-' + turn1Time,
       roomId,
       sender: 'agent:angel',
-      role: 'agent',
+      role: 'agent' as const,
       text: angelMessage1,
       timestamp: turn1Time,
-    });
-    addMessageToRoomInDb({
+    };
+    const turn1: NegotiationDialogueTurn = {
+      sender: 'agent:angel',
+      role: 'agent',
+      agentName: 'Ваш Агент-Ангел',
+      avatar: '👼',
+      text: angelMessage1,
+      timestamp: turn1Time,
+    };
+
+    const msg2 = {
       id: 'msg-' + turn2Time,
       roomId,
       sender: 'agent:counterpart',
-      role: 'agent',
+      role: 'agent' as const,
       text: counterpartResponse1,
       timestamp: turn2Time,
-    });
-    addMessageToRoomInDb({
+    };
+    const turn2: NegotiationDialogueTurn = {
+      sender: 'agent:counterpart',
+      role: 'agent',
+      agentName: `Агент контрагента (${bestMatch.author_name})`,
+      avatar: '🤖',
+      text: counterpartResponse1,
+      timestamp: turn2Time,
+    };
+
+    const msg3 = {
       id: 'msg-' + turn3Time,
       roomId,
       sender: 'agent:angel',
-      role: 'agent',
+      role: 'agent' as const,
       text: angelMessage2,
       timestamp: turn3Time,
-    });
-    addMessageToRoomInDb({
+    };
+    const turn3: NegotiationDialogueTurn = {
+      sender: 'agent:angel',
+      role: 'agent',
+      agentName: 'Ваш Агент-Ангел',
+      avatar: '👼',
+      text: angelMessage2,
+      timestamp: turn3Time,
+    };
+
+    const msg4 = {
       id: 'msg-' + turn4Time,
       roomId,
       sender: 'agent:counterpart',
-      role: 'agent',
+      role: 'agent' as const,
       text: counterpartResponse2,
       timestamp: turn4Time,
-    });
+    };
+    const turn4: NegotiationDialogueTurn = {
+      sender: 'agent:counterpart',
+      role: 'agent',
+      agentName: `Агент контрагента (${bestMatch.author_name})`,
+      avatar: '🤖',
+      text: counterpartResponse2,
+      timestamp: turn4Time,
+    };
 
-    dialogue.push(
-      {
+    if (options?.livePacing) {
+      // Live pacing for real-time SSE presence
+      roomEventBus.broadcast(roomId, 'typing', {
         sender: 'agent:angel',
-        role: 'agent',
         agentName: 'Ваш Агент-Ангел',
         avatar: '👼',
-        text: angelMessage1,
-        timestamp: turn1Time,
-      },
-      {
+        text: 'Формулирует встречное предложение...',
+      });
+      await sleep(550);
+      addMessageToRoomInDb(msg1);
+      roomEventBus.broadcast(roomId, 'message', msg1);
+      roomEventBus.broadcast(roomId, 'turn', turn1);
+
+      roomEventBus.broadcast(roomId, 'typing', {
         sender: 'agent:counterpart',
-        role: 'agent',
         agentName: `Агент контрагента (${bestMatch.author_name})`,
         avatar: '🤖',
-        text: counterpartResponse1,
-        timestamp: turn2Time,
-      },
-      {
+        text: 'Оценивает условия и готовит встречный ответ...',
+      });
+      await sleep(700);
+      addMessageToRoomInDb(msg2);
+      roomEventBus.broadcast(roomId, 'message', msg2);
+      roomEventBus.broadcast(roomId, 'turn', turn2);
+
+      roomEventBus.broadcast(roomId, 'typing', {
         sender: 'agent:angel',
-        role: 'agent',
         agentName: 'Ваш Агент-Ангел',
         avatar: '👼',
-        text: angelMessage2,
-        timestamp: turn3Time,
-      },
-      {
+        text: 'Согласовывает время, формат передачи и приватность...',
+      });
+      await sleep(600);
+      addMessageToRoomInDb(msg3);
+      roomEventBus.broadcast(roomId, 'message', msg3);
+      roomEventBus.broadcast(roomId, 'turn', turn3);
+
+      roomEventBus.broadcast(roomId, 'typing', {
         sender: 'agent:counterpart',
-        role: 'agent',
         agentName: `Агент контрагента (${bestMatch.author_name})`,
         avatar: '🤖',
-        text: counterpartResponse2,
-        timestamp: turn4Time,
-      }
-    );
+        text: 'Подтверждает слот и фиксирует договорённость...',
+      });
+      await sleep(650);
+      addMessageToRoomInDb(msg4);
+      roomEventBus.broadcast(roomId, 'message', msg4);
+      roomEventBus.broadcast(roomId, 'turn', turn4);
+    } else {
+      // Synchronous saving + immediate broadcast
+      addMessageToRoomInDb(msg1);
+      roomEventBus.broadcast(roomId, 'message', msg1);
+      roomEventBus.broadcast(roomId, 'turn', turn1);
 
-    steps.push({
+      addMessageToRoomInDb(msg2);
+      roomEventBus.broadcast(roomId, 'message', msg2);
+      roomEventBus.broadcast(roomId, 'turn', turn2);
+
+      addMessageToRoomInDb(msg3);
+      roomEventBus.broadcast(roomId, 'message', msg3);
+      roomEventBus.broadcast(roomId, 'turn', turn3);
+
+      addMessageToRoomInDb(msg4);
+      roomEventBus.broadcast(roomId, 'message', msg4);
+      roomEventBus.broadcast(roomId, 'turn', turn4);
+    }
+
+    dialogue.push(turn1, turn2, turn3, turn4);
+
+    const stepRound: NegotiationStep = {
       type: 'agent_round',
       title: 'Автономный раунд переговоров через MCP send_message',
       detail: `Агенты согласовали детали: цена, условия, время и протокол приватности`,
       status: 'completed',
       timestamp: turn3Time,
-    });
-
-    steps.push({
+    };
+    const stepAgreement: NegotiationStep = {
       type: 'agreement_recorded',
       title: 'MCP record_agreement: Достигнута предварительная договорённость',
       detail: `Условия зафиксированы в базе данных SQLite. Номер комнаты: ${roomId}`,
       status: 'completed',
       timestamp: turn4Time,
-    });
+    };
+
+    steps.push(stepRound, stepAgreement);
+    roomEventBus.broadcast(roomId, 'step', stepRound);
+    roomEventBus.broadcast(roomId, 'step', stepAgreement);
 
     // Save negotiation record in SQLite
     const negotiationId = `neg-${Date.now()}`;
@@ -340,6 +422,14 @@ export async function runAutonomousNegotiation(
       status: 'agreed',
       rounds: dialogue,
       agreedTerms: agreedTermsObj,
+    });
+
+    // Broadcast final agreement event
+    roomEventBus.broadcast(roomId, 'agreement', {
+      negotiationId,
+      status: 'agreed',
+      agreedTerms: agreedTermsObj,
+      roomId,
     });
 
     const summary = `Я самостоятельно нашёл подходящую карточку «${bestMatch.content.title}», вошёл в защищённую комнату переговоров #${roomId} и провёл автономные переговоры с агентом автора (${bestMatch.author_name}). Все детали согласованы, протокол зафиксирован в SQLite на сервере!`;
@@ -416,5 +506,83 @@ export async function runAutonomousNegotiation(
     steps,
     dialogue: [],
     summary,
+  };
+}
+
+export function prepareNegotiationRoom(userPrompt: string, targetListingId?: string): {
+  roomId: string;
+  bestMatch: any;
+  targetListingTitle: string;
+  isExistingMatch: boolean;
+} {
+  const promptLower = userPrompt.toLowerCase();
+  let bestMatch: any = null;
+
+  if (targetListingId) {
+    bestMatch = getListingByIdFromDb(targetListingId);
+  } else {
+    let category = 'all';
+    let searchLocality = '';
+    if (promptLower.includes('бизнес') || promptLower.includes('партнер') || promptLower.includes('кофаундер') || promptLower.includes('стартап') || promptLower.includes('b2b')) {
+      category = 'business';
+    } else if (promptLower.includes('ваканси') || promptLower.includes('работ') || promptLower.includes('инженер') || promptLower.includes('разработчик') || promptLower.includes('резюме')) {
+      category = 'jobs';
+    } else if (promptLower.includes('ремонт') || promptLower.includes('сантехник') || promptLower.includes('услуг') || promptLower.includes('мастер') || promptLower.includes('санузел')) {
+      category = 'services';
+    } else if (promptLower.includes('знакомств') || promptLower.includes('девушк') || promptLower.includes('парн') || promptLower.includes('поход') || promptLower.includes('компани') || promptLower.includes('настолк')) {
+      category = 'dating';
+    } else if (promptLower.includes('велосипед') || promptLower.includes('вещ') || promptLower.includes('товар') || promptLower.includes('купить')) {
+      category = 'things';
+    } else if (promptLower.includes('поездк') || promptLower.includes('попутчик') || promptLower.includes('челны')) {
+      category = 'rides';
+    } else if (promptLower.includes('доставк') || promptLower.includes('курьер') || promptLower.includes('посылк')) {
+      category = 'delivery';
+    }
+
+    if (promptLower.includes('казан')) searchLocality = 'Казань';
+    else if (promptLower.includes('москв')) searchLocality = 'Москва';
+
+    let candidates = getListingsFromDb({
+      category: category !== 'all' ? category : undefined,
+      locality: searchLocality || undefined,
+    });
+    if (candidates.length === 0) {
+      candidates = getListingsFromDb({ category: category !== 'all' ? category : undefined });
+    }
+    if (candidates.length === 0) {
+      candidates = getListingsFromDb({});
+    }
+    bestMatch = candidates[0] || null;
+  }
+
+  if (bestMatch) {
+    const roomId = `room-${bestMatch.id}-${Date.now().toString(36).substring(4)}`;
+    createRoomInDb({
+      id: roomId,
+      listingId: bestMatch.id,
+      listingTitle: bestMatch.content.title,
+      participants: ['user:client', bestMatch.owner, 'agent:angel', 'agent:counterpart'],
+    });
+    return {
+      roomId,
+      bestMatch,
+      targetListingTitle: bestMatch.content.title,
+      isExistingMatch: true,
+    };
+  }
+
+  const tempId = `temp-${Date.now().toString(36)}`;
+  const roomId = `room-request-${tempId}`;
+  createRoomInDb({
+    id: roomId,
+    listingId: tempId,
+    listingTitle: `Поручение: ${userPrompt.slice(0, 40)}`,
+    participants: ['user:client', 'agent:angel'],
+  });
+  return {
+    roomId,
+    bestMatch: null,
+    targetListingTitle: userPrompt.slice(0, 40),
+    isExistingMatch: false,
   };
 }
