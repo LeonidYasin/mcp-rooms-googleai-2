@@ -193,7 +193,7 @@ export async function executeMcpToolCall(name: string, args: any): Promise<any> 
     }
 
     case 'get_embedding_status': {
-      return { status: getEmbeddingProviderStatus() };
+      return getEmbeddingProviderStatus();
     }
 
     case 'search_listings': {

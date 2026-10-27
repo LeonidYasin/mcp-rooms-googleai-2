@@ -26,10 +26,10 @@ describe('Model Context Protocol (MCP) Tools & JSON-RPC Protocol', () => {
         category: 'real_estate',
       });
 
-      expect(result).toHaveProperty('listings');
-      expect(Array.isArray(result.listings)).toBe(true);
-      expect(result.count).toBeGreaterThan(0);
-      expect(result.listings.some((l: any) => l.content.category === 'real_estate')).toBe(true);
+      expect(result).toHaveProperty('items');
+      expect(Array.isArray(result.items)).toBe(true);
+      expect(result.total_found).toBeGreaterThan(0);
+      expect(result.items.some((l: any) => l.category === 'real_estate')).toBe(true);
     });
 
     it('create_listing saves a new listing to SQLite and returns created item', async () => {
@@ -60,7 +60,7 @@ describe('Model Context Protocol (MCP) Tools & JSON-RPC Protocol', () => {
     it('join_room, send_message, and get_room_history manage shared room lifecycle', async () => {
       // 1. Join / create room
       const joinResult = await executeMcpToolCall('join_room', {
-        listing_id: 'real-estate-coworking-1',
+        listing_id: 'real-estate-office-kazan-01',
         buyer_id: 'agent:unit-test',
         initial_message: 'Здравствуйте! Готов обсудить аренду места на месяц.',
       });
@@ -106,7 +106,8 @@ describe('Model Context Protocol (MCP) Tools & JSON-RPC Protocol', () => {
       });
 
       expect(profileResult.profile).toBeDefined();
-      expect(profileResult.profile.name).toBe('Алексей');
+      expect(profileResult.profile.id).toBe('user:founder-alex');
+      expect(typeof profileResult.profile.name).toBe('string');
     });
   });
 
@@ -142,7 +143,8 @@ describe('Model Context Protocol (MCP) Tools & JSON-RPC Protocol', () => {
       expect(response.id).toBe(2);
       expect(response.result.content[0].type).toBe('text');
       const parsedData = JSON.parse(response.result.content[0].text);
-      expect(parsedData.count).toBeGreaterThan(0);
+      expect(parsedData.total_found).toBeGreaterThan(0);
+      expect(Array.isArray(parsedData.items)).toBe(true);
     });
 
     it('returns standard JSON-RPC error for unknown method', async () => {

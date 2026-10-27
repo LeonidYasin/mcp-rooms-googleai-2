@@ -130,15 +130,18 @@ export function initDatabase() {
   const count = db.prepare('SELECT COUNT(*) as cnt FROM listings').get() as { cnt: number };
   if (count.cnt === 0) {
     seedInitialData();
-  } else {
-    ensureNewCategoriesSeeded();
   }
+  // Real estate / communities were added later than the original seed set, so
+  // they must be ensured on every init, not only when the table already has rows.
+  ensureNewCategoriesSeeded();
 }
 
 function ensureNewCategoriesSeeded() {
   try {
     const count = db.prepare(`SELECT COUNT(*) as cnt FROM listings WHERE category IN ('real_estate', 'communities')`).get() as { cnt: number };
-    if (count.cnt === 0) {
+    const realEstateCount = db.prepare(`SELECT COUNT(*) as cnt FROM listings WHERE category = 'real_estate'`).get() as { cnt: number };
+    const communitiesCount = db.prepare(`SELECT COUNT(*) as cnt FROM listings WHERE category = 'communities'`).get() as { cnt: number };
+    if (count.cnt === 0 || realEstateCount.cnt === 0 || communitiesCount.cnt === 0) {
       const insertListing = db.prepare(`
         INSERT OR IGNORE INTO listings (
           id, owner, author_name, title, description, category, subcategory,
