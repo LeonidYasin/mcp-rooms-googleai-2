@@ -13,6 +13,7 @@ import {
   matchListingAsymmetric,
   getEmbeddingProviderStatus,
 } from './embeddings';
+import { runAutonomousNegotiation } from './negotiator';
 
 // Definitions of Model Context Protocol (MCP) Tools
 export const MCP_TOOLS_MANIFEST = [
@@ -129,6 +130,19 @@ export const MCP_TOOLS_MANIFEST = [
         room_id: { type: 'string', description: 'Идентификатор комнаты' },
       },
       required: ['room_id'],
+    },
+  },
+  {
+    name: 'negotiate_agreement',
+    description:
+      'Запускает автономный цикл переговоров (Multi-Agent Negotiation Loop) между агентом-инициатором и агентом-контрагентом в изолированной комнате для согласования условий, цены и фиксации соглашения в SQLite.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        goal: { type: 'string', description: 'Поручение пользователя или цель переговоров' },
+        target_listing_id: { type: 'string', description: 'Идентификатор целевого объявления (если известно)' },
+      },
+      required: ['goal'],
     },
   },
 ];
@@ -321,6 +335,25 @@ export async function executeMcpToolCall(name: string, args: any): Promise<any> 
         participants: room.participants,
         messages_count: room.messages.length,
         messages: room.messages,
+      };
+    }
+
+    case 'negotiate_agreement': {
+      const goal = args.goal || args.prompt || '';
+      if (!goal) {
+        return { error: 'Параметр goal обязателен' };
+      }
+      const negotiationResult = await runAutonomousNegotiation(goal, args.target_listing_id);
+      return {
+        success: true,
+        negotiation_id: negotiationResult.negotiationId,
+        status: negotiationResult.status,
+        room_id: negotiationResult.roomId,
+        target_listing: negotiationResult.targetListing?.content?.title,
+        rounds_count: negotiationResult.dialogue.length,
+        summary: negotiationResult.summary,
+        agreed_terms: negotiationResult.agreedTerms,
+        steps: negotiationResult.steps,
       };
     }
 
