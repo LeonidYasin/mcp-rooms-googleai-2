@@ -72,11 +72,11 @@ describe('MCP Rooms REST API & Backend Endpoints', () => {
 
   describe('GET /api/listings/:id', () => {
     it('returns 200 and listing data for existing ID', async () => {
-      const res = await fetch(`${baseUrl}/api/listings/real-estate-coworking-1`);
+      const res = await fetch(`${baseUrl}/api/listings/real-estate-office-kazan-01`);
       expect(res.status).toBe(200);
       const data = await res.json();
-      expect(data.id).toBe('real-estate-coworking-1');
-      expect(data.content.title).toContain('коворкинге');
+      expect(data.id).toBe('real-estate-office-kazan-01');
+      expect(data.content.title).toContain('коворкинг');
     });
 
     it('returns 404 for non-existent listing ID', async () => {
