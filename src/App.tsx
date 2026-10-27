@@ -6,7 +6,7 @@ import {
   McpMessage,
   CATEGORY_LABELS,
 } from './types';
-import { INITIAL_LISTINGS, INITIAL_ROOMS } from './data/mockListings';
+import { INITIAL_LISTINGS } from './data/mockListings';
 import { Header } from './components/Header';
 import { ListingCard } from './components/ListingCard';
 import { ListingDetail } from './components/ListingDetail';
@@ -16,10 +16,27 @@ import { AgentModal } from './components/AgentModal';
 import { McpConsole } from './components/McpConsole';
 import { PrinciplesBanner } from './components/PrinciplesBanner';
 import { McpChat } from './components/McpChat';
+import { ApiKeyModal } from './components/ApiKeyModal';
+import {
+  authHeaders,
+  getStoredApiKey,
+  isUnauthorized,
+  readApiFailure,
+} from './lib/api';
 
 export const App: React.FC = () => {
   const [listings, setListings] = useState<Listing[]>(INITIAL_LISTINGS);
-  const [rooms, setRooms] = useState<McpRoom[]>(INITIAL_ROOMS);
+  // Rooms are private: they only come from the server for the current key.
+  const [rooms, setRooms] = useState<McpRoom[]>([]);
+  const [apiKey, setApiKey] = useState<string>(getStoredApiKey());
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+  const [apiKeyReason, setApiKeyReason] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const openApiKeyModal = useCallback((reason?: string) => {
+    setApiKeyReason(reason || null);
+    setIsApiKeyModalOpen(true);
+  }, []);
 
   // Navigation and filters
   const [currentTab, setCurrentTab] = useState<'catalog' | 'mcp' | 'principles' | 'chat'>('catalog');
@@ -38,24 +55,30 @@ export const App: React.FC = () => {
   // Fetch real listings and rooms from SQLite server database
   const refreshDataFromDb = useCallback(async () => {
     try {
+      const hasKey = Boolean(getStoredApiKey());
       const [listingsRes, roomsRes] = await Promise.all([
         fetch('/api/listings'),
-        fetch('/api/rooms'),
+        hasKey ? fetch('/api/rooms', { headers: authHeaders() }) : Promise.resolve(null),
       ]);
       if (listingsRes.ok) {
         const data = await listingsRes.json();
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           setListings(data);
         }
       }
-      if (roomsRes.ok) {
-        const rData = await roomsRes.json();
-        if (Array.isArray(rData) && rData.length > 0) {
-          setRooms(rData);
+      if (roomsRes) {
+        if (roomsRes.ok) {
+          const rData = await roomsRes.json();
+          if (Array.isArray(rData)) setRooms(rData);
+        } else if (roomsRes.status === 401 || roomsRes.status === 403) {
+          // A stale key must not leave someone else's rooms on screen.
+          setRooms([]);
         }
+      } else {
+        setRooms([]);
       }
     } catch {
-      // Fallback to initial state
+      setActionError('Сервер недоступен: данные не загружены, показаны локальные примеры.');
     }
   }, []);
 
@@ -103,25 +126,35 @@ export const App: React.FC = () => {
   };
 
   const handlePublishListing = async (newListing: Listing) => {
+    if (!getStoredApiKey()) {
+      setIsPublishModalOpen(false);
+      openApiKeyModal('Публикация требует API-ключ: объявление записывается от имени владельца ключа.');
+      return;
+    }
     try {
       const res = await fetch('/api/listings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(newListing),
       });
       if (res.ok) {
         const created = await res.json();
         setListings((prev) => [created, ...prev.filter((l) => l.id !== created.id)]);
         setSelectedListing(created);
+        setIsPublishModalOpen(false);
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
+      const failure = await readApiFailure(res);
+      setIsPublishModalOpen(false);
+      if (isUnauthorized(failure)) {
+        openApiKeyModal('Сервер отклонил ключ. Вставьте действующий ключ (401).');
+      } else {
+        setActionError(`Не удалось опубликовать: ${failure.message}`);
+      }
     } catch {
-      // fallback
+      setActionError('Сервер недоступен: объявление не сохранено и в каталог не добавлено.');
     }
-    setListings((prev) => [newListing, ...prev]);
-    setSelectedListing(newListing);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleAddPhotoToListing = (listingId: string, photoDataUrl: string) => {
@@ -148,31 +181,41 @@ export const App: React.FC = () => {
   };
 
   const handleSendMessageToRoom = async (roomId: string, message: McpMessage) => {
+    if (!getStoredApiKey()) {
+      openApiKeyModal('Чтобы писать в комнату, нужен API-ключ участника.');
+      return;
+    }
     try {
-      await fetch(`/api/rooms/${roomId}/messages`, {
+      const res = await fetch(`/api/rooms/${roomId}/messages`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
-          sender: message.sender,
           role: message.role,
           text: message.text,
         }),
       });
-    } catch {
-      // ignore
-    }
-
-    setRooms((prev) =>
-      prev.map((room) => {
-        if (room.id === roomId) {
+      if (!res.ok) {
+        const failure = await readApiFailure(res);
+        if (isUnauthorized(failure)) {
+          openApiKeyModal('Сервер отклонил ключ. Вставьте действующий ключ (401).');
+        } else {
+          setActionError(`Сообщение не отправлено: ${failure.message}`);
+        }
+        return;
+      }
+      const saved = await res.json();
+      setRooms((prev) =>
+        prev.map((room) => {
+          if (room.id !== roomId) return room;
           return {
             ...room,
-            messages: [...room.messages, message],
+            messages: [...room.messages, { ...message, id: saved.id || message.id, sender: saved.sender || message.sender }],
           };
-        }
-        return room;
-      })
-    );
+        })
+      );
+    } catch {
+      setActionError('Сообщение не отправлено: сервер недоступен.');
+    }
   };
 
   const handleContactSeller = (listing: Listing) => {
@@ -195,43 +238,64 @@ export const App: React.FC = () => {
     messageText: string,
     contactInfo: string
   ) => {
-    const existingRoom = rooms.find((r) => r.listingId === listingId);
-    const targetListing = listings.find((l) => l.id === listingId);
+    if (!getStoredApiKey()) {
+      openApiKeyModal(
+        'Отклик на объявление требует API-ключ: сервер записывает сообщение от имени владельца ключа.'
+      );
+      return;
+    }
 
-    const message: McpMessage = {
-      id: 'msg-' + Date.now(),
-      roomId: existingRoom ? existingRoom.id : 'room-' + listingId,
-      sender: contactInfo ? `user:buyer (${contactInfo})` : 'user:buyer-guest',
-      role: 'human',
-      text: messageText,
-      timestamp: Date.now(),
-    };
+    const existingRoom = rooms.find((r) => r.listingId === listingId);
+    const text = contactInfo
+      ? `${messageText}\n\nКонтакт для ответа: ${contactInfo}`
+      : messageText;
 
     if (existingRoom) {
-      await handleSendMessageToRoom(existingRoom.id, message);
+      await handleSendMessageToRoom(existingRoom.id, {
+        id: 'msg-' + Date.now(),
+        roomId: existingRoom.id,
+        sender: 'user:me',
+        role: 'human',
+        text,
+        timestamp: Date.now(),
+      });
     } else {
-      const newRoom: McpRoom = {
-        id: 'room-' + listingId,
-        title: `Отклик: ${targetListing?.content.title || 'Объявление'}`,
-        listingId,
-        listingTitle: targetListing?.content.title,
-        participants: ['user:buyer', targetListing?.owner || 'user:seller', 'agent:mcp-assistant'],
-        status: 'active',
-        messages: [message],
-      };
-      setRooms((prev) => [newRoom, ...prev]);
+      // The room is created by the real MCP tool, not by a client-side guess.
       try {
-        await fetch(`/api/rooms/${newRoom.id}/messages`, {
+        const res = await fetch('/mcp', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({
-            sender: message.sender,
-            role: message.role,
-            text: message.text,
+            jsonrpc: '2.0',
+            id: Date.now(),
+            method: 'tools/call',
+            params: {
+              name: 'join_room',
+              arguments: { listing_id: listingId, initial_message: text },
+            },
           }),
         });
+        if (!res.ok) {
+          const failure = await readApiFailure(res);
+          if (isUnauthorized(failure)) {
+            openApiKeyModal('Сервер отклонил ключ. Вставьте действующий ключ (401).');
+          } else {
+            setActionError(`Не удалось открыть комнату: ${failure.message}`);
+          }
+          return;
+        }
+        const body = await res.json();
+        const payload = body?.result?.data;
+        if (!payload || payload.error) {
+          setActionError(
+            `Не удалось открыть комнату: ${payload?.message || payload?.error || 'неизвестная ошибка'}`
+          );
+          return;
+        }
+        await refreshDataFromDb();
       } catch {
-        // ignore
+        setActionError('Не удалось открыть комнату: сервер недоступен.');
+        return;
       }
     }
 
@@ -275,6 +339,8 @@ export const App: React.FC = () => {
         }}
         selectedLocality={selectedLocality}
         onLocalityChange={setSelectedLocality}
+        hasApiKey={Boolean(apiKey)}
+        onOpenApiKey={() => openApiKeyModal()}
       />
 
       {/* Main Content Area */}
@@ -295,6 +361,7 @@ export const App: React.FC = () => {
             onRefreshData={refreshDataFromDb}
             contextListing={contextListing}
             onClearContextListing={() => setContextListing(null)}
+            onRequireKey={(reason) => openApiKeyModal(reason)}
           />
         ) : currentTab === 'mcp' ? (
           <McpConsole
@@ -415,7 +482,35 @@ export const App: React.FC = () => {
         )}
       </main>
 
+      {/* Server-side failures are shown, never silently swallowed */}
+      {actionError && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 max-w-lg w-[calc(100%-2rem)]">
+          <div className="flex items-start gap-3 rounded-xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/60 text-red-800 dark:text-red-200 px-4 py-3 text-sm shadow-lg">
+            <span>⚠️</span>
+            <span className="flex-1">{actionError}</span>
+            <button
+              type="button"
+              onClick={() => setActionError(null)}
+              className="text-red-700 dark:text-red-300 hover:opacity-70 cursor-pointer"
+              aria-label="Закрыть"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Modals */}
+      <ApiKeyModal
+        isOpen={isApiKeyModalOpen}
+        onClose={() => setIsApiKeyModalOpen(false)}
+        onSaved={(key) => {
+          setApiKey(key);
+          void refreshDataFromDb();
+        }}
+        reason={apiKeyReason}
+      />
+
       <PublishModal
         isOpen={isPublishModalOpen}
         onClose={() => setIsPublishModalOpen(false)}

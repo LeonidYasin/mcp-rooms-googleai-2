@@ -7,6 +7,9 @@ describe('Model Context Protocol (MCP) Tools & JSON-RPC Protocol', () => {
     initDatabase();
   });
 
+  const alice = { principalId: 'user:mcp-alice' };
+  const mallory = { principalId: 'user:mcp-mallory' };
+
   describe('MCP Tools Manifest', () => {
     it('manifest defines all required autonomous tools', () => {
       const toolNames = MCP_TOOLS_MANIFEST.map((t) => t.name);
@@ -34,19 +37,24 @@ describe('Model Context Protocol (MCP) Tools & JSON-RPC Protocol', () => {
 
     it('create_listing saves a new listing to SQLite and returns created item', async () => {
       const testTitle = 'Тестовая аренда переговорной комнаты ' + Date.now();
-      const result = await executeMcpToolCall('create_listing', {
-        title: testTitle,
-        description: 'Оборудованная комната для встреч с проектором и доской',
-        category: 'real_estate',
-        kind: 'offer',
-        locality: 'Казань',
-        price_rubles: 1500,
-        modes: ['pickup'],
-        condition: 'Отличное',
-      });
+      const result = await executeMcpToolCall(
+        'create_listing',
+        {
+          title: testTitle,
+          description: 'Оборудованная комната для встреч с проектором и доской',
+          category: 'real_estate',
+          kind: 'offer',
+          locality: 'Казань',
+          price_rubles: 1500,
+          modes: ['pickup'],
+          condition: 'Отличное',
+        },
+        alice
+      );
 
       expect(result.success).toBe(true);
       expect(result.created_listing).toBeDefined();
+      expect(result.created_listing.owner).toBe(alice.principalId);
       expect(result.created_listing.id).toBeDefined();
       expect(result.created_listing.content.title).toBe(testTitle);
 
@@ -59,31 +67,37 @@ describe('Model Context Protocol (MCP) Tools & JSON-RPC Protocol', () => {
 
     it('join_room, send_message, and get_room_history manage shared room lifecycle', async () => {
       // 1. Join / create room
-      const joinResult = await executeMcpToolCall('join_room', {
-        listing_id: 'real-estate-office-kazan-01',
-        buyer_id: 'agent:unit-test',
-        initial_message: 'Здравствуйте! Готов обсудить аренду места на месяц.',
-      });
+      const joinResult = await executeMcpToolCall(
+        'join_room',
+        {
+          listing_id: 'real-estate-office-kazan-01',
+          initial_message: 'Здравствуйте! Готов обсудить аренду места на месяц.',
+        },
+        alice
+      );
 
       expect(joinResult.success).toBe(true);
       expect(joinResult.room_id).toBeDefined();
       const roomId = joinResult.room_id;
 
       // 2. Send message
-      const msgResult = await executeMcpToolCall('send_message', {
-        room_id: roomId,
-        sender: 'agent:counterparty',
-        role: 'agent',
-        text: 'Приветствую! Мы подтверждаем доступность с понедельника.',
-      });
+      const msgResult = await executeMcpToolCall(
+        'send_message',
+        {
+          room_id: roomId,
+          role: 'agent',
+          text: 'Приветствую! Мы подтверждаем доступность с понедельника.',
+        },
+        alice
+      );
 
       expect(msgResult.success).toBe(true);
       expect(msgResult.message.text).toContain('подтверждаем');
+      // The server stamps the sender; the client cannot choose it.
+      expect(msgResult.message.sender).toBe(alice.principalId);
 
       // 3. Get room history
-      const historyResult = await executeMcpToolCall('get_room_history', {
-        room_id: roomId,
-      });
+      const historyResult = await executeMcpToolCall('get_room_history', { room_id: roomId }, alice);
 
       expect(historyResult.room_id).toBe(roomId);
       expect(historyResult.messages.length).toBeGreaterThanOrEqual(2);
@@ -92,6 +106,58 @@ describe('Model Context Protocol (MCP) Tools & JSON-RPC Protocol', () => {
       const roomInDb = getRoomByIdFromDb(roomId);
       expect(roomInDb).toBeDefined();
       expect(roomInDb?.messages.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('refuses room tools without a principal and for non-participants', async () => {
+      const noAuth = await executeMcpToolCall('join_room', {
+        listing_id: 'real-estate-office-kazan-01',
+      });
+      expect(noAuth.error).toBe('authentication_required');
+
+      const joinResult = await executeMcpToolCall(
+        'join_room',
+        { listing_id: 'real-estate-office-kazan-01' },
+        alice
+      );
+      expect(joinResult.success).toBe(true);
+
+      const foreignHistory = await executeMcpToolCall(
+        'get_room_history',
+        { room_id: joinResult.room_id },
+        mallory
+      );
+      expect(foreignHistory.error).toBe('forbidden');
+
+      const foreignWrite = await executeMcpToolCall(
+        'send_message',
+        { room_id: joinResult.room_id, text: 'чужое сообщение' },
+        mallory
+      );
+      expect(foreignWrite.error).toBe('forbidden');
+    });
+
+    it('does not let a caller join a room as someone else', async () => {
+      const joinResult = await executeMcpToolCall(
+        'join_room',
+        {
+          listing_id: 'real-estate-office-kazan-01',
+          buyer_id: 'user:mcp-alice',
+          initial_message: 'проверка подмены отправителя',
+        },
+        mallory
+      );
+
+      expect(joinResult.success).toBe(true);
+      expect(joinResult.room.participants).toContain(mallory.principalId);
+      // The seller of the seeded listing, not the spoofed buyer_id, is the other side.
+      expect(joinResult.room.participants).not.toContain('user:mcp-alice');
+
+      const history = await executeMcpToolCall(
+        'get_room_history',
+        { room_id: joinResult.room_id },
+        mallory
+      );
+      expect(history.messages[0].sender).toBe(mallory.principalId);
     });
 
     it('get_embedding_status returns current provider status without throwing', async () => {

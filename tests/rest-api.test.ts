@@ -2,13 +2,16 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { Server } from 'http';
 import { app } from '../server';
 import { initDatabase } from '../server/db';
+import { authJson, issueTestKey } from './auth-helpers';
 
 describe('MCP Rooms REST API & Backend Endpoints', () => {
   let server: Server;
   let baseUrl: string;
+  let apiKey: string;
 
   beforeAll(async () => {
     initDatabase();
+    apiKey = issueTestKey('user:rest-suite').key;
     await new Promise<void>((resolve) => {
       server = app.listen(0, '127.0.0.1', () => {
         const addr = server.address();
@@ -101,13 +104,15 @@ describe('MCP Rooms REST API & Backend Endpoints', () => {
 
       const res = await fetch(`${baseUrl}/api/listings`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authJson(apiKey),
         body: JSON.stringify(newListing),
       });
 
       expect(res.status).toBe(201);
       const data = await res.json();
       expect(data.id).toBeDefined();
+      // The owner is the authenticated principal, never a value from the body.
+      expect(data.owner).toBe('user:rest-suite');
       expect(data.content.title).toBe(newListing.title);
       expect(data.content.category).toBe('communities');
 
@@ -120,15 +125,25 @@ describe('MCP Rooms REST API & Backend Endpoints', () => {
   });
 
   describe('GET /api/rooms & Shared Rooms', () => {
-    it('returns list of negotiation rooms from SQLite', async () => {
+    it('requires a key: rooms are private to their participants', async () => {
       const res = await fetch(`${baseUrl}/api/rooms`);
+      expect(res.status).toBe(401);
+    });
+
+    it('returns only the rooms of the current principal', async () => {
+      const res = await fetch(`${baseUrl}/api/rooms`, { headers: authJson(apiKey) });
       expect(res.status).toBe(200);
       const data = await res.json();
       expect(Array.isArray(data)).toBe(true);
+      for (const room of data) {
+        expect(room.participants).toContain('user:rest-suite');
+      }
     });
 
     it('returns 404 for invalid room ID', async () => {
-      const res = await fetch(`${baseUrl}/api/rooms/unknown-room-xyz`);
+      const res = await fetch(`${baseUrl}/api/rooms/unknown-room-xyz`, {
+        headers: authJson(apiKey),
+      });
       expect(res.status).toBe(404);
     });
   });
@@ -154,7 +169,7 @@ describe('MCP Rooms REST API & Backend Endpoints', () => {
 
       const res = await fetch(`${baseUrl}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authJson(apiKey),
         body: JSON.stringify(chatPayload),
       });
 
@@ -170,7 +185,7 @@ describe('MCP Rooms REST API & Backend Endpoints', () => {
     it('gracefully handles empty or malformed requests without crashing', async () => {
       const res = await fetch(`${baseUrl}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authJson(apiKey),
         body: JSON.stringify({}),
       });
 

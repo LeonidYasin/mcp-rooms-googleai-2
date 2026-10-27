@@ -3,6 +3,7 @@ import type { Server } from 'http';
 import { app } from '../server';
 import { initDatabase } from '../server/db';
 import { MCP_TOOLS_MANIFEST } from '../server/mcp';
+import { authJson, issueTestKey } from './auth-helpers';
 
 /**
  * PR-2 contract: the chat API must never report a tool call that did not happen,
@@ -11,13 +12,14 @@ import { MCP_TOOLS_MANIFEST } from '../server/mcp';
 describe('Chat honesty: no synthesised tool calls', () => {
   let server: Server;
   let baseUrl: string;
+  let apiKey: string;
 
   const manifestNames = MCP_TOOLS_MANIFEST.map((t) => t.name);
 
   const chat = async (content: string) => {
     const res = await fetch(`${baseUrl}/api/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authJson(apiKey),
       body: JSON.stringify({ messages: [{ role: 'user', content }] }),
     });
     expect(res.status).toBe(200);
@@ -26,6 +28,7 @@ describe('Chat honesty: no synthesised tool calls', () => {
 
   beforeAll(async () => {
     initDatabase();
+    apiKey = issueTestKey('user:chat-honesty').key;
     await new Promise<void>((resolve) => {
       server = app.listen(0, '127.0.0.1', () => resolve());
     });

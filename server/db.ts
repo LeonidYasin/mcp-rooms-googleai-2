@@ -94,6 +94,18 @@ export function initDatabase() {
       FOREIGN KEY(listing_id) REFERENCES listings(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS api_keys (
+      id TEXT PRIMARY KEY,
+      principal_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      digest TEXT NOT NULL UNIQUE, -- sha256 hex of the bearer token; the token itself is never stored
+      created_at INTEGER NOT NULL,
+      last_used_at INTEGER,
+      revoked_at INTEGER
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_api_keys_principal ON api_keys(principal_id);
+
     CREATE TABLE IF NOT EXISTS negotiations (
       id TEXT PRIMARY KEY,
       room_id TEXT NOT NULL,
@@ -1090,4 +1102,94 @@ function formatListingRow(row: any) {
     photos,
     responses_count: row.responses_count,
   };
+}
+
+// ---------------------------------------------------------------------------
+// API keys (PR-3). Only the sha256 digest is persisted; the bearer token is
+// printed once by scripts/issue-key.ts and never written to disk or logs.
+// ---------------------------------------------------------------------------
+export interface ApiKeyRecord {
+  id: string;
+  principalId: string;
+  name: string;
+  createdAt: number;
+  lastUsedAt: number | null;
+  revokedAt: number | null;
+}
+
+function mapApiKeyRow(row: any): ApiKeyRecord {
+  return {
+    id: row.id,
+    principalId: row.principal_id,
+    name: row.name,
+    createdAt: row.created_at,
+    lastUsedAt: row.last_used_at ?? null,
+    revokedAt: row.revoked_at ?? null,
+  };
+}
+
+export function createApiKeyInDb(record: {
+  id: string;
+  principalId: string;
+  name: string;
+  digest: string;
+  createdAt: number;
+}) {
+  db.prepare(
+    `INSERT INTO api_keys (id, principal_id, name, digest, created_at)
+     VALUES (?, ?, ?, ?, ?)`
+  ).run(record.id, record.principalId, record.name, record.digest, record.createdAt);
+  return getApiKeyByIdInDb(record.id)!;
+}
+
+export function getApiKeyByIdInDb(id: string): ApiKeyRecord | null {
+  const row = db.prepare('SELECT * FROM api_keys WHERE id = ?').get(id) as any;
+  return row ? mapApiKeyRow(row) : null;
+}
+
+export function getApiKeyByDigestInDb(digest: string): ApiKeyRecord | null {
+  const row = db.prepare('SELECT * FROM api_keys WHERE digest = ?').get(digest) as any;
+  return row ? mapApiKeyRow(row) : null;
+}
+
+export function listApiKeysInDb(): ApiKeyRecord[] {
+  const rows = db.prepare('SELECT * FROM api_keys ORDER BY created_at ASC').all() as any[];
+  return rows.map(mapApiKeyRow);
+}
+
+/** Updates last_used_at only when it is stale, to keep reads cheap. */
+export function touchApiKeyInDb(id: string, at: number, minIntervalMs = 60_000) {
+  db.prepare(
+    `UPDATE api_keys SET last_used_at = ?
+     WHERE id = ? AND (last_used_at IS NULL OR last_used_at < ?)`
+  ).run(at, id, at - minIntervalMs);
+}
+
+export function revokeApiKeyInDb(id: string, at: number): boolean {
+  const result = db.prepare('UPDATE api_keys SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL').run(at, id);
+  return result.changes > 0;
+}
+
+/**
+ * Public projection of a listing: the storefront is readable without a key, so
+ * it must not carry owner principal ids, the stored embedding vector or contact
+ * channels. Author display data stays.
+ */
+export function toPublicListing(listing: any): any {
+  if (!listing) return listing;
+  const { owner, embedding_json, profile_id, profile, ...rest } = listing;
+  const publicProfile = profile
+    ? {
+        id: profile.id,
+        type: profile.type,
+        name: profile.name,
+        headline: profile.headline,
+        bio: profile.bio,
+        avatar_url: profile.avatar_url,
+        locality: profile.locality,
+        verified: profile.verified,
+        reputation_score: profile.reputation_score,
+      }
+    : undefined;
+  return { ...rest, profile: publicProfile };
 }

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Listing, McpRoom, McpMessage } from '../types';
 import { callMcpTool, listMcpTools, McpToolInfo } from '../lib/mcpClient';
+import { getStoredApiKey } from '../lib/api';
 
 interface McpConsoleProps {
   listings: Listing[];
@@ -61,9 +62,10 @@ export const McpConsole: React.FC<McpConsoleProps> = ({
           condition: 'Б/у, рабочее',
         };
       case 'join_room':
-        return { listing_id: listings[0]?.id || '', buyer_id: 'agent:console', initial_message: '' };
+        // No buyer/sender fields: the server takes them from the key.
+        return { listing_id: listings[0]?.id || '', initial_message: '' };
       case 'send_message':
-        return { room_id: currentRoom?.id || '', sender: 'agent:console', role: 'agent', text: '' };
+        return { room_id: currentRoom?.id || '', role: 'agent', text: '' };
       case 'get_room_history':
         return { room_id: currentRoom?.id || '' };
       case 'negotiate_agreement':
@@ -190,6 +192,12 @@ export const McpConsole: React.FC<McpConsoleProps> = ({
             Не удалось получить <code>tools/list</code>. Проверьте, что сервер запущен.
           </p>
         )}
+        {!getStoredApiKey() && (
+          <p className="text-xs text-amber-800 dark:text-amber-300 mt-2">
+            Ключ не задан: <code>tools/list</code> открыт, но <code>tools/call</code> вернёт 401.
+            Нажмите 🔑 в шапке и вставьте ключ, выданный командой <code>npm run key:issue</code>.
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -220,6 +228,12 @@ export const McpConsole: React.FC<McpConsoleProps> = ({
 
           {/* Messages list */}
           <div className="flex-1 p-4 overflow-y-auto space-y-3.5 text-sm bg-[var(--canvas)]">
+            {!currentRoom && (
+              <div className="text-xs text-[var(--muted)] leading-relaxed">
+                Комнат нет: они создаются инструментом <code>join_room</code> и видны только
+                участникам. Без ключа список комнат пуст — это ожидаемо.
+              </div>
+            )}
             {currentRoom?.messages.map((m) => (
               <div
                 key={m.id}

@@ -8,12 +8,14 @@ import {
   addMessageToRoomInDb,
   getProfilesFromDb,
   getProfileByIdFromDb,
+  toPublicListing,
 } from './db';
 import {
   matchListingAsymmetric,
   getEmbeddingProviderStatus,
 } from './embeddings';
 import { runAutonomousNegotiation } from './negotiator';
+import { isRoomParticipant } from './auth';
 
 // Definitions of Model Context Protocol (MCP) Tools
 export const MCP_TOOLS_MANIFEST = [
@@ -96,29 +98,27 @@ export const MCP_TOOLS_MANIFEST = [
   {
     name: 'join_room',
     description:
-      'Создаёт или присоединяется к защищённой изолированной комнате переговоров (Shared Room) для обсуждения конкретного объявления.',
+      'Создаёт или присоединяется к комнате переговоров (Shared Room) для обсуждения конкретного объявления. Участник комнаты — владелец ключа; передавать чужой идентификатор нельзя.',
     inputSchema: {
       type: 'object',
       properties: {
         listing_id: { type: 'string', description: 'Идентификатор обсуждаемого объявления' },
-        buyer_id: { type: 'string', description: 'Идентификатор пользователя или его агента' },
         initial_message: { type: 'string', description: 'Первичное обращение к контрагенту' },
       },
-      required: ['listing_id', 'buyer_id'],
+      required: ['listing_id'],
     },
   },
   {
     name: 'send_message',
-    description: 'Отправляет сообщение или аргумент переговоров в защищённую комнату переговоров.',
+    description: 'Отправляет сообщение от имени владельца ключа в комнату, где он состоит участником.',
     inputSchema: {
       type: 'object',
       properties: {
         room_id: { type: 'string', description: 'Идентификатор комнаты переговоров' },
-        sender: { type: 'string', description: 'Имя или ID отправителя (например agent:angel)' },
-        role: { type: 'string', enum: ['agent', 'human', 'system'], description: 'Роль отправителя' },
+        role: { type: 'string', enum: ['agent', 'human'], description: 'Роль отправителя (system зарезервирована сервером)' },
         text: { type: 'string', description: 'Текст сообщения' },
       },
-      required: ['room_id', 'sender', 'text'],
+      required: ['room_id', 'text'],
     },
   },
   {
@@ -147,8 +147,22 @@ export const MCP_TOOLS_MANIFEST = [
   },
 ];
 
+export interface McpCallContext {
+  /** Principal resolved from the request key. Tools that write or read a room require it. */
+  principalId?: string;
+}
+
+const AUTH_REQUIRED = {
+  error: 'authentication_required',
+  message: 'Этот инструмент требует API-ключ: Authorization: Bearer <token>.',
+};
+
 // Execute MCP Tool directly against the SQLite database
-export async function executeMcpToolCall(name: string, args: any): Promise<any> {
+export async function executeMcpToolCall(
+  name: string,
+  args: any,
+  ctx: McpCallContext = {}
+): Promise<any> {
   switch (name) {
     case 'match_listings': {
       const candidates = getListingsFromDb({
@@ -222,6 +236,7 @@ export async function executeMcpToolCall(name: string, args: any): Promise<any> 
     }
 
     case 'create_listing': {
+      if (!ctx.principalId) return AUTH_REQUIRED;
       const priceMinor =
         args.price_rubles && args.price_rubles > 0
           ? Math.floor(args.price_rubles * 100)
@@ -229,8 +244,8 @@ export async function executeMcpToolCall(name: string, args: any): Promise<any> 
 
       const newListing = {
         id: 'listing-' + Date.now(),
-        owner: 'user:agent-angel',
-        author_name: args.author_name || 'Агент-Ангел (по поручению пользователя)',
+        owner: ctx.principalId,
+        author_name: args.author_name || ctx.principalId,
         content: {
           title: args.title,
           description: args.description,
@@ -262,15 +277,22 @@ export async function executeMcpToolCall(name: string, args: any): Promise<any> 
     }
 
     case 'join_room': {
+      const buyer = ctx.principalId;
+      if (!buyer) return AUTH_REQUIRED;
+
       const listing = getListingByIdFromDb(args.listing_id);
       if (!listing) {
         return { error: `Объявление ${args.listing_id} не найдено` };
       }
+      if (listing.owner === buyer) {
+        return { error: 'Нельзя открыть переговоры по собственному объявлению' };
+      }
 
-      // Check if room already exists for this listing and buyer
+      // A room is visible only to its participants, so the caller can only ever
+      // rejoin a room they already belong to.
       const rooms = getRoomsFromDb();
       let room: any = rooms.find(
-        (r) => r.listingId === args.listing_id && r.participants.includes(args.buyer_id)
+        (r) => r.listingId === args.listing_id && r.participants.includes(buyer)
       );
 
       if (!room) {
@@ -279,14 +301,14 @@ export async function executeMcpToolCall(name: string, args: any): Promise<any> 
           id: roomId,
           listingId: listing.id,
           listingTitle: listing.content.title,
-          participants: [args.buyer_id, listing.owner, 'agent:counterpart', 'agent:angel'],
+          participants: [buyer, listing.owner],
         });
 
         if (args.initial_message) {
           addMessageToRoomInDb({
             id: 'msg-' + Date.now(),
             roomId,
-            sender: args.buyer_id,
+            sender: buyer,
             role: 'agent',
             text: args.initial_message,
             timestamp: Date.now(),
@@ -306,17 +328,31 @@ export async function executeMcpToolCall(name: string, args: any): Promise<any> 
     }
 
     case 'send_message': {
+      const sender = ctx.principalId;
+      if (!sender) return AUTH_REQUIRED;
+
       const room = getRoomByIdFromDb(args.room_id);
       if (!room) {
         return { error: `Комната ${args.room_id} не найдена` };
+      }
+      if (!isRoomParticipant(room, sender)) {
+        return { error: 'forbidden', message: 'Вы не участник этой комнаты' };
+      }
+      if (room.status === 'closed') {
+        return { error: 'room_closed', message: 'Комната закрыта' };
+      }
+
+      const text = typeof args.text === 'string' ? args.text.trim() : '';
+      if (!text) {
+        return { error: 'Параметр text обязателен' };
       }
 
       const msg = {
         id: 'msg-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
         roomId: args.room_id,
-        sender: args.sender,
-        role: args.role || 'agent',
-        text: args.text,
+        sender,
+        role: args.role === 'human' ? 'human' : 'agent',
+        text,
         timestamp: Date.now(),
       };
 
@@ -325,9 +361,13 @@ export async function executeMcpToolCall(name: string, args: any): Promise<any> 
     }
 
     case 'get_room_history': {
+      if (!ctx.principalId) return AUTH_REQUIRED;
       const room = getRoomByIdFromDb(args.room_id);
       if (!room) {
         return { error: `Комната ${args.room_id} не найдена` };
+      }
+      if (!isRoomParticipant(room, ctx.principalId)) {
+        return { error: 'forbidden', message: 'Вы не участник этой комнаты' };
       }
       return {
         room_id: room.id,
@@ -339,11 +379,14 @@ export async function executeMcpToolCall(name: string, args: any): Promise<any> 
     }
 
     case 'negotiate_agreement': {
+      if (!ctx.principalId) return AUTH_REQUIRED;
       const goal = args.goal || args.prompt || '';
       if (!goal) {
         return { error: 'Параметр goal обязателен' };
       }
-      const negotiationResult = await runAutonomousNegotiation(goal, args.target_listing_id);
+      const negotiationResult = await runAutonomousNegotiation(goal, args.target_listing_id, {
+        principalId: ctx.principalId,
+      });
       return {
         success: true,
         negotiation_id: negotiationResult.negotiationId,
@@ -363,7 +406,10 @@ export async function executeMcpToolCall(name: string, args: any): Promise<any> 
 }
 
 // JSON-RPC 2.0 Handler for external AI agents connecting to MCP server
-export async function handleMcpJsonRpcRequest(rpcBody: any): Promise<any> {
+export async function handleMcpJsonRpcRequest(
+  rpcBody: any,
+  ctx: McpCallContext = {}
+): Promise<any> {
   const { jsonrpc, id, method, params } = rpcBody;
 
   if (jsonrpc !== '2.0') {
@@ -386,7 +432,7 @@ export async function handleMcpJsonRpcRequest(rpcBody: any): Promise<any> {
         if (!name) {
           return { jsonrpc: '2.0', id, error: { code: -32602, message: 'Missing tool name' } };
         }
-        const toolResult = await executeMcpToolCall(name, toolArgs || {});
+        const toolResult = await executeMcpToolCall(name, toolArgs || {}, ctx);
         return {
           jsonrpc: '2.0',
           id,
@@ -425,7 +471,7 @@ export async function handleMcpJsonRpcRequest(rpcBody: any): Promise<any> {
       case 'resources/read': {
         const { uri } = params || {};
         if (uri === 'listings://all') {
-          const listings = getListingsFromDb({});
+          const listings = getListingsFromDb({}).map(toPublicListing);
           return {
             jsonrpc: '2.0',
             id,
@@ -435,7 +481,18 @@ export async function handleMcpJsonRpcRequest(rpcBody: any): Promise<any> {
           };
         }
         if (uri === 'rooms://all') {
-          const rooms = getRoomsFromDb();
+          // Rooms are private to their participants: this resource used to dump
+          // every conversation to any client (audit F-01).
+          if (!ctx.principalId) {
+            return {
+              jsonrpc: '2.0',
+              id,
+              error: { code: -32001, message: 'Unauthorized: rooms://all requires an API key' },
+            };
+          }
+          const rooms = getRoomsFromDb().filter((r: any) =>
+            isRoomParticipant(r, ctx.principalId)
+          );
           return {
             jsonrpc: '2.0',
             id,

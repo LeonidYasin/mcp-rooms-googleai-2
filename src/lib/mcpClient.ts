@@ -1,3 +1,5 @@
+import { authHeaders } from './api';
+
 export interface McpToolInfo {
   name: string;
   description?: string;
@@ -21,11 +23,18 @@ interface JsonRpcResponse {
 async function postJsonRpc(payload: Record<string, unknown>): Promise<JsonRpcResponse> {
   const res = await fetch('/mcp', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: authHeaders({ 'content-type': 'application/json' }),
     body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), ...payload }),
   });
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    let message = `HTTP ${res.status} ${res.statusText}`;
+    try {
+      const body = await res.json();
+      if (body?.error?.message) message = body.error.message;
+    } catch {
+      // non-JSON error body
+    }
+    throw new Error(message);
   }
   return (await res.json()) as JsonRpcResponse;
 }
