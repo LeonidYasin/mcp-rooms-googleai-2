@@ -19,7 +19,7 @@ import { getEmbeddingProviderStatus, matchListingAsymmetric } from './server/emb
 import { roomEventBus } from './server/events';
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json({ limit: '10mb' }));
 
@@ -750,7 +750,8 @@ async function start() {
     app.use(vite.middlewares);
   } else {
     app.use(express.static('dist'));
-    app.get('*', (_req, res) => {
+    // Express 5 / path-to-regexp v8: bare '*' is invalid, use a named splat.
+    app.get('/{*splat}', (_req, res) => {
       res.sendFile('dist/index.html', { root: '.' });
     });
   }

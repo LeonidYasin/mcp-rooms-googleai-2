@@ -26,10 +26,10 @@ describe('Model Context Protocol (MCP) Tools & JSON-RPC Protocol', () => {
         category: 'real_estate',
       });
 
-      expect(result).toHaveProperty('listings');
-      expect(Array.isArray(result.listings)).toBe(true);
-      expect(result.count).toBeGreaterThan(0);
-      expect(result.listings.some((l: any) => l.content.category === 'real_estate')).toBe(true);
+      expect(result).toHaveProperty('items');
+      expect(Array.isArray(result.items)).toBe(true);
+      expect(result.total_found).toBeGreaterThan(0);
+      expect(result.items.some((l: any) => l.category === 'real_estate')).toBe(true);
     });
 
     it('create_listing saves a new listing to SQLite and returns created item', async () => {
