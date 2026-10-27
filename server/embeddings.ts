@@ -15,15 +15,27 @@ export interface MatchResultItem {
 }
 
 let aiClient: GoogleGenAI | null = null;
+let isGeminiEmbeddingKeyValid = true;
+let lastInvalidEmbeddingKey: string | null = null;
 
 function getAiClient(): GoogleGenAI | null {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey.trim() === '' || apiKey.includes('YOUR_')) {
+  const apiKey = (process.env.GEMINI_API_KEY || process.env.API_KEY || '').trim();
+  if (!apiKey || apiKey === '' || apiKey.includes('YOUR_') || apiKey.length < 15) {
+    return null;
+  }
+  if (lastInvalidEmbeddingKey === apiKey && !isGeminiEmbeddingKeyValid) {
     return null;
   }
   if (!aiClient) {
     try {
-      aiClient = new GoogleGenAI();
+      aiClient = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          },
+        },
+      });
     } catch {
       aiClient = null;
     }
@@ -34,7 +46,7 @@ function getAiClient(): GoogleGenAI | null {
 export function getEmbeddingProviderStatus(): EmbeddingProviderStatus {
   const rawProvider = (process.env.EMBEDDING_PROVIDER || 'google').toLowerCase().trim();
   const model = process.env.EMBEDDING_MODEL || 'text-embedding-004';
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = (process.env.GEMINI_API_KEY || process.env.API_KEY || '').trim();
 
   if (rawProvider === 'disabled' || rawProvider === 'none' || rawProvider === 'false' || rawProvider === 'off') {
     return {
@@ -45,12 +57,21 @@ export function getEmbeddingProviderStatus(): EmbeddingProviderStatus {
     };
   }
 
-  if (!apiKey || apiKey.trim() === '' || apiKey.includes('YOUR_')) {
+  if (!apiKey || apiKey === '' || apiKey.includes('YOUR_') || apiKey.length < 15) {
     return {
       provider: 'fallback',
       model,
       isAvailable: false,
       reason: 'API-ключ Gemini не задан, активен лексический семантический поиск',
+    };
+  }
+
+  if (!isGeminiEmbeddingKeyValid && lastInvalidEmbeddingKey === apiKey) {
+    return {
+      provider: 'fallback',
+      model,
+      isAvailable: false,
+      reason: 'API-ключ недействителен, активен лексический семантический поиск',
     };
   }
 
@@ -90,7 +111,12 @@ export async function computeEmbedding(text: string): Promise<number[] | null> {
     }
     return null;
   } catch (err: any) {
-    // Graceful fallback without crashing
+    if (err?.message?.includes('API_KEY_INVALID') || err?.message?.includes('API key not valid')) {
+      const apiKey = (process.env.GEMINI_API_KEY || process.env.API_KEY || '').trim();
+      lastInvalidEmbeddingKey = apiKey;
+      isGeminiEmbeddingKeyValid = false;
+      aiClient = null;
+    }
     return null;
   }
 }

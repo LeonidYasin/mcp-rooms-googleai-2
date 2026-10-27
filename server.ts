@@ -26,16 +26,17 @@ app.use(express.json({ limit: '10mb' }));
 // Initialize persistent SQLite database on disk
 initDatabase();
 
-let isGeminiKeyFunctional: boolean | null = null;
+// Track if current key is known to be rejected/invalid to avoid hammering failing API
+let lastInvalidGeminiKey: string | null = null;
+let lastInvalidKeyTimestamp = 0;
 
 // Helper to safely get the GoogleGenAI client with user-agent telemetry header
 function getGenAiClient(): GoogleGenAI | null {
-  if (isGeminiKeyFunctional === false) {
-    return null;
-  }
   const apiKey = (process.env.GEMINI_API_KEY || process.env.API_KEY || '').trim();
   if (!apiKey || apiKey === 'YOUR_API_KEY' || apiKey.length < 15) {
-    isGeminiKeyFunctional = false;
+    return null;
+  }
+  if (lastInvalidGeminiKey === apiKey && Date.now() - lastInvalidKeyTimestamp < 30000) {
     return null;
   }
   return new GoogleGenAI({
@@ -47,6 +48,98 @@ function getGenAiClient(): GoogleGenAI | null {
     },
   });
 }
+
+// Gemini Function Calling Tools Manifest
+const mcpGeminiTools: FunctionDeclaration[] = [
+  {
+    name: 'search_listings',
+    description:
+      'Ищет активные объявления и предложения на площадке MCP Rooms по ключевым словам, категориям (business, jobs, services, real_estate, communities, things, dating, rides, delivery), типу и городу.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        query: { type: Type.STRING, description: 'Поисковый запрос (например: коворкинг, офис, аренда, ремонт, вакансия)' },
+        category: {
+          type: Type.STRING,
+          description: 'Категория: business, jobs, services, real_estate, communities, things, dating, rides, delivery, other, all',
+        },
+        kind: { type: Type.STRING, description: 'Тип: offer (предлагаю), request (хочу/ищу), all' },
+        locality: { type: Type.STRING, description: 'Город (например: Казань, Москва)' },
+      },
+    },
+  },
+  {
+    name: 'match_listings',
+    description:
+      'Асимметричный семантический матчинг: сопоставляет запрос «Хочу» (Request) с подходящими предложениями «Предлагаю» (Offer).',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        query: { type: Type.STRING, description: 'Текст задачи, описания или поисковой интенции' },
+        query_kind: { type: Type.STRING, description: 'request (ищу/хочу) или offer (предлагаю)' },
+        category: { type: Type.STRING, description: 'Категория' },
+        locality: { type: Type.STRING, description: 'Город' },
+        limit: { type: Type.NUMBER, description: 'Лимит результатов (по умолчанию 5)' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'create_listing',
+    description:
+      'Создаёт и сохраняет новое объявление или черновик в постоянную базу данных SQLite на площадке MCP Rooms.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING, description: 'Название объявления' },
+        description: { type: Type.STRING, description: 'Подробное описание и требования' },
+        category: {
+          type: Type.STRING,
+          description: 'Категория: business, jobs, services, real_estate, communities, things, dating, rides, delivery, other',
+        },
+        kind: { type: Type.STRING, description: 'Тип: offer (предлагаю) или request (хочу/ищу)' },
+        locality: { type: Type.STRING, description: 'Город' },
+        price_rubles: { type: Type.NUMBER, description: 'Цена в рублях (0 для договорной)' },
+      },
+      required: ['title', 'description', 'category', 'kind', 'locality'],
+    },
+  },
+  {
+    name: 'negotiate_agreement',
+    description:
+      'Запускает автономный цикл переговоров между агентами в изолированной комнате (Shared Room) для согласования условий, цены и фиксации соглашения в SQLite.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        goal: { type: Type.STRING, description: 'Поручение пользователя или цель переговоров' },
+        target_listing_id: { type: Type.STRING, description: 'ID целевого объявления (если известно)' },
+      },
+      required: ['goal'],
+    },
+  },
+  {
+    name: 'get_room_history',
+    description: 'Получает историю сообщений и соглашение из комнаты переговоров по room_id.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        room_id: { type: Type.STRING, description: 'Идентификатор комнаты переговоров' },
+      },
+      required: ['room_id'],
+    },
+  },
+  {
+    name: 'get_profile',
+    description: 'Получает публичный профиль пользователя или компании по profile_id.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        profile_id: { type: Type.STRING, description: 'ID профиля (например user:founder-alex, org:alga-tech)' },
+      },
+      required: ['profile_id'],
+    },
+  },
+];
 
 // -------------------------------------------------------------
 // 1. Official Model Context Protocol (MCP) JSON-RPC 2.0 Endpoint
@@ -324,7 +417,151 @@ app.post('/api/chat', async (req, res) => {
   const userPrompt = messages[messages.length - 1]?.content || '';
   const promptLower = userPrompt.toLowerCase();
 
-  // If targetListingId is passed, or user's intent is an autonomous task
+  // Try real Gemini API with autonomous MCP Function Calling
+  const aiClient = getGenAiClient();
+  if (aiClient) {
+    try {
+      const systemInstruction = `Ты — персональный ИИ-ассистент («Агент-Ангел») автономной децентрализованной площадки объявлений «Хочу · Предлагаю» (MCP Rooms).
+На площадке пользователи и их ИИ-агенты взаимодействуют по протоколу Model Context Protocol (MCP).
+Категории площадки:
+- real_estate: Недвижимость (аренда, коворкинги, жилье, квартиры, офисы, поиск сожителей)
+- communities: Сообщества и команды (поиск единомышленников, проектные команды, Парламент сообществ, открытое самоуправление)
+- business: Бизнес и партнерство (кофаундеры, инвестиции, B2B)
+- jobs: Работа и вакансии (IT, разработка, резюме)
+- services: Услуги и ремонт (сантехника, отделка, бытовые услуги)
+- things: Вещи и товары (электроника, велосипеды, мебель)
+- dating: Знакомства и хобби (спорт, походы, настольные игры)
+- rides: Поездки и попутчики
+- delivery: Доставка и курьеры
+
+Доступные инструменты (MCP Tools):
+- search_listings: поиск объявлений в постоянной базе данных SQLite
+- match_listings: асимметричный семантический матчинг (Хочу <-> Предлагаю)
+- create_listing: публикация нового объявления в базу данных SQLite
+- negotiate_agreement: запуск автономных переговоров между агентами в изолированной комнате (Shared Room) для согласования условий
+- get_room_history: просмотр истории переговоров и соглашений
+- get_profile: публичный профиль автора или компании
+
+Всегда выполняй интент-анализ входящего сообщения:
+1. Если пользователь ищет объявления, партнеров, жилье, работу или команду — вызывай search_listings или match_listings.
+2. Если просит договориться, провести переговоры или согласовать условия — вызывай negotiate_agreement.
+3. Если просит создать или опубликовать объявление — вызывай create_listing.
+4. Отвечай дружелюбно, структурированно, на русском языке, ссылайся на конкретные результаты из SQLite и предлагай следующий практический шаг.`;
+
+      const contents: any[] = messages.map((m: any) => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }],
+      }));
+
+      // If explicit targetListingId is passed from card context, append context info
+      if (targetListingId) {
+        const targetListing = getListingByIdFromDb(targetListingId);
+        if (targetListing) {
+          contents[contents.length - 1].parts.push({
+            text: `\n[Контекст карточки объявления: ID=${targetListing.id}, Название=«${targetListing.content.title}», Категория=${targetListing.content.category}, Автор=${targetListing.author_name}, Цена=${targetListing.content.price_minor ? targetListing.content.price_minor / 100 : 'Договорная'} ₽, Город=${targetListing.content.locality}]`,
+          });
+        }
+      }
+
+      const response = await aiClient.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents,
+        config: {
+          systemInstruction,
+          temperature: 0.7,
+          tools: [{ functionDeclarations: mcpGeminiTools }],
+        },
+      });
+
+      const functionCalls = response.functionCalls;
+      if (functionCalls && functionCalls.length > 0) {
+        const executedToolsLog: any[] = [];
+        let negotiationResult: any = null;
+        let createdListingResult: any = null;
+        const functionResponseParts: any[] = [];
+
+        for (const call of functionCalls) {
+          if (!call.name) continue;
+          const toolName = call.name;
+          try {
+            const result = await executeMcpToolCall(toolName, call.args || {});
+            executedToolsLog.push({ name: toolName, args: call.args, result });
+
+            if (call.name === 'negotiate_agreement' && result?.success) {
+              negotiationResult = result;
+            }
+            if (call.name === 'create_listing' && result?.created_listing) {
+              createdListingResult = result.created_listing;
+            }
+
+            functionResponseParts.push({
+              functionResponse: {
+                name: call.name,
+                response: { result },
+              },
+            });
+          } catch (toolErr: any) {
+            functionResponseParts.push({
+              functionResponse: {
+                name: call.name,
+                response: { error: toolErr.message },
+              },
+            });
+          }
+        }
+
+        const modelCandidate = response.candidates?.[0]?.content;
+        const followUpContents = [
+          ...contents,
+          modelCandidate || { role: 'model', parts: [{ text: 'Вызываю MCP инструменты...' }] },
+          {
+            role: 'user',
+            parts: functionResponseParts,
+          },
+        ];
+
+        const followUpResponse = await aiClient.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: followUpContents,
+          config: {
+            systemInstruction,
+            temperature: 0.7,
+          },
+        });
+
+        res.json({
+          text: followUpResponse.text || 'Действие успешно выполнено через протокол MCP.',
+          executedTools: executedToolsLog,
+          negotiation: negotiationResult,
+          createdListing: createdListingResult,
+        });
+        return;
+      }
+
+      if (response.text) {
+        res.json({
+          text: response.text,
+          executedTools: [],
+        });
+        return;
+      }
+    } catch (geminiError: any) {
+      const errStr = String(geminiError?.message || geminiError);
+      if (errStr.includes('API_KEY_INVALID') || errStr.includes('API key not valid')) {
+        const apiKey = (process.env.GEMINI_API_KEY || process.env.API_KEY || '').trim();
+        lastInvalidGeminiKey = apiKey;
+        lastInvalidKeyTimestamp = Date.now();
+      }
+      console.warn('Gemini API call failed, switching to dynamic SQLite fallback:', errStr);
+    }
+  }
+
+  // -----------------------------------------------------------------
+  // Intelligent Dynamic Fallback (when API key is absent or quota limited)
+  // Ensures user never receives a static canned template
+  // -----------------------------------------------------------------
+
+  // 1. Autonomous Negotiation Intent
   const isAutonomousTask =
     Boolean(targetListingId) ||
     promptLower.includes('найди') ||
@@ -337,7 +574,14 @@ app.post('/api/chat', async (req, res) => {
     promptLower.includes('мастер') ||
     promptLower.includes('ваканси') ||
     promptLower.includes('купи') ||
-    promptLower.includes('хочу познакомиться');
+    promptLower.includes('коворкинг') ||
+    promptLower.includes('офис') ||
+    promptLower.includes('квартир') ||
+    promptLower.includes('сожител') ||
+    promptLower.includes('парламент') ||
+    promptLower.includes('сообществ') ||
+    promptLower.includes('команд') ||
+    promptLower.includes('познакомиться');
 
   if (isAutonomousTask) {
     try {
@@ -371,31 +615,39 @@ app.post('/api/chat', async (req, res) => {
       });
       return;
     } catch {
-      // Fall through to general handler if error
+      // Continue to other handlers
     }
   }
 
-  // General Questions / Creation intent via MCP
+  // 2. Creation Intent via MCP
   if (
     promptLower.includes('создай') ||
     promptLower.includes('опубликуй') ||
     promptLower.includes('выстави') ||
+    promptLower.includes('сдам') ||
+    promptLower.includes('сниму') ||
     promptLower.includes('продам')
   ) {
     try {
+      const detectedCategory = promptLower.includes('недвижим') || promptLower.includes('офис') || promptLower.includes('квартир') || promptLower.includes('аренд')
+        ? 'real_estate'
+        : promptLower.includes('сообществ') || promptLower.includes('парламент') || promptLower.includes('команд')
+        ? 'communities'
+        : promptLower.includes('бизнес')
+        ? 'business'
+        : promptLower.includes('работ') || promptLower.includes('ваканси')
+        ? 'jobs'
+        : promptLower.includes('ремонт') || promptLower.includes('услуг')
+        ? 'services'
+        : promptLower.includes('знакомств')
+        ? 'dating'
+        : 'things';
+
       const toolResult = await executeMcpToolCall('create_listing', {
-        title: userPrompt.replace(/^(создай|опубликуй|выстави)(\s+объявление(\s+о)?|\s+черновик)?/i, '').trim() || 'Новое объявление',
-        description: `Опубликовано через Агента-Ангела: «${userPrompt}». Подробности в защищённой комнате.`,
-        category: promptLower.includes('бизнес')
-          ? 'business'
-          : promptLower.includes('работ') || promptLower.includes('ваканси')
-          ? 'jobs'
-          : promptLower.includes('ремонт') || promptLower.includes('услуг')
-          ? 'services'
-          : promptLower.includes('знакомств')
-          ? 'dating'
-          : 'things',
-        kind: 'offer',
+        title: userPrompt.replace(/^(создай|опубликуй|выстави|сдам|сниму|продам)(\s+объявление(\s+о)?|\s+черновик)?/i, '').trim() || 'Новое объявление',
+        description: `Опубликовано через Агента-Ангела: «${userPrompt}». Подробности и согласование в защищённой комнате MCP.`,
+        category: detectedCategory,
+        kind: promptLower.includes('сниму') || promptLower.includes('ищу') ? 'request' : 'offer',
         locality: promptLower.includes('москв') ? 'Москва' : 'Казань',
         price_rubles: 0,
         modes: ['pickup', 'online'],
@@ -403,57 +655,71 @@ app.post('/api/chat', async (req, res) => {
       });
 
       res.json({
-        text: `✅ Я успешно создал и сохранил в базу данных SQLite ваше объявление «${toolResult.created_listing.content.title}». Карточка опубликована в каталоге площадки!`,
+        text: `✅ Я успешно создал и сохранил в постоянную базу данных SQLite ваше объявление «${toolResult.created_listing.content.title}» в категории «${detectedCategory}». Карточка опубликована в каталоге площадки!`,
         executedTools: [{ name: 'create_listing', args: { prompt: userPrompt }, result: toolResult }],
         createdListing: toolResult.created_listing,
       });
       return;
-    } catch (err: any) {
-      // Fallback
+    } catch {
+      // Fall through
     }
   }
 
-  // Safety & Privacy intent
-  if (promptLower.includes('безопасн') || promptLower.includes('приватн') || promptLower.includes('телефон') || promptLower.includes('адрес')) {
+  // 3. Safety & Privacy Intent
+  if (promptLower.includes('безопасн') || promptLower.includes('приватн') || promptLower.includes('телефон') || promptLower.includes('адрес') || promptLower.includes('правил')) {
     res.json({
-      text: `🛡️ **Принципы безопасности и приватности MCP Rooms:**\n\n1. **Личные данные — не витрина:** телефон и точный домашний адрес никогда не отображаются в открытом интернете. Обмен контактами происходит только по взаимному согласию участников в защищённой комнате переговоров.\n2. **Открыта для всех:** город и регион служат фильтром для удобства поиска, а не барьером для регистрации.\n3. **Осознанная публикация:** сначала создаётся черновик и проходит предпросмотр.\n4. **Защита сделки:** встречайтесь в безопасных общественных местах или используйте проверенные службы доставки. Не переводите предоплату незнакомцам.`,
+      text: `🛡️ **Принципы безопасности и приватности MCP Rooms:**\n\n1. **Личные данные — не витрина:** телефон и точный домашний адрес никогда не отображаются в открытом интернете. Обмен контактами происходит только по взаимному согласию участников в защищённой комнате переговоров.\n2. **Открыта для всех:** город и регион служат фильтром для удобства поиска, а не барьером для регистрации.\n3. **Осознанная публикация:** сначала создаётся черновик и проходит предпросмотр.\n4. **Защита сделки:** переговоры между агентами фиксируются в SQLite, встречи проводятся в безопасных местах или онлайн.`,
       executedTools: [{ name: 'inspect_safety_guidelines', args: { topic: 'privacy' }, result: { verified: true } }],
     });
     return;
   }
 
-  // Try Gemini if available, or answer as Angel Agent
-  const aiClient = getGenAiClient();
-  if (aiClient) {
-    try {
-      const contents: any[] = messages.map((m: any) => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }],
-      }));
-
-      const response = await aiClient.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents,
-        config: {
-          systemInstruction:
-            'Ты — персональный ИИ-ассистент («Агент-Ангел») маркетплейса «Хочу · Предлагаю» (MCP Rooms). Помогай пользователю искать партнёров по бизнесу, исполнителей услуг, товары, попутчиков и знакомства. Соблюдай приватность и предлагай запустить переговоры через MCP-инструменты.',
-          temperature: 0.7,
-        },
-      });
-
-      res.json({
-        text: response.text || 'Готов к новым поручениям!',
-        executedTools: [],
-      });
-      return;
-    } catch (_err) {
-      isGeminiKeyFunctional = false;
-    }
+  // 4. Dynamic Search & Catalog Inspection in SQLite
+  let searchCategory: string | undefined = undefined;
+  if (promptLower.includes('недвижим') || promptLower.includes('аренд') || promptLower.includes('офис') || promptLower.includes('квартир') || promptLower.includes('жиль')) {
+    searchCategory = 'real_estate';
+  } else if (promptLower.includes('сообществ') || promptLower.includes('парламент') || promptLower.includes('команд') || promptLower.includes('инициатив')) {
+    searchCategory = 'communities';
+  } else if (promptLower.includes('бизнес') || promptLower.includes('стартап') || promptLower.includes('инвест')) {
+    searchCategory = 'business';
+  } else if (promptLower.includes('работ') || promptLower.includes('ваканси') || promptLower.includes('инженер')) {
+    searchCategory = 'jobs';
+  } else if (promptLower.includes('услуг') || promptLower.includes('ремонт') || promptLower.includes('мастер')) {
+    searchCategory = 'services';
   }
 
-  // Default Angel Agent response
+  const foundItems = getListingsFromDb({
+    category: searchCategory,
+    query: searchCategory ? undefined : userPrompt,
+  });
+
+  if (foundItems.length > 0) {
+    const listPreview = foundItems
+      .slice(0, 3)
+      .map(
+        (item, idx) =>
+          `${idx + 1}. **${item.content.title}** (${item.content.category})\n   📍 ${item.content.locality} · 💰 ${
+            item.content.price_minor ? `${item.content.price_minor / 100} ₽` : 'Договорная'
+          }\n   Автор: ${item.author_name} · *«${item.content.description.substring(0, 90)}...»*`
+      )
+      .join('\n\n');
+
+    res.json({
+      text: `По вашему запросу «${userPrompt}» я проверил постоянную базу данных SQLite и нашёл актуальные объявления:\n\n${listPreview}\n\n💡 **Что я могу сделать:** напишите мне *«Договорись по объявлению #${foundItems[0].id}»* или *«Найди партнёра / согласуй просмотр»*, и я автономно проведу раунд переговоров в изолированной комнате через MCP!`,
+      executedTools: [
+        {
+          name: 'search_listings',
+          args: { query: userPrompt, category: searchCategory },
+          result: { count: foundItems.length, top_item: foundItems[0].content.title },
+        },
+      ],
+    });
+    return;
+  }
+
+  // 5. Context-aware guidance with SQLite categories
   res.json({
-    text: `Здравствуйте! Я ваш персональный **Агент-Ангел** на площадке MCP Rooms.\n\nДайте мне любое поручение, например:\n• *«Найди партнёра для бизнеса в сфере AI в Казани»*\n• *«Найди исполнителя на ремонт санузла под ключ»*\n• *«Ищу Senior Backend инженера на TypeScript»*\n• *«Хочу найти компанию для походов и велопрогулок»*\n\nЯ автономно найду совпадения в базе данных SQLite, зайду в защищённую комнату переговоров и проведу предварительный раунд согласования условий с агентом контрагента!`,
+    text: `Я проанализировал ваш запрос «${userPrompt}». В базе данных SQLite площадки **MCP Rooms** доступны следующие направления:\n\n🏢 **Недвижимость** — аренда коворкингов, офисов и поиск сожителей;\n🏛️ **Сообщества и Парламент** — команды проектов, инициативы и открытое самоуправление;\n🤝 **Бизнес** — кофаундеры и B2B AI-партнёрства;\n💼 **Вакансии** — Senior инженеры и удалённые позиции;\n🔧 **Услуги** — проверенные мастера и ремонт;\n🌲 **Знакомства** — совместные походы и веловыезды.\n\nУкажите конкретную задачу (например: *«Снять коворкинг в Казани»* или *«Вступить в Парламент сообществ»*), и я автономно найду совпадения и запущу раунд согласования условий в защищённой комнате!`,
     executedTools: [],
   });
 });

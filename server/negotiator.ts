@@ -82,6 +82,10 @@ export async function runAutonomousNegotiation(
 
   if (promptLower.includes('бизнес') || promptLower.includes('партнер') || promptLower.includes('кофаундер') || promptLower.includes('стартап') || promptLower.includes('b2b')) {
     category = 'business';
+  } else if (promptLower.includes('недвижим') || promptLower.includes('аренд') || promptLower.includes('квартир') || promptLower.includes('офис') || promptLower.includes('сожител') || promptLower.includes('снять') || promptLower.includes('сдать') || promptLower.includes('жиль') || promptLower.includes('комнат')) {
+    category = 'real_estate';
+  } else if (promptLower.includes('сообществ') || promptLower.includes('парламент') || promptLower.includes('команд') || promptLower.includes('инициатив') || promptLower.includes('самоуправлен') || promptLower.includes('совет') || promptLower.includes('единомышленник')) {
+    category = 'communities';
   } else if (promptLower.includes('ваканси') || promptLower.includes('работ') || promptLower.includes('инженер') || promptLower.includes('разработчик') || promptLower.includes('резюме')) {
     category = 'jobs';
   } else if (promptLower.includes('ремонт') || promptLower.includes('сантехник') || promptLower.includes('услуг') || promptLower.includes('мастер') || promptLower.includes('санузел')) {
@@ -223,6 +227,30 @@ export async function runAutonomousNegotiation(
         price: 'Ориентир ~35 000 – 40 000 ₽ по смете мастера',
         schedule: 'Суббота, 11:00',
         locationProtocol: 'Самовывоз / выезд мастера по Казани (адрес защищён протоколом)',
+        safetyConfirmed: true,
+      };
+    } else if (bestMatch.content.category === 'real_estate') {
+      angelMessage1 = `Здравствуйте! Агент-Ангел со стороны арендатора/соискателя. Мой доверитель заинтересован в объекте «${bestMatch.content.title}». Подтвердите, пожалуйста, актуальность условий, возможность заключения прямого договора и удобное время для осмотра.`;
+      counterpartResponse1 = `Приветствую! Агент собственника/арендодателя подтверждает: объект доступен, условия аренды соответствуют описанию карточки. Готовы организовать просмотр в сопровождении доверенного лица завтра в 18:30.`;
+      angelMessage2 = `Отлично! Время 18:30 зафиксировано в протоколе комнаты. Контактные данные и точные координаты входа будут переданы через безопасный закрытый контур.`;
+      counterpartResponse2 = `Прекрасно, слот просмотра зарезервирован. Ждём в согласованное время!`;
+      agreedTermsObj = {
+        topic: `Осмотр и согласование аренды: ${bestMatch.content.title}`,
+        price: bestMatch.content.price_minor ? `${bestMatch.content.price_minor / 100} ₽/мес` : 'По договорённости',
+        schedule: 'Завтра, 18:30',
+        locationProtocol: 'Личный осмотр объекта (Казань), адрес защищён протоколом',
+        safetyConfirmed: true,
+      };
+    } else if (bestMatch.content.category === 'communities') {
+      angelMessage1 = `Приветствую! Я Агент-Ангел участника сообщества. Мой пользователь хочет присоединиться к инициативе «${bestMatch.content.title}» и принять активное участие в работе Парламента сообществ. Каковы регламент и ближайшая координационная сессия?`;
+      counterpartResponse1 = `Здравствуйте! Агент координационного совета рад приветствовать нового единомышленника. Мы развиваем открытое самоуправление и совместные проекты. Ближайшая онлайн-сессия Парламента состоится в среду в 19:00. Повестка формируется совместно.`;
+      angelMessage2 = `Подтверждаем участие в онлайн-сессии Парламента в среду 19:00. Вносим компетенции нашего участника в реестр рабочей группы.`;
+      counterpartResponse2 = `Замечательно! Мандат участника и безопасная ссылка на сессию зафиксированы в переговорной комнате.`;
+      agreedTermsObj = {
+        topic: `Участие в Парламенте сообществ: ${bestMatch.content.title}`,
+        price: 'Открытое участие / Open Source Governance',
+        schedule: 'Среда, 19:00 (онлайн-сессия Парламента)',
+        locationProtocol: 'Онлайн, защищённая переговорная комната MCP Rooms',
         safetyConfirmed: true,
       };
     } else if (bestMatch.content.category === 'dating') {
@@ -525,6 +553,10 @@ export function prepareNegotiationRoom(userPrompt: string, targetListingId?: str
     let searchLocality = '';
     if (promptLower.includes('бизнес') || promptLower.includes('партнер') || promptLower.includes('кофаундер') || promptLower.includes('стартап') || promptLower.includes('b2b')) {
       category = 'business';
+    } else if (promptLower.includes('недвижим') || promptLower.includes('аренд') || promptLower.includes('квартир') || promptLower.includes('офис') || promptLower.includes('сожител') || promptLower.includes('снять') || promptLower.includes('сдать') || promptLower.includes('жиль') || promptLower.includes('комнат')) {
+      category = 'real_estate';
+    } else if (promptLower.includes('сообществ') || promptLower.includes('парламент') || promptLower.includes('команд') || promptLower.includes('инициатив') || promptLower.includes('самоуправлен') || promptLower.includes('совет') || promptLower.includes('единомышленник')) {
+      category = 'communities';
     } else if (promptLower.includes('ваканси') || promptLower.includes('работ') || promptLower.includes('инженер') || promptLower.includes('разработчик') || promptLower.includes('резюме')) {
       category = 'jobs';
     } else if (promptLower.includes('ремонт') || promptLower.includes('сантехник') || promptLower.includes('услуг') || promptLower.includes('мастер') || promptLower.includes('санузел')) {

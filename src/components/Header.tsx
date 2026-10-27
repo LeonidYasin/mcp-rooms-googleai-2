@@ -35,6 +35,8 @@ export const Header: React.FC<HeaderProps> = ({
     'business',
     'jobs',
     'services',
+    'real_estate',
+    'communities',
     'things',
     'dating',
     'rides',

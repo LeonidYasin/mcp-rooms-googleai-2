@@ -1,4 +1,6 @@
 export type ListingCategory =
+  | 'real_estate'
+  | 'communities'
   | 'business'
   | 'jobs'
   | 'services'
@@ -9,6 +11,8 @@ export type ListingCategory =
   | 'other';
 
 export const CATEGORY_LABELS: Record<ListingCategory, string> = {
+  real_estate: 'Недвижимость',
+  communities: 'Сообщества и команды',
   business: 'Бизнес и стартапы',
   jobs: 'Работа и вакансии',
   services: 'Услуги и мастера',

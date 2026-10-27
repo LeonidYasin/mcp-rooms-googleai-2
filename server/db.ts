@@ -130,6 +130,141 @@ export function initDatabase() {
   const count = db.prepare('SELECT COUNT(*) as cnt FROM listings').get() as { cnt: number };
   if (count.cnt === 0) {
     seedInitialData();
+  } else {
+    ensureNewCategoriesSeeded();
+  }
+}
+
+function ensureNewCategoriesSeeded() {
+  try {
+    const count = db.prepare(`SELECT COUNT(*) as cnt FROM listings WHERE category IN ('real_estate', 'communities')`).get() as { cnt: number };
+    if (count.cnt === 0) {
+      const insertListing = db.prepare(`
+        INSERT OR IGNORE INTO listings (
+          id, owner, author_name, title, description, category, subcategory,
+          kind, modes, locality, region, country, price_minor, currency, condition,
+          status, visibility, revision, created_at, updated_at, expires_at, photos_json, responses_count
+        ) VALUES (
+          @id, @owner, @author_name, @title, @description, @category, @subcategory,
+          @kind, @modes, @locality, @region, @country, @price_minor, @currency, @condition,
+          @status, @visibility, @revision, @created_at, @updated_at, @expires_at, @photos_json, @responses_count
+        )
+      `);
+
+      const now = Date.now();
+      const newItems = [
+        {
+          id: 'real-estate-office-kazan-01',
+          owner: 'user:realty-manager',
+          author_name: 'Центр Недвижимости «Баумана»',
+          title: 'Аренда современного коворкинга / офиса для IT-команд в центре Казани',
+          description:
+            'Светлое пространство 120 м² в Вахитовском районе (ул. Профсоюзная). Опенспейс на 15–20 рабочих мест, изолированная переговорная комната, оптический интернет 500 Мбит/с, вентиляция и кондиционирование, зона отдыха и кофе-пойнт. Прямой договор с собственником, без скрытых агентских комиссий. Возможна аренда блоками.',
+          category: 'real_estate',
+          subcategory: 'Коммерческая недвижимость и офисы',
+          kind: 'offer',
+          modes: JSON.stringify(['pickup']),
+          locality: 'Казань',
+          region: 'Татарстан',
+          country: 'Россия',
+          price_minor: 9500000, // 95 000 ₽ / мес
+          currency: 'RUB',
+          condition: 'Полностью меблирован, готов к въезду',
+          status: 'active',
+          visibility: 'public',
+          revision: 1,
+          created_at: now - 3600000 * 20,
+          updated_at: now - 3600000 * 2,
+          expires_at: now + 3600000 * 24 * 60,
+          photos_json: '[]',
+          responses_count: 3,
+        },
+        {
+          id: 'real-estate-roommate-kazan-02',
+          owner: 'user:dev-renat',
+          author_name: 'Ренат (Разработчик)',
+          title: 'Ищу сожителя (roommate) в 3-комнатную квартиру у IT-парка Казани',
+          description:
+            'Сдам отдельную просторную комнату в 3-к квартире возле IT-парка им. Рамеева (ул. Петербургская). В квартире чистота, порядок, быстрый интернет, вся техника, посудомойка. Ищу адекватного соседа (без вечеринок и вредных привычек). Коммунальные поровну. Без комиссий риелторам.',
+          category: 'real_estate',
+          subcategory: 'Поиск сожителей и аренда комнат',
+          kind: 'offer',
+          modes: JSON.stringify(['pickup']),
+          locality: 'Казань',
+          region: 'Татарстан',
+          country: 'Россия',
+          price_minor: 1800000, // 18 000 ₽ / мес
+          currency: 'RUB',
+          condition: 'Изолированная комната, мебель, кровать King-size',
+          status: 'active',
+          visibility: 'public',
+          revision: 1,
+          created_at: now - 3600000 * 15,
+          updated_at: now - 3600000 * 1,
+          expires_at: now + 3600000 * 24 * 45,
+          photos_json: '[]',
+          responses_count: 2,
+        },
+        {
+          id: 'communities-open-ai-kazan-01',
+          owner: 'user:community-parliament',
+          author_name: 'Парламент сообществ Казани',
+          title: 'Парламент сообществ: формирование проектной команды открытого AI и агентных систем',
+          description:
+            'Инициатива по координации открытых проектов в сфере ИИ, MCP-агентов и децентрализованных систем. Собираем парламентскую коллегию представителей сообществ, инженеров, дизайнеров и исследователей. Еженедельные открытые координационные сессии, распределение грантов и задач на принципах меритократии и консенсуса.',
+          category: 'communities',
+          subcategory: 'Парламент сообществ и открытые команды',
+          kind: 'offer',
+          modes: JSON.stringify(['online', 'pickup']),
+          locality: 'Казань',
+          region: 'Татарстан',
+          country: 'Россия',
+          price_minor: null, // Открытое участие
+          currency: 'RUB',
+          condition: 'Горизонтальное самоуправление, открытый мандат',
+          status: 'active',
+          visibility: 'public',
+          revision: 1,
+          created_at: now - 3600000 * 25,
+          updated_at: now - 3600000 * 3,
+          expires_at: now + 3600000 * 24 * 90,
+          photos_json: '[]',
+          responses_count: 6,
+        },
+        {
+          id: 'communities-eco-urban-02',
+          owner: 'user:urban-initiative',
+          author_name: 'Городской совет инициатив',
+          title: 'Ищем единомышленников в команду проекта по развитию общественных пространств и набережных',
+          description:
+            'Формируем рабочую группу урбанистов, архитекторов и экологов. Цель — разработка концепций доступной городской среды, защита малых рек и взаимодействие с городским парламентом сообществ. Присоединяйтесь к рабочей группе!',
+          category: 'communities',
+          subcategory: 'Городские инициативы и рабочие группы',
+          kind: 'request',
+          modes: JSON.stringify(['online', 'pickup']),
+          locality: 'Казань',
+          region: 'Татарстан',
+          country: 'Россия',
+          price_minor: null,
+          currency: 'RUB',
+          condition: 'Совместная проектная деятельность',
+          status: 'active',
+          visibility: 'public',
+          revision: 1,
+          created_at: now - 3600000 * 18,
+          updated_at: now - 3600000 * 2,
+          expires_at: now + 3600000 * 24 * 60,
+          photos_json: '[]',
+          responses_count: 4,
+        },
+      ];
+
+      for (const item of newItems) {
+        insertListing.run(item);
+      }
+    }
+  } catch (err) {
+    console.error('Error ensuring new categories seeded:', err);
   }
 }
 
@@ -529,7 +664,7 @@ export function getListingsFromDb(filters: {
   locality?: string;
   query?: string;
 }) {
-  let sql = 'SELECT * FROM listings WHERE status = "active"';
+  let sql = "SELECT * FROM listings WHERE status = 'active'";
   const params: any[] = [];
 
   if (filters.category && filters.category !== 'all') {

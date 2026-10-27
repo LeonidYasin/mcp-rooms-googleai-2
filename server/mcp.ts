@@ -27,7 +27,7 @@ export const MCP_TOOLS_MANIFEST = [
         query: { type: 'string', description: 'Поисковый запрос (например: кофаундер, ремонт, велосипед)' },
         category: {
           type: 'string',
-          enum: ['business', 'jobs', 'services', 'things', 'dating', 'rides', 'delivery', 'other', 'all'],
+          enum: ['business', 'jobs', 'services', 'real_estate', 'communities', 'things', 'dating', 'rides', 'delivery', 'other', 'all'],
           description: 'Категория объявления',
         },
         kind: { type: 'string', enum: ['offer', 'request', 'all'], description: 'Тип (предложение или запрос)' },
@@ -81,7 +81,7 @@ export const MCP_TOOLS_MANIFEST = [
         description: { type: 'string', description: 'Подробное описание и требования' },
         category: {
           type: 'string',
-          enum: ['business', 'jobs', 'services', 'things', 'dating', 'rides', 'delivery', 'other'],
+          enum: ['business', 'jobs', 'services', 'real_estate', 'communities', 'things', 'dating', 'rides', 'delivery', 'other'],
           description: 'Категория',
         },
         kind: { type: 'string', enum: ['offer', 'request'], description: 'Тип: offer или request' },
