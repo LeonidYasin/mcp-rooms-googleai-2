@@ -85,7 +85,17 @@ jobs:
           # /app must be read-only for the process, /app/data writable.
           docker run --rm --entrypoint sh mcp-rooms:ci -c 'test ! -w /app && test -w /app/data'
           # Build tooling and local secrets must not ship in the image.
-          docker run --rm --entrypoint sh mcp-rooms:ci -c 'test ! -e /app/.env && test ! -d /app/tests && test ! -d /app/src && test ! -d /app/node_modules/vite && test -d /app/dist'
+          docker run --rm --entrypoint sh mcp-rooms:ci -c '
+            set -e
+            test ! -e /app/.env
+            test ! -d /app/tests
+            test ! -d /app/src
+            test ! -d /app/node_modules/vite
+            test ! -d /app/node_modules/vitest
+            test ! -d /app/node_modules/typescript
+            test -d /app/node_modules/tsx
+            test -f /app/dist/index.html
+          '
           echo 'image hardening ok'
 
       - name: Run container smoke test
@@ -105,6 +115,8 @@ jobs:
           done
           curl -fsS http://127.0.0.1:3200/api/listings > /tmp/listings.json
           grep -q '\[' /tmp/listings.json
+          # The SPA is served from dist/ (production branch of start()).
+          curl -fsS http://127.0.0.1:3200/ | grep -q 'id="root"'
           curl -fsS -X POST http://127.0.0.1:3200/mcp \
             -H 'content-type: application/json' \
             -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' > /tmp/mcp.json
