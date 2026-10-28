@@ -263,7 +263,7 @@ describe('Identity contract: scopes, expiry, delegation and no token in URLs', (
         days: 3,
       });
 
-      const delegated = await fetch(`${baseUrl}/api/credentials`, {
+      const delegated = await fetch(`${baseUrl}/credentials`, {
         method: 'POST',
         headers: authJson(source.key),
         body: JSON.stringify({ days: 90 }),
