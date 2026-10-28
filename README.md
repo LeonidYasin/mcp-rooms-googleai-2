@@ -38,7 +38,7 @@ MCP-first площадка объявлений для людей и AI-аген
    - Подробный разбор и план исправлений: [`docs/audit/`](docs/audit/).
 
 6. **Агент-Ангел и SSE комнат**:
-   - При наличии `GEMINI_API_KEY` чат вызывает реальные MCP-инструменты; без ключа или при ошибке модели ответы строятся правилами и помечаются `degraded: true`.
+   - Чат вызывает модель только при заданных `GEMINI_API_KEY` и `GEMINI_MODEL` (ID модели не задаётся в коде и не угадывается). Иначе ответ строится правилами и помечается `degraded: true` с кодом причины: `missing_api_key`, `model_not_configured`, `invalid_api_key`, `model_error`. `GET /api/llm/status` показывает конфигурацию и текущий cooldown — это не проверка живости модели.
    - `negotiate_agreement` — демонстрационный сценарий: он только читает каталог и возвращает пример диалога. Сообщения автору не отправляются, комната не создаётся, соглашение не фиксируется (`status: demo_preview`).
    - SSE-поток комнаты (`GET /api/rooms/:id/stream`) передаёт реальные сообщения участников; heartbeat 15 с. Реплей по `Last-Event-ID` пока не реализован.
 
@@ -94,7 +94,7 @@ npm run key:issue -- --revoke key_ab12cd34ef56
 | Endpoint | Без ключа | С ключом |
 | --- | --- | --- |
 | `GET /api/listings`, `GET /api/listings/:id` | 200, публичная проекция | 200 |
-| `GET /api/profiles`, `GET /api/profiles/:id`, `GET /api/embedding/status`, `POST /api/match` | 200 | 200 |
+| `GET /api/profiles`, `GET /api/profiles/:id`, `GET /api/embedding/status`, `GET /api/llm/status`, `POST /api/match` | 200 | 200 |
 | `POST /api/listings` | 401 | 201, `owner` = субъект ключа |
 | `GET /api/rooms`, `GET /api/rooms/:id`, `GET /api/rooms/:id/stream` | 401 | только комнаты участника, иначе 403 |
 | `POST /api/rooms/:id/messages` | 401 | 201, `sender` = субъект ключа |

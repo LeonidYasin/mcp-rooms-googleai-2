@@ -31,6 +31,22 @@ interface McpChatProps {
   onRequireKey?: (reason: string) => void;
 }
 
+/**
+ * Stable reason codes from server/llm.ts. The badge must explain why the answer
+ * came from rules instead of the model, not show a raw provider error.
+ */
+const DEGRADED_REASON_LABELS: Record<string, string> = {
+  missing_api_key: 'GEMINI_API_KEY не задан — ответ построен правилами',
+  model_not_configured: 'GEMINI_MODEL не задан — ответ построен правилами',
+  invalid_api_key: 'ключ Gemini отклонён — ответ построен правилами',
+  model_error: 'ошибка вызова модели — ответ построен правилами',
+};
+
+function degradedTitle(reason?: string): string {
+  if (!reason) return 'Модель не вызывалась';
+  return DEGRADED_REASON_LABELS[reason] || reason;
+}
+
 export const McpChat: React.FC<McpChatProps> = ({
   listings,
   rooms,
@@ -310,7 +326,7 @@ export const McpChat: React.FC<McpChatProps> = ({
               {m.degraded && (
                 <span
                   className="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 font-semibold"
-                  title={m.degradedReason || 'Модель не вызывалась'}
+                  title={degradedTitle(m.degradedReason)}
                 >
                   без модели
                 </span>

@@ -1,5 +1,5 @@
 import express from 'express';
-import { GoogleGenAI, Type, FunctionDeclaration } from '@google/genai';
+import { Type, FunctionDeclaration } from '@google/genai';
 import {
   initDatabase,
   getListingsFromDb,
@@ -26,6 +26,7 @@ import {
   rateLimit,
   securityHeaders,
 } from './server/http-guard';
+import { configuredModel, llmStatus, recordLlmFailure, resolveLlmClient } from './server/llm';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -39,29 +40,6 @@ app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
 // Initialize persistent SQLite database on disk
 initDatabase();
-
-// Track if current key is known to be rejected/invalid to avoid hammering failing API
-let lastInvalidGeminiKey: string | null = null;
-let lastInvalidKeyTimestamp = 0;
-
-// Helper to safely get the GoogleGenAI client with user-agent telemetry header
-function getGenAiClient(): GoogleGenAI | null {
-  const apiKey = (process.env.GEMINI_API_KEY || process.env.API_KEY || '').trim();
-  if (!apiKey || apiKey === 'YOUR_API_KEY' || apiKey.length < 15) {
-    return null;
-  }
-  if (lastInvalidGeminiKey === apiKey && Date.now() - lastInvalidKeyTimestamp < 30000) {
-    return null;
-  }
-  return new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      },
-    },
-  });
-}
 
 // Gemini Function Calling Tools Manifest
 const mcpGeminiTools: FunctionDeclaration[] = [
@@ -205,6 +183,13 @@ app.get('/api/embedding/status', (_req, res) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// Configuration of the chat model, not a live probe: it answers whether the
+// next /api/chat call would attempt a model call, and why not if it would not.
+// There is no invented default model id — see GEMINI_MODEL in .env.example.
+app.get('/api/llm/status', (_req, res) => {
+  res.json(llmStatus());
 });
 
 app.post('/api/match', rateLimit('match', 'RATE_LIMIT_MATCH_PER_MINUTE', 60), async (req, res) => {
@@ -551,11 +536,13 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
   const userPrompt = messages[messages.length - 1]?.content || '';
   const promptLower = userPrompt.toLowerCase();
 
-  // Try real Gemini API with autonomous MCP Function Calling
+  // Try the configured Gemini model with autonomous MCP Function Calling.
   // Every response below declares whether a model was actually used: the UI must
-  // never present rule-based answers as model-driven work.
-  let llmDegradedReason: string | null = null;
-  const aiClient = getGenAiClient();
+  // never present rule-based answers as model-driven work. When no call is made,
+  // `degradedReason` is one of the stable codes from server/llm.ts.
+  const llm = resolveLlmClient();
+  let llmDegradedReason: string | null = llm.reason;
+  const aiClient = llm.client;
   if (aiClient) {
     try {
       const systemInstruction = `Ты — персональный ИИ-ассистент («Агент-Ангел») автономной децентрализованной площадки объявлений «Хочу · Предлагаю» (MCP Rooms).
@@ -601,7 +588,7 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
       }
 
       const response = await aiClient.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: configuredModel(),
         contents,
         config: {
           systemInstruction,
@@ -658,7 +645,7 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
         ];
 
         const followUpResponse = await aiClient.models.generateContent({
-          model: 'gemini-3.8-flash',
+          model: configuredModel(),
           contents: followUpContents,
           config: {
             systemInstruction,
@@ -668,6 +655,8 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
 
         res.json({
           text: followUpResponse.text || 'Действие успешно выполнено через протокол MCP.',
+          model: configuredModel(),
+          degraded: false,
           executedTools: executedToolsLog,
           negotiation: negotiationResult,
           createdListing: createdListingResult,
@@ -678,26 +667,21 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
       if (response.text) {
         res.json({
           text: response.text,
+          model: configuredModel(),
+          degraded: false,
           executedTools: [],
         });
         return;
       }
     } catch (geminiError: any) {
-      const errStr = String(geminiError?.message || geminiError);
-      if (errStr.includes('API_KEY_INVALID') || errStr.includes('API key not valid')) {
-        const apiKey = (process.env.GEMINI_API_KEY || process.env.API_KEY || '').trim();
-        lastInvalidGeminiKey = apiKey;
-        lastInvalidKeyTimestamp = Date.now();
-      }
-      console.warn('Gemini API call failed, switching to dynamic SQLite fallback:', errStr);
-      llmDegradedReason = errStr;
+      // One log line per failure, then an explicit cooldown (server/llm.ts)
+      // instead of the old silent 30-second negative cache.
+      llmDegradedReason = recordLlmFailure(geminiError);
     }
   }
 
   if (!llmDegradedReason) {
-    llmDegradedReason = aiClient
-      ? 'gemini returned no text for this prompt'
-      : 'GEMINI_API_KEY is not configured';
+    llmDegradedReason = 'model_error';
   }
 
   // -----------------------------------------------------------------
@@ -814,7 +798,7 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
 
 **Комнаты переговоров изолированы:** список комнат и историю видит только участник комнаты, сообщения пишутся от имени владельца ключа, а не из тела запроса. Участники комнаты — владелец объявления и тот, кто открыл переговоры.
 
-**Чего пока нет:** ролей и scope у ключей (любой действующий ключ может многое), rate limiting и аудит-лога чтения комнат. Для SSE-потока токен передаётся в query-параметре и может попасть в логи прокси. Публикация идёт сразу, без модерации.
+**Чего пока нет:** ролей и scope у ключей (любой действующий ключ может многое), общего лимита запросов между инстансами (счётчики живут в памяти процесса), аудит-лога чтения комнат. Для SSE-потока токен передаётся в query-параметре и может попасть в логи прокси. Публикация идёт сразу, без модерации.
 
 Поэтому не передавайте в комнату личные данные сверх необходимого: собеседник — реальный участник, а не демо-агент.`,
       degraded: true,

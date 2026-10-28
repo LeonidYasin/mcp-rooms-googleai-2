@@ -16,8 +16,11 @@ cp .env.example .env
 Only `.env.example` belongs in Git. A real `.env` with `GEMINI_API_KEY` must never be
 committed, and `.dockerignore` excludes `.env` from the build context.
 
-- Without `GEMINI_API_KEY`, `/api/chat` and negotiation use rule-based fallbacks and
-  mark responses `degraded: true`.
+- Without `GEMINI_API_KEY` and `GEMINI_MODEL`, `/api/chat` and negotiation use
+  rule-based fallbacks and mark responses `degraded: true` with a reason code
+  (`missing_api_key`, `model_not_configured`, `invalid_api_key`, `model_error`).
+  The model id is never defaulted in code. `GET /api/llm/status` reports this
+  configuration and the circuit-breaker cooldown; it does not probe the model.
 - `EMBEDDING_PROVIDER=disabled` uses the lexical fallback; `google` requires a key.
 
 ## 2. Prepare the data directory
