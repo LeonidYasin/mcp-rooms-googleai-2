@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "start": "tsx server.ts",
     "key:issue": "tsx scripts/issue-key.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts",
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "preview": "vite preview"

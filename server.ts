@@ -1,6 +1,5 @@
 import express from 'express';
-import { createServer as createViteServer } from 'vite';
-import { GoogleGenAI, Type, FunctionDeclaration } from '@google/genai';
+import { Type, FunctionDeclaration } from '@google/genai';
 import {
   initDatabase,
   getListingsFromDb,
@@ -13,43 +12,34 @@ import {
   getProfilesFromDb,
   getProfileByIdFromDb,
   toPublicListing,
+  classifyMessageInsertError,
 } from './server/db';
 import { handleMcpJsonRpcRequest, executeMcpToolCall, MCP_TOOLS_MANIFEST } from './server/mcp';
-import { runAutonomousNegotiation, prepareNegotiationRoom } from './server/negotiator';
+import { runAutonomousNegotiation } from './server/negotiator';
 import { getEmbeddingProviderStatus, matchListingAsymmetric } from './server/embeddings';
 import { roomEventBus } from './server/events';
 import { isRoomParticipant, optionalAuth, requireAuth } from './server/auth';
+import {
+  JSON_BODY_LIMIT,
+  corsPolicy,
+  httpErrorHandler,
+  rateLimit,
+  securityHeaders,
+} from './server/http-guard';
+import { configuredModel, llmStatus, recordLlmFailure, resolveLlmClient } from './server/llm';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-app.use(express.json({ limit: '10mb' }));
+// No advertising of the framework; explicit same-origin CORS policy; bounded
+// JSON bodies instead of the previous 10 MB default.
+app.disable('x-powered-by');
+app.use(securityHeaders);
+app.use(corsPolicy);
+app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
 // Initialize persistent SQLite database on disk
 initDatabase();
-
-// Track if current key is known to be rejected/invalid to avoid hammering failing API
-let lastInvalidGeminiKey: string | null = null;
-let lastInvalidKeyTimestamp = 0;
-
-// Helper to safely get the GoogleGenAI client with user-agent telemetry header
-function getGenAiClient(): GoogleGenAI | null {
-  const apiKey = (process.env.GEMINI_API_KEY || process.env.API_KEY || '').trim();
-  if (!apiKey || apiKey === 'YOUR_API_KEY' || apiKey.length < 15) {
-    return null;
-  }
-  if (lastInvalidGeminiKey === apiKey && Date.now() - lastInvalidKeyTimestamp < 30000) {
-    return null;
-  }
-  return new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      },
-    },
-  });
-}
 
 // Gemini Function Calling Tools Manifest
 const mcpGeminiTools: FunctionDeclaration[] = [
@@ -109,7 +99,7 @@ const mcpGeminiTools: FunctionDeclaration[] = [
   {
     name: 'negotiate_agreement',
     description:
-      'Запускает автономный цикл переговоров между агентами в изолированной комнате (Shared Room) для согласования условий, цены и фиксации соглашения в SQLite.',
+      'Возвращает демонстрационный сценарий переговоров по объявлению (demo_preview). Не отправляет сообщения автору, не создаёт комнату и не фиксирует соглашение; для реального контакта используйте join_room и send_message.',
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -121,7 +111,7 @@ const mcpGeminiTools: FunctionDeclaration[] = [
   },
   {
     name: 'get_room_history',
-    description: 'Получает историю сообщений и соглашение из комнаты переговоров по room_id.',
+    description: 'Получает историю сообщений комнаты переговоров по room_id (только для участника).',
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -157,7 +147,7 @@ function mcpRequiresAuth(body: any): boolean {
   return false;
 }
 
-app.post('/mcp', optionalAuth, async (req, res) => {
+app.post('/mcp', optionalAuth, rateLimit('mcp', 'RATE_LIMIT_MCP_PER_MINUTE', 240), async (req, res) => {
   if (mcpRequiresAuth(req.body) && !req.principal) {
     res.status(401).json({
       jsonrpc: '2.0',
@@ -195,7 +185,14 @@ app.get('/api/embedding/status', (_req, res) => {
   }
 });
 
-app.post('/api/match', async (req, res) => {
+// Configuration of the chat model, not a live probe: it answers whether the
+// next /api/chat call would attempt a model call, and why not if it would not.
+// There is no invented default model id — see GEMINI_MODEL in .env.example.
+app.get('/api/llm/status', (_req, res) => {
+  res.json(llmStatus());
+});
+
+app.post('/api/match', rateLimit('match', 'RATE_LIMIT_MATCH_PER_MINUTE', 60), async (req, res) => {
   try {
     const { query, query_kind, category, locality, limit } = req.body;
     if (!query) {
@@ -332,7 +329,7 @@ function normalizeListingInput(
   };
 }
 
-app.post('/api/listings', requireAuth, (req, res) => {
+app.post('/api/listings', requireAuth, rateLimit('listings', 'RATE_LIMIT_LISTINGS_PER_MINUTE', 30), (req, res) => {
   const principalId = req.principal!.principalId;
   const normalized = normalizeListingInput(req.body || {}, principalId);
   if (!normalized.ok) {
@@ -441,12 +438,12 @@ app.get('/api/rooms/:id/stream', requireAuth, (req, res) => {
   });
 });
 
-app.post('/api/rooms/:id/messages', requireAuth, (req, res) => {
+app.post('/api/rooms/:id/messages', requireAuth, rateLimit('messages', 'RATE_LIMIT_MESSAGES_PER_MINUTE', 120), (req, res) => {
   try {
     const roomId = String(req.params.id);
     const room = getRoomByIdFromDb(roomId);
     if (!room) {
-      res.status(404).json({ error: 'Room not found' });
+      res.status(404).json({ error: 'room_not_found', message: 'Room not found' });
       return;
     }
     const principalId = req.principal!.principalId;
@@ -469,7 +466,22 @@ app.post('/api/rooms/:id/messages', requireAuth, (req, res) => {
       text,
       timestamp: Date.now(),
     };
-    addMessageToRoomInDb(message);
+    // 201 only when the row was actually written. A concurrent delete of the
+    // room, or a duplicate id, must not look like a successful post.
+    try {
+      addMessageToRoomInDb(message);
+    } catch (err) {
+      const reason = classifyMessageInsertError(err);
+      if (reason === 'room_not_found') {
+        res.status(404).json({ error: 'room_not_found', message: 'Room not found' });
+        return;
+      }
+      if (reason === 'duplicate_message_id') {
+        res.status(409).json({ error: 'duplicate_message_id' });
+        return;
+      }
+      throw err;
+    }
     // Broadcast live event to SSE subscribers
     roomEventBus.broadcast(roomId, 'message', message);
     res.status(201).json(message);
@@ -493,47 +505,7 @@ app.get('/api/negotiations', requireAuth, (req, res) => {
   }
 });
 
-app.post('/api/agent/negotiate/start', requireAuth, (req, res) => {
-  try {
-    const principalId = req.principal!.principalId;
-    const { prompt, targetListingId } = req.body;
-    if (!prompt) {
-      res.status(400).json({ error: 'Prompt is required' });
-      return;
-    }
-
-    const { roomId, bestMatch, targetListingTitle, isExistingMatch } = prepareNegotiationRoom(
-      prompt,
-      targetListingId,
-      { principalId }
-    );
-
-    // Run autonomous negotiation in background with live pacing for SSE stream
-    setTimeout(async () => {
-      try {
-        await runAutonomousNegotiation(prompt, targetListingId, {
-          roomId,
-          livePacing: true,
-          principalId,
-        });
-      } catch (err) {
-        console.error('Error during autonomous negotiation:', err);
-      }
-    }, 100);
-
-    res.json({
-      roomId,
-      targetListingTitle,
-      isExistingMatch,
-      bestMatch,
-      streamUrl: `/api/rooms/${roomId}/stream`,
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/agent/negotiate', requireAuth, async (req, res) => {
+app.post('/api/agent/negotiate', requireAuth, rateLimit('negotiate', 'RATE_LIMIT_NEGOTIATE_PER_MINUTE', 30), async (req, res) => {
   try {
     const principalId = req.principal!.principalId;
     const { prompt, targetListingId } = req.body;
@@ -551,7 +523,7 @@ app.post('/api/agent/negotiate', requireAuth, async (req, res) => {
 // -------------------------------------------------------------
 // 3. Angel Agent Conversational Endpoint with MCP & Autonomy
 // -------------------------------------------------------------
-app.post('/api/chat', requireAuth, async (req, res) => {
+app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE', 30), async (req, res) => {
   try {
     const principalId = req.principal!.principalId;
     const { messages, targetListingId } = req.body;
@@ -564,11 +536,13 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   const userPrompt = messages[messages.length - 1]?.content || '';
   const promptLower = userPrompt.toLowerCase();
 
-  // Try real Gemini API with autonomous MCP Function Calling
+  // Try the configured Gemini model with autonomous MCP Function Calling.
   // Every response below declares whether a model was actually used: the UI must
-  // never present rule-based answers as model-driven work.
-  let llmDegradedReason: string | null = null;
-  const aiClient = getGenAiClient();
+  // never present rule-based answers as model-driven work. When no call is made,
+  // `degradedReason` is one of the stable codes from server/llm.ts.
+  const llm = resolveLlmClient();
+  let llmDegradedReason: string | null = llm.reason;
+  const aiClient = llm.client;
   if (aiClient) {
     try {
       const systemInstruction = `Ты — персональный ИИ-ассистент («Агент-Ангел») автономной децентрализованной площадки объявлений «Хочу · Предлагаю» (MCP Rooms).
@@ -588,13 +562,13 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 - search_listings: поиск объявлений в постоянной базе данных SQLite
 - match_listings: асимметричный семантический матчинг (Хочу <-> Предлагаю)
 - create_listing: публикация нового объявления в базу данных SQLite
-- negotiate_agreement: запуск автономных переговоров между агентами в изолированной комнате (Shared Room) для согласования условий
+- negotiate_agreement: находит объявление и возвращает демонстрационный сценарий переговоров; ничего не отправляет автору и не фиксирует соглашение
 - get_room_history: просмотр истории переговоров и соглашений
 - get_profile: публичный профиль автора или компании
 
 Всегда выполняй интент-анализ входящего сообщения:
 1. Если пользователь ищет объявления, партнеров, жилье, работу или команду — вызывай search_listings или match_listings.
-2. Если просит договориться, провести переговоры или согласовать условия — вызывай negotiate_agreement.
+2. Если просит договориться или провести переговоры — вызывай negotiate_agreement, но всегда называй результат демонстрационным сценарием: комнату и реальные сообщения создаёт только пользователь через join_room/send_message.
 3. Если просит создать или опубликовать объявление — вызывай create_listing.
 4. Отвечай дружелюбно, структурированно, на русском языке, ссылайся на конкретные результаты из SQLite и предлагай следующий практический шаг.`;
 
@@ -614,7 +588,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       }
 
       const response = await aiClient.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: configuredModel(),
         contents,
         config: {
           systemInstruction,
@@ -671,7 +645,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
         ];
 
         const followUpResponse = await aiClient.models.generateContent({
-          model: 'gemini-3.8-flash',
+          model: configuredModel(),
           contents: followUpContents,
           config: {
             systemInstruction,
@@ -681,6 +655,8 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
         res.json({
           text: followUpResponse.text || 'Действие успешно выполнено через протокол MCP.',
+          model: configuredModel(),
+          degraded: false,
           executedTools: executedToolsLog,
           negotiation: negotiationResult,
           createdListing: createdListingResult,
@@ -691,26 +667,21 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       if (response.text) {
         res.json({
           text: response.text,
+          model: configuredModel(),
+          degraded: false,
           executedTools: [],
         });
         return;
       }
     } catch (geminiError: any) {
-      const errStr = String(geminiError?.message || geminiError);
-      if (errStr.includes('API_KEY_INVALID') || errStr.includes('API key not valid')) {
-        const apiKey = (process.env.GEMINI_API_KEY || process.env.API_KEY || '').trim();
-        lastInvalidGeminiKey = apiKey;
-        lastInvalidKeyTimestamp = Date.now();
-      }
-      console.warn('Gemini API call failed, switching to dynamic SQLite fallback:', errStr);
-      llmDegradedReason = errStr;
+      // One log line per failure, then an explicit cooldown (server/llm.ts)
+      // instead of the old silent 30-second negative cache.
+      llmDegradedReason = recordLlmFailure(geminiError);
     }
   }
 
   if (!llmDegradedReason) {
-    llmDegradedReason = aiClient
-      ? 'gemini returned no text for this prompt'
-      : 'GEMINI_API_KEY is not configured';
+    llmDegradedReason = 'model_error';
   }
 
   // -----------------------------------------------------------------
@@ -747,7 +718,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       });
       res.json({
         text:
-          '⚠️ Переговоры выполнил встроенный демо-сценарий (модель не вызывалась).\n\n' +
+          '⚠️ Демонстрационный сценарий (модель не вызывалась, автору ничего не отправлено).\n\n' +
           negotiationResult.summary,
         negotiation: negotiationResult,
         degraded: true,
@@ -764,7 +735,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
             },
           },
         ],
-        createdListing: negotiationResult.status === 'listing_created' ? negotiationResult.targetListing : null,
+        createdListing: null,
       });
       return;
     } catch {
@@ -825,9 +796,11 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     res.json({
       text: `🛡️ **Что верно сейчас:** в карточках витрины нет телефонов и точных адресов — этих полей в объявлении нет вообще.
 
-**Чего пока нет:** изолированных комнат. Сейчас любую переписку комнаты может прочитать любой клиент API — это известное ограничение, зафиксированное в аудите; оно исправляется отдельным этапом. Публикация тоже пока прямая, без черновика и предпросмотра.
+**Комнаты переговоров изолированы:** список комнат и историю видит только участник комнаты, сообщения пишутся от имени владельца ключа, а не из тела запроса. Участники комнаты — владелец объявления и тот, кто открыл переговоры.
 
-Поэтому не передавайте в комнату личные данные, пока доступ не ограничен.`,
+**Чего пока нет:** ролей и scope у ключей (любой действующий ключ может многое), общего лимита запросов между инстансами (счётчики живут в памяти процесса), аудит-лога чтения комнат. Для SSE-потока токен передаётся в query-параметре и может попасть в логи прокси. Публикация идёт сразу, без модерации.
+
+Поэтому не передавайте в комнату личные данные сверх необходимого: собеседник — реальный участник, а не демо-агент.`,
       degraded: true,
       degradedReason: llmDegradedReason,
       executedTools: [],
@@ -866,7 +839,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       .join('\n\n');
 
     res.json({
-      text: `По вашему запросу «${userPrompt}» я проверил постоянную базу данных SQLite и нашёл актуальные объявления:\n\n${listPreview}\n\n💡 **Что я могу сделать:** напишите мне *«Договорись по объявлению #${foundItems[0].id}»* или *«Найди партнёра / согласуй просмотр»*, и я автономно проведу раунд переговоров в изолированной комнате через MCP!`,
+      text: `По вашему запросу «${userPrompt}» я проверил постоянную базу данных SQLite и нашёл актуальные объявления:\n\n${listPreview}\n\n💡 **Что можно сделать:** откройте карточку и создайте комнату переговоров, чтобы написать автору. Запрос *«Договорись по объявлению #${foundItems[0].id}»* покажет только демонстрационный сценарий — автору ничего не отправится.`,
       executedTools: [
         {
           name: 'search_listings',
@@ -882,7 +855,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
     // 5. Context-aware guidance with SQLite categories
     res.json({
-      text: `Я проанализировал ваш запрос «${userPrompt}». В базе данных SQLite площадки **MCP Rooms** доступны следующие направления:\n\n🏢 **Недвижимость** — аренда коворкингов, офисов и поиск сожителей;\n🏛️ **Сообщества и Парламент** — команды проектов, инициативы и открытое самоуправление;\n🤝 **Бизнес** — кофаундеры и B2B AI-партнёрства;\n💼 **Вакансии** — Senior инженеры и удалённые позиции;\n🔧 **Услуги** — проверенные мастера и ремонт;\n🌲 **Знакомства** — совместные походы и веловыезды.\n\nУкажите конкретную задачу (например: *«Снять коворкинг в Казани»* или *«Вступить в Парламент сообществ»*), и я найду совпадения в каталоге.`,
+      text: `Я проанализировал ваш запрос «${userPrompt}». В базе данных SQLite площадки **MCP Rooms** доступны следующие направления:\n\n🏢 **Недвижимость** — аренда коворкингов, офисов и поиск сожителей;\n🏛️ **Сообщества и Парламент** — команды проектов, инициативы и открытое самоуправление;\n🤝 **Бизнес** — кофаундеры и B2B AI-партнёрства;\n💼 **Вакансии** — Senior инженеры и удалённые позиции;\n🔧 **Услуги** — мастера и ремонт;\n🌲 **Знакомства** — совместные походы и веловыезды.\n\nУкажите конкретную задачу (например: *«Снять коворкинг в Казани»* или *«Вступить в Парламент сообществ»*), и я найду совпадения в каталоге.`,
       degraded: true,
       degradedReason: llmDegradedReason,
       executedTools: [],
@@ -898,8 +871,15 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   }
 });
 
+// Body-parser failures (413/400) and uncaught route errors end here instead of
+// Express' default HTML page. Registered at module load so tests see it too.
+app.use(httpErrorHandler);
+
 async function start() {
   if (process.env.NODE_ENV !== 'production') {
+    // Vite is a dev dependency: import it lazily so the production image can be
+    // built without devDependencies (see Dockerfile, `prod-deps` stage).
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true, host: '0.0.0.0', port: PORT },
       appType: 'spa',

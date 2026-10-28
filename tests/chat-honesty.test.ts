@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { Server } from 'http';
 import { app } from '../server';
-import { initDatabase } from '../server/db';
+import { initDatabase, getListingsFromDb, getNegotiationsFromDb, getRoomsFromDb } from '../server/db';
 import { MCP_TOOLS_MANIFEST } from '../server/mcp';
 import { authJson, issueTestKey } from './auth-helpers';
 
@@ -54,14 +54,50 @@ describe('Chat honesty: no synthesised tool calls', () => {
     expect(typeof data.degradedReason).toBe('string');
   });
 
-  it('does not claim join_room/send_message during a rule-based negotiation', async () => {
+  it('returns a demo negotiation without creating a room, messages or agreement', async () => {
+    const beforeRooms = getRoomsFromDb().length;
+    const beforeNegotiations = getNegotiationsFromDb().length;
+
     const data = await chat('Договорись об аренде коворкинга в Казани');
     const names = data.executedTools.map((c: any) => c.name);
     expect(names).toEqual(['negotiate_agreement']);
     expect(names).not.toContain('join_room');
     expect(names).not.toContain('send_message');
     expect(data.degraded).toBe(true);
-    expect(data.text).toContain('демо-сценарий');
+    expect(data.text).toContain('Демонстрационный сценарий');
+    expect(data.text).toContain('ничего не отправлено');
+
+    expect(data.negotiation.demo).toBe(true);
+    expect(data.negotiation.status).toBe('demo_preview');
+    expect(data.negotiation.roomId).toBeNull();
+    expect(data.negotiation.demoTerms.note).toContain('не соглашение');
+    expect(data.negotiation.dialogue.every((t: any) => t.simulated === true)).toBe(true);
+    expect(JSON.stringify(data.negotiation)).not.toContain('safetyConfirmed');
+    expect(data.createdListing).toBeNull();
+
+    // Demo runs must not write fabricated messages or agreements anywhere.
+    expect(getRoomsFromDb().length).toBe(beforeRooms);
+    expect(getNegotiationsFromDb().length).toBe(beforeNegotiations);
+  });
+
+  it('does not create a listing or room when nothing matches', async () => {
+    const beforeListings = getListingsFromDb({}).length;
+    const beforeRooms = getRoomsFromDb().length;
+
+    const res = await fetch(`${baseUrl}/api/agent/negotiate`, {
+      method: 'POST',
+      headers: authJson(apiKey),
+      body: JSON.stringify({ prompt: 'Договорись о сделке', targetListingId: 'missing-listing-id' }),
+    });
+    expect(res.status).toBe(200);
+    const data = await res.json();
+
+    expect(data.status).toBe('no_match');
+    expect(data.demo).toBe(true);
+    expect(data.roomId).toBeNull();
+    expect(data.targetListing).toBeNull();
+    expect(getListingsFromDb({}).length).toBe(beforeListings);
+    expect(getRoomsFromDb().length).toBe(beforeRooms);
   });
 
   it('reports a real create_listing call when it actually created a row', async () => {

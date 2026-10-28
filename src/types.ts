@@ -130,7 +130,7 @@ export interface McpRoom {
 }
 
 export interface NegotiationStep {
-  type: 'search' | 'room_created' | 'agent_round' | 'agreement_recorded';
+  type: 'search' | 'demo_script' | 'room_created' | 'agent_round' | 'agreement_recorded';
   title: string;
   detail: string;
   status: 'completed' | 'in_progress';
@@ -144,13 +144,23 @@ export interface NegotiationDialogueTurn {
   avatar: string;
   text: string;
   timestamp: number;
+  simulated?: boolean;
+}
+
+export interface NegotiationDemoTerms {
+  topic: string;
+  price?: string;
+  schedule?: string;
+  locationProtocol: string;
+  note: string;
 }
 
 export interface NegotiationResult {
   negotiationId: string;
-  status: 'agreed' | 'in_progress' | 'listing_created';
-  targetListing: Listing;
-  roomId: string;
+  status: 'demo_preview' | 'no_match' | 'in_progress';
+  demo?: boolean;
+  targetListing: Listing | null;
+  roomId: string | null;
   roomTitle: string;
   steps: NegotiationStep[];
   dialogue: NegotiationDialogueTurn[];
@@ -158,13 +168,7 @@ export interface NegotiationResult {
   similarityScore?: number;
   matchMethod?: 'semantic_embedding' | 'lexical_fallback';
   matchReason?: string;
-  agreedTerms?: {
-    topic: string;
-    price?: string;
-    schedule?: string;
-    locationProtocol: string;
-    safetyConfirmed: boolean;
-  };
+  demoTerms?: NegotiationDemoTerms;
 }
 
 export interface EmbeddingProviderStatus {
