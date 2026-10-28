@@ -48,7 +48,22 @@ Inside the image only `/app/data` is writable by the runtime user; application c
 `node_modules` are root-owned and read-only for the process. The image contains no
 `.env`, `src/`, `tests/`, or dev dependencies (`vite`, `typescript`, `vitest`).
 
-## 4. Issue an API key
+## 4. Demo data (optional)
+
+A fresh database is empty: no listings, no profiles. To load the fictional demo
+catalogue deliberately:
+
+```bash
+docker compose exec mcp-rooms npm run seed:demo
+# or set DEMO_SEED=1 in .env and restart
+```
+
+Everything seeded this way is made-up example data. Do not present it as real demand,
+offers, or people, and do not enable it on a database that contains real records.
+There is no production guard: `DEMO_SEED=1` adds fictional rows to whatever database
+`DATABASE_PATH` points at.
+
+## 5. Issue an API key
 
 Writes (publication, rooms, chat, `/mcp` `tools/call`) need a bearer key:
 
@@ -57,7 +72,8 @@ docker compose exec mcp-rooms npm run key:issue -- --principal user:demo --name 
 ```
 
 The token is printed once and stored in SQLite only as a sha256 digest. Keys have no
-roles, scopes, rate limiting, or read audit log.
+roles, scopes, or read audit log. Request limits are in-process and per key (see
+README), not a shared quota.
 
 ## Reproducible builds
 

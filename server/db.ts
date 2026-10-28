@@ -141,16 +141,27 @@ export function initDatabase() {
     // Column already exists or table freshly initialized
   }
 
-  seedProfilesIfEmpty();
+  if (demoSeedEnabled()) {
+    seedProfilesIfEmpty();
 
-  // Seed default data if database is empty
-  const count = db.prepare('SELECT COUNT(*) as cnt FROM listings').get() as { cnt: number };
-  if (count.cnt === 0) {
-    seedInitialData();
+    // Seed default data if database is empty
+    const count = db.prepare('SELECT COUNT(*) as cnt FROM listings').get() as { cnt: number };
+    if (count.cnt === 0) {
+      seedInitialData();
+    }
+    // Real estate / communities were added later than the original seed set, so
+    // they must be ensured on every init, not only when the table already has rows.
+    ensureNewCategoriesSeeded();
   }
-  // Real estate / communities were added later than the original seed set, so
-  // they must be ensured on every init, not only when the table already has rows.
-  ensureNewCategoriesSeeded();
+}
+
+/**
+ * F-11: the fictional catalogue and profiles are demo data. They must never
+ * appear in a real database, so seeding is opt-in (`DEMO_SEED=1`, or
+ * `npm run seed:demo`). A fresh deployment starts with an empty catalogue.
+ */
+export function demoSeedEnabled(): boolean {
+  return process.env.DEMO_SEED === '1';
 }
 
 function ensureNewCategoriesSeeded() {
