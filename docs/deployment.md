@@ -76,7 +76,8 @@ runtime transpile step is not done here.
   internet as-is.
 - A read-only root filesystem. `/app/data` must stay writable, and `npm run key:issue`
   inside the container still needs a writable `$HOME`.
-- Backups, migrations, monitoring, rate limiting, key scopes, or audit logs.
+- Backups, migrations, monitoring, shared rate limiting across instances (the limiter is
+  per process), key scopes, or audit logs.
 - A verified production or TEST environment. Green CI does not imply either.
 
 Back up `./data/mcp_rooms.db` (and its `-wal`/`-shm` files) before any manual upgrade.

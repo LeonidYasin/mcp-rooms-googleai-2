@@ -109,6 +109,21 @@ room_not_found`, `403` или `409 duplicate_message_id`. Внешние клю�
 поэтому «осиротевшую» строку в `messages` создать нельзя; `201` означает, что запись
 действительно произошла.
 
+## Границы HTTP
+
+- Тело запроса — до 256 КБ: больше → `413 payload_too_large`, битый JSON → `400 invalid_json`.
+- Заголовки: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy:
+  no-referrer`, `Cross-Origin-Resource-Policy: same-origin`, `Permissions-Policy`, CSP с
+  `frame-ancestors`/`base-uri`/`object-src`. `X-Powered-By` отключён. Строгого
+  `script-src`/`style-src` CSP нет: production-бандл не проверяется браузером в CI.
+- CORS: по умолчанию только same-origin; дополнительные origin — `CORS_ALLOWED_ORIGINS`
+  через запятую. Preflight и запись с чужого origin → `403 cors_origin_not_allowed`.
+- Лимиты в памяти процесса, на принципала (без ключа — на IP): `/api/chat` и
+  `/api/agent/negotiate*` — 30/мин, `POST /api/listings` — 30/мин,
+  `POST /api/rooms/:id/messages` — 120/мин, `POST /api/match` — 60/мин, `POST /mcp` — 240/мин.
+  Превышение → `429 rate_limited` + `Retry-After`. Перезапуск и второй инстанс счётчики не
+  разделяют; за реверс-прокси без `trust proxy` все клиенты делят один IP.
+
 Dev-сервер запускается на `http://0.0.0.0:3000`.
 
 ## Сборка и проверка

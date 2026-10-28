@@ -28,5 +28,6 @@ Start with:
 ## What is not documented as done
 
 Do not treat the following as implemented just because they appear in old plans:
-drafts/moderation, photo persistence, roles/scopes for keys, rate limiting, audit logs,
-live SSE negotiation, a public production deployment, or real sales/demand data.
+drafts/moderation, photo persistence, roles/scopes for keys, shared rate limiting across
+instances (the current limiter is in-process), audit logs, live SSE negotiation, a public
+production deployment, or real sales/demand data.

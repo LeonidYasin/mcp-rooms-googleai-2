@@ -19,11 +19,23 @@ import { runAutonomousNegotiation } from './server/negotiator';
 import { getEmbeddingProviderStatus, matchListingAsymmetric } from './server/embeddings';
 import { roomEventBus } from './server/events';
 import { isRoomParticipant, optionalAuth, requireAuth } from './server/auth';
+import {
+  JSON_BODY_LIMIT,
+  corsPolicy,
+  httpErrorHandler,
+  rateLimit,
+  securityHeaders,
+} from './server/http-guard';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-app.use(express.json({ limit: '10mb' }));
+// No advertising of the framework; explicit same-origin CORS policy; bounded
+// JSON bodies instead of the previous 10 MB default.
+app.disable('x-powered-by');
+app.use(securityHeaders);
+app.use(corsPolicy);
+app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
 // Initialize persistent SQLite database on disk
 initDatabase();
@@ -157,7 +169,7 @@ function mcpRequiresAuth(body: any): boolean {
   return false;
 }
 
-app.post('/mcp', optionalAuth, async (req, res) => {
+app.post('/mcp', optionalAuth, rateLimit('mcp', 'RATE_LIMIT_MCP_PER_MINUTE', 240), async (req, res) => {
   if (mcpRequiresAuth(req.body) && !req.principal) {
     res.status(401).json({
       jsonrpc: '2.0',
@@ -195,7 +207,7 @@ app.get('/api/embedding/status', (_req, res) => {
   }
 });
 
-app.post('/api/match', async (req, res) => {
+app.post('/api/match', rateLimit('match', 'RATE_LIMIT_MATCH_PER_MINUTE', 60), async (req, res) => {
   try {
     const { query, query_kind, category, locality, limit } = req.body;
     if (!query) {
@@ -332,7 +344,7 @@ function normalizeListingInput(
   };
 }
 
-app.post('/api/listings', requireAuth, (req, res) => {
+app.post('/api/listings', requireAuth, rateLimit('listings', 'RATE_LIMIT_LISTINGS_PER_MINUTE', 30), (req, res) => {
   const principalId = req.principal!.principalId;
   const normalized = normalizeListingInput(req.body || {}, principalId);
   if (!normalized.ok) {
@@ -441,7 +453,7 @@ app.get('/api/rooms/:id/stream', requireAuth, (req, res) => {
   });
 });
 
-app.post('/api/rooms/:id/messages', requireAuth, (req, res) => {
+app.post('/api/rooms/:id/messages', requireAuth, rateLimit('messages', 'RATE_LIMIT_MESSAGES_PER_MINUTE', 120), (req, res) => {
   try {
     const roomId = String(req.params.id);
     const room = getRoomByIdFromDb(roomId);
@@ -508,7 +520,7 @@ app.get('/api/negotiations', requireAuth, (req, res) => {
   }
 });
 
-app.post('/api/agent/negotiate', requireAuth, async (req, res) => {
+app.post('/api/agent/negotiate', requireAuth, rateLimit('negotiate', 'RATE_LIMIT_NEGOTIATE_PER_MINUTE', 30), async (req, res) => {
   try {
     const principalId = req.principal!.principalId;
     const { prompt, targetListingId } = req.body;
@@ -526,7 +538,7 @@ app.post('/api/agent/negotiate', requireAuth, async (req, res) => {
 // -------------------------------------------------------------
 // 3. Angel Agent Conversational Endpoint with MCP & Autonomy
 // -------------------------------------------------------------
-app.post('/api/chat', requireAuth, async (req, res) => {
+app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE', 30), async (req, res) => {
   try {
     const principalId = req.principal!.principalId;
     const { messages, targetListingId } = req.body;
@@ -874,6 +886,10 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     });
   }
 });
+
+// Body-parser failures (413/400) and uncaught route errors end here instead of
+// Express' default HTML page. Registered at module load so tests see it too.
+app.use(httpErrorHandler);
 
 async function start() {
   if (process.env.NODE_ENV !== 'production') {
