@@ -13,15 +13,30 @@ import {
   getProfilesFromDb,
   getProfileByIdFromDb,
   toPublicListing,
+  getCredentialByIdInDb,
+  getUserInDb,
 } from './server/db';
 import { handleMcpJsonRpcRequest, executeMcpToolCall, MCP_TOOLS_MANIFEST } from './server/mcp';
 import { runAutonomousNegotiation, prepareNegotiationRoom } from './server/negotiator';
 import { getEmbeddingProviderStatus, matchListingAsymmetric } from './server/embeddings';
 import { roomEventBus } from './server/events';
-import { isRoomParticipant, optionalAuth, requireAuth } from './server/auth';
+import {
+  AuthenticationUnavailableError,
+  delegateCredential,
+  isRoomParticipant,
+  optionalAuth,
+  rejectQueryString,
+  requireAuth,
+  requireScope,
+  resolveResource,
+  revokeCredential,
+} from './server/auth';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
+
+// Fail fast on a malformed resource binding rather than at the first request.
+resolveResource();
 
 app.use(express.json({ limit: '10mb' }));
 
@@ -157,21 +172,25 @@ function mcpRequiresAuth(body: any): boolean {
   return false;
 }
 
-app.post('/mcp', optionalAuth, async (req, res) => {
+app.post('/mcp', rejectQueryString, optionalAuth, async (req, res) => {
   if (mcpRequiresAuth(req.body) && !req.principal) {
-    res.status(401).json({
-      jsonrpc: '2.0',
-      id: req.body?.id ?? null,
-      error: {
-        code: -32001,
-        message: 'Unauthorized: this MCP method requires Authorization: Bearer <token>',
-      },
-    });
+    res
+      .status(401)
+      .set('WWW-Authenticate', 'Bearer realm="mcp-rooms"')
+      .json({
+        jsonrpc: '2.0',
+        id: req.body?.id ?? null,
+        error: {
+          code: -32001,
+          message: 'Unauthorized: this MCP method requires Authorization: Bearer <token>',
+        },
+      });
     return;
   }
   try {
     const result = await handleMcpJsonRpcRequest(req.body, {
-      principalId: req.principal?.principalId,
+      userId: req.principal?.userId,
+      scopes: req.principal?.scopes,
     });
     res.json(result);
   } catch (err: any) {
@@ -180,6 +199,73 @@ app.post('/mcp', optionalAuth, async (req, res) => {
       id: req.body?.id || null,
       error: { code: -32603, message: err?.message || 'Internal MCP server error' },
     });
+  }
+});
+
+// -------------------------------------------------------------
+// 1b. Identity: who this credential is, and self-service copies
+// -------------------------------------------------------------
+// `GET /identity` never returns the secret; it lets a client (and the UI) show
+// the user, credential, scopes and expiry behind the current key.
+app.get('/identity', rejectQueryString, requireAuth, (req, res) => {
+  const principal = req.principal!;
+  try {
+    const credential = getCredentialByIdInDb(principal.credentialId);
+    const user = getUserInDb(principal.userId);
+    res.json({
+      user_id: principal.userId,
+      display_name: user?.displayName ?? principal.userId,
+      credential_id: principal.credentialId,
+      credential_name: credential?.name ?? null,
+      scopes: Array.from(principal.scopes).sort(),
+      expires_at: principal.expiresAt,
+      resource: credential?.resource || null,
+    });
+  } catch {
+    res.status(503).json({ error: 'authentication_unavailable' });
+  }
+});
+
+// A delegated key is a copy of the current credential: same user and scopes,
+// expiry never later than the source. This is not an OAuth grant.
+app.post('/credentials', rejectQueryString, requireAuth, (req, res) => {
+  const days = req.body?.days;
+  if (days !== undefined && (typeof days !== 'number' || !Number.isFinite(days))) {
+    res.status(422).json({ error: 'invalid_days' });
+    return;
+  }
+  try {
+    const issued = delegateCredential(req.principal!, days === undefined ? undefined : Number(days));
+    res.status(201).json({
+      key: issued.key,
+      credential_id: issued.credentialId,
+      user_id: issued.userId,
+      scopes: issued.scopes,
+      expires_at: issued.expiresAt,
+      resource: issued.resource || null,
+    });
+  } catch (err: any) {
+    if (err instanceof AuthenticationUnavailableError) {
+      res.status(503).json({ error: 'authentication_unavailable' });
+      return;
+    }
+    const code = err?.message === 'credential_capacity' ? 'credential_capacity' : 'invalid_request';
+    res.status(code === 'credential_capacity' ? 409 : 422).json({
+      error: code,
+      message:
+        code === 'credential_capacity'
+          ? 'Credential limit reached; revoke an unused key first.'
+          : err?.message || 'Cannot delegate this credential.',
+    });
+  }
+});
+
+app.delete('/credentials/current', rejectQueryString, requireAuth, (req, res) => {
+  try {
+    revokeCredential(req.principal!.credentialId);
+    res.status(204).end();
+  } catch {
+    res.status(503).json({ error: 'authentication_unavailable' });
   }
 });
 
@@ -332,8 +418,8 @@ function normalizeListingInput(
   };
 }
 
-app.post('/api/listings', requireAuth, (req, res) => {
-  const principalId = req.principal!.principalId;
+app.post('/api/listings', requireAuth, requireScope('listings:write'), (req, res) => {
+  const principalId = req.principal!.userId;
   const normalized = normalizeListingInput(req.body || {}, principalId);
   if (!normalized.ok) {
     res.status(422).json({ error: 'invalid_listing', errors: normalized.errors });
@@ -347,9 +433,9 @@ app.post('/api/listings', requireAuth, (req, res) => {
   }
 });
 
-app.get('/api/rooms', requireAuth, (req, res) => {
+app.get('/api/rooms', requireAuth, requireScope('rooms:read'), (req, res) => {
   try {
-    const principalId = req.principal!.principalId;
+    const principalId = req.principal!.userId;
     // Only the rooms this key belongs to, never the whole table.
     const rooms = getRoomsFromDb().filter((room: any) => isRoomParticipant(room, principalId));
     res.json(rooms);
@@ -358,7 +444,7 @@ app.get('/api/rooms', requireAuth, (req, res) => {
   }
 });
 
-app.get('/api/rooms/:id', requireAuth, (req, res) => {
+app.get('/api/rooms/:id', requireAuth, requireScope('rooms:read'), (req, res) => {
   try {
     const roomId = String(req.params.id);
     const room = getRoomByIdFromDb(roomId);
@@ -366,7 +452,7 @@ app.get('/api/rooms/:id', requireAuth, (req, res) => {
       res.status(404).json({ error: 'Room not found' });
       return;
     }
-    if (!isRoomParticipant(room, req.principal!.principalId)) {
+    if (!isRoomParticipant(room, req.principal!.userId)) {
       res.status(403).json({ error: 'forbidden', message: 'Вы не участник этой комнаты' });
       return;
     }
@@ -379,14 +465,14 @@ app.get('/api/rooms/:id', requireAuth, (req, res) => {
 // -------------------------------------------------------------
 // Server-Sent Events (SSE) Endpoint for Real-Time Room Streaming
 // -------------------------------------------------------------
-app.get('/api/rooms/:id/stream', requireAuth, (req, res) => {
+app.get('/api/rooms/:id/stream', rejectQueryString, requireAuth, requireScope('rooms:read'), (req, res) => {
   const roomId = String(req.params.id);
   const room = getRoomByIdFromDb(roomId);
   if (!room) {
     res.status(404).json({ error: `Комната ${roomId} не найдена` });
     return;
   }
-  if (!isRoomParticipant(room, req.principal!.principalId)) {
+  if (!isRoomParticipant(room, req.principal!.userId)) {
     res.status(403).json({ error: 'forbidden', message: 'Вы не участник этой комнаты' });
     return;
   }
@@ -441,7 +527,7 @@ app.get('/api/rooms/:id/stream', requireAuth, (req, res) => {
   });
 });
 
-app.post('/api/rooms/:id/messages', requireAuth, (req, res) => {
+app.post('/api/rooms/:id/messages', requireAuth, requireScope('rooms:write'), (req, res) => {
   try {
     const roomId = String(req.params.id);
     const room = getRoomByIdFromDb(roomId);
@@ -449,7 +535,7 @@ app.post('/api/rooms/:id/messages', requireAuth, (req, res) => {
       res.status(404).json({ error: 'Room not found' });
       return;
     }
-    const principalId = req.principal!.principalId;
+    const principalId = req.principal!.userId;
     if (!isRoomParticipant(room, principalId)) {
       res.status(403).json({ error: 'forbidden', message: 'Вы не участник этой комнаты' });
       return;
@@ -478,9 +564,9 @@ app.post('/api/rooms/:id/messages', requireAuth, (req, res) => {
   }
 });
 
-app.get('/api/negotiations', requireAuth, (req, res) => {
+app.get('/api/negotiations', requireAuth, requireScope('rooms:read'), (req, res) => {
   try {
-    const principalId = req.principal!.principalId;
+    const principalId = req.principal!.userId;
     const visibleRoomIds = new Set(
       getRoomsFromDb()
         .filter((room: any) => isRoomParticipant(room, principalId))
@@ -493,9 +579,9 @@ app.get('/api/negotiations', requireAuth, (req, res) => {
   }
 });
 
-app.post('/api/agent/negotiate/start', requireAuth, (req, res) => {
+app.post('/api/agent/negotiate/start', requireAuth, requireScope('rooms:write'), (req, res) => {
   try {
-    const principalId = req.principal!.principalId;
+    const principalId = req.principal!.userId;
     const { prompt, targetListingId } = req.body;
     if (!prompt) {
       res.status(400).json({ error: 'Prompt is required' });
@@ -533,9 +619,9 @@ app.post('/api/agent/negotiate/start', requireAuth, (req, res) => {
   }
 });
 
-app.post('/api/agent/negotiate', requireAuth, async (req, res) => {
+app.post('/api/agent/negotiate', requireAuth, requireScope('rooms:write'), async (req, res) => {
   try {
-    const principalId = req.principal!.principalId;
+    const principalId = req.principal!.userId;
     const { prompt, targetListingId } = req.body;
     if (!prompt) {
       res.status(400).json({ error: 'Prompt is required' });
@@ -551,9 +637,9 @@ app.post('/api/agent/negotiate', requireAuth, async (req, res) => {
 // -------------------------------------------------------------
 // 3. Angel Agent Conversational Endpoint with MCP & Autonomy
 // -------------------------------------------------------------
-app.post('/api/chat', requireAuth, async (req, res) => {
+app.post('/api/chat', requireAuth, requireScope('rooms:write'), async (req, res) => {
   try {
-    const principalId = req.principal!.principalId;
+    const principalId = req.principal!.userId;
     const { messages, targetListingId } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
@@ -634,7 +720,10 @@ app.post('/api/chat', requireAuth, async (req, res) => {
           if (!call.name) continue;
           const toolName = call.name;
           try {
-            const result = await executeMcpToolCall(toolName, call.args || {}, { principalId });
+            const result = await executeMcpToolCall(toolName, call.args || {}, {
+              userId: principalId,
+              scopes: req.principal!.scopes,
+            });
             executedToolsLog.push({ name: toolName, args: call.args, result });
 
             if (call.name === 'negotiate_agreement' && result?.success) {
@@ -805,7 +894,15 @@ app.post('/api/chat', requireAuth, async (req, res) => {
         price_rubles: 0,
         modes: ['pickup', 'online'],
         condition: 'Указано в описании',
-      }, { principalId });
+      }, { userId: principalId, scopes: req.principal!.scopes });
+
+      if (toolResult?.error === 'insufficient_scope') {
+        res.status(403).json({
+          error: 'insufficient_scope',
+          required_scope: toolResult.required_scope,
+        });
+        return;
+      }
 
       res.json({
         text: `✅ Я успешно создал и сохранил в постоянную базу данных SQLite ваше объявление «${toolResult.created_listing.content.title}» в категории «${detectedCategory}». Карточка опубликована в каталоге площадки!`,

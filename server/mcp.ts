@@ -148,8 +148,10 @@ export const MCP_TOOLS_MANIFEST = [
 ];
 
 export interface McpCallContext {
-  /** Principal resolved from the request key. Tools that write or read a room require it. */
-  principalId?: string;
+  /** User resolved from the request key. Every tool requires an authenticated caller. */
+  userId?: string;
+  /** Scopes of the credential, checked per tool before any work happens. */
+  scopes?: Set<string>;
 }
 
 const AUTH_REQUIRED = {
@@ -157,12 +159,44 @@ const AUTH_REQUIRED = {
   message: 'Этот инструмент требует API-ключ: Authorization: Bearer <token>.',
 };
 
+/**
+ * Per-tool scopes, mirroring the original project: a credential gets only what
+ * it was issued for. Missing scope is a tool payload error (`insufficient_scope`),
+ * not a transport-level 403.
+ */
+export const TOOL_SCOPES: Record<string, string> = {
+  search_listings: 'listings:read',
+  match_listings: 'listings:read',
+  get_profile: 'listings:read',
+  get_embedding_status: 'listings:read',
+  create_listing: 'listings:write',
+  join_room: 'rooms:write',
+  send_message: 'rooms:write',
+  get_room_history: 'rooms:read',
+  negotiate_agreement: 'rooms:write',
+};
+
+function scopeFailure(requiredScope: string) {
+  return {
+    error: 'insufficient_scope',
+    required_scope: requiredScope,
+    message: `Ключу не хватает области действия ${requiredScope}.`,
+  };
+}
+
 // Execute MCP Tool directly against the SQLite database
 export async function executeMcpToolCall(
   name: string,
   args: any,
   ctx: McpCallContext = {}
 ): Promise<any> {
+  const requiredScope = TOOL_SCOPES[name];
+  if (!requiredScope) {
+    throw new Error(`MCP Tool ${name} не поддерживается`);
+  }
+  if (!ctx.userId) return AUTH_REQUIRED;
+  if (!ctx.scopes || !ctx.scopes.has(requiredScope)) return scopeFailure(requiredScope);
+
   switch (name) {
     case 'match_listings': {
       const candidates = getListingsFromDb({
@@ -236,7 +270,6 @@ export async function executeMcpToolCall(
     }
 
     case 'create_listing': {
-      if (!ctx.principalId) return AUTH_REQUIRED;
       const priceMinor =
         args.price_rubles && args.price_rubles > 0
           ? Math.floor(args.price_rubles * 100)
@@ -244,8 +277,8 @@ export async function executeMcpToolCall(
 
       const newListing = {
         id: 'listing-' + Date.now(),
-        owner: ctx.principalId,
-        author_name: args.author_name || ctx.principalId,
+        owner: ctx.userId,
+        author_name: args.author_name || ctx.userId,
         content: {
           title: args.title,
           description: args.description,
@@ -277,7 +310,7 @@ export async function executeMcpToolCall(
     }
 
     case 'join_room': {
-      const buyer = ctx.principalId;
+      const buyer = ctx.userId;
       if (!buyer) return AUTH_REQUIRED;
 
       const listing = getListingByIdFromDb(args.listing_id);
@@ -328,7 +361,7 @@ export async function executeMcpToolCall(
     }
 
     case 'send_message': {
-      const sender = ctx.principalId;
+      const sender = ctx.userId;
       if (!sender) return AUTH_REQUIRED;
 
       const room = getRoomByIdFromDb(args.room_id);
@@ -361,12 +394,12 @@ export async function executeMcpToolCall(
     }
 
     case 'get_room_history': {
-      if (!ctx.principalId) return AUTH_REQUIRED;
+      if (!ctx.userId) return AUTH_REQUIRED;
       const room = getRoomByIdFromDb(args.room_id);
       if (!room) {
         return { error: `Комната ${args.room_id} не найдена` };
       }
-      if (!isRoomParticipant(room, ctx.principalId)) {
+      if (!isRoomParticipant(room, ctx.userId)) {
         return { error: 'forbidden', message: 'Вы не участник этой комнаты' };
       }
       return {
@@ -379,13 +412,13 @@ export async function executeMcpToolCall(
     }
 
     case 'negotiate_agreement': {
-      if (!ctx.principalId) return AUTH_REQUIRED;
+      if (!ctx.userId) return AUTH_REQUIRED;
       const goal = args.goal || args.prompt || '';
       if (!goal) {
         return { error: 'Параметр goal обязателен' };
       }
       const negotiationResult = await runAutonomousNegotiation(goal, args.target_listing_id, {
-        principalId: ctx.principalId,
+        principalId: ctx.userId,
       });
       return {
         success: true,
@@ -483,15 +516,22 @@ export async function handleMcpJsonRpcRequest(
         if (uri === 'rooms://all') {
           // Rooms are private to their participants: this resource used to dump
           // every conversation to any client (audit F-01).
-          if (!ctx.principalId) {
+          if (!ctx.userId) {
             return {
               jsonrpc: '2.0',
               id,
               error: { code: -32001, message: 'Unauthorized: rooms://all requires an API key' },
             };
           }
+          if (!ctx.scopes?.has('rooms:read')) {
+            return {
+              jsonrpc: '2.0',
+              id,
+              error: { code: -32003, message: 'insufficient_scope: rooms:read' },
+            };
+          }
           const rooms = getRoomsFromDb().filter((r: any) =>
-            isRoomParticipant(r, ctx.principalId)
+            isRoomParticipant(r, ctx.userId)
           );
           return {
             jsonrpc: '2.0',

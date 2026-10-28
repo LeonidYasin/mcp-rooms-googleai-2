@@ -94,6 +94,8 @@ export function initDatabase() {
       FOREIGN KEY(listing_id) REFERENCES listings(id) ON DELETE CASCADE
     );
 
+    -- Legacy PR-3 keys. Superseded by users/credentials below; kept so an
+    -- existing prototype database is not destructively altered by this PR.
     CREATE TABLE IF NOT EXISTS api_keys (
       id TEXT PRIMARY KEY,
       principal_id TEXT NOT NULL,
@@ -105,6 +107,29 @@ export function initDatabase() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_api_keys_principal ON api_keys(principal_id);
+
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,              -- 'user:<operator-chosen-slug>'
+      display_name TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      disabled INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS credentials (
+      id TEXT PRIMARY KEY,              -- 32 hex chars, public credential id
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      digest TEXT NOT NULL UNIQUE,      -- sha256 hex of the raw token
+      resource TEXT NOT NULL DEFAULT '',-- bound resource URL, '' = unbound (dev)
+      scopes_json TEXT NOT NULL,        -- JSON array of granted scopes
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      last_used_at INTEGER,
+      revoked_at INTEGER,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_credentials_user ON credentials(user_id);
 
     CREATE TABLE IF NOT EXISTS negotiations (
       id TEXT PRIMARY KEY,
@@ -146,6 +171,7 @@ export function initDatabase() {
   // Real estate / communities were added later than the original seed set, so
   // they must be ensured on every init, not only when the table already has rows.
   ensureNewCategoriesSeeded();
+
 }
 
 function ensureNewCategoriesSeeded() {
@@ -1105,91 +1131,143 @@ function formatListingRow(row: any) {
 }
 
 // ---------------------------------------------------------------------------
-// API keys (PR-3). Only the sha256 digest is persisted; the bearer token is
-// printed once by scripts/issue-key.ts and never written to disk or logs.
+// Identity: users and credentials (PR-4).
+//
+// Mirrors the contract in the original mcp-rooms `identity.py`: a credential
+// has a public id, a sha256 digest (never the secret), scopes, a resource URL,
+// an expiry and a revocation flag. The raw token is shown once by the CLI and
+// is never written to disk or logs.
 // ---------------------------------------------------------------------------
-export interface ApiKeyRecord {
+
+export interface UserRecord {
   id: string;
-  principalId: string;
-  name: string;
+  displayName: string;
   createdAt: number;
+  disabled: boolean;
+}
+
+export interface CredentialRecord {
+  id: string;
+  userId: string;
+  name: string;
+  digest: string;
+  resource: string;
+  scopes: string[];
+  createdAt: number;
+  expiresAt: number;
   lastUsedAt: number | null;
   revokedAt: number | null;
 }
 
-function mapApiKeyRow(row: any): ApiKeyRecord {
+function mapUserRow(row: any): UserRecord {
   return {
     id: row.id,
-    principalId: row.principal_id,
-    name: row.name,
+    displayName: row.display_name,
     createdAt: row.created_at,
+    disabled: row.disabled === 1,
+  };
+}
+
+function mapCredentialRow(row: any): CredentialRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    name: row.name,
+    digest: row.digest,
+    resource: row.resource,
+    scopes: JSON.parse(row.scopes_json || '[]'),
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
     lastUsedAt: row.last_used_at ?? null,
     revokedAt: row.revoked_at ?? null,
   };
 }
 
-export function createApiKeyInDb(record: {
+export function createUserInDb(record: {
   id: string;
-  principalId: string;
+  displayName: string;
+  createdAt: number;
+}): UserRecord {
+  db.prepare('INSERT INTO users (id, display_name, created_at) VALUES (?, ?, ?)').run(
+    record.id,
+    record.displayName,
+    record.createdAt
+  );
+  return getUserInDb(record.id)!;
+}
+
+export function getUserInDb(id: string): UserRecord | null {
+  const row = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as any;
+  return row ? mapUserRow(row) : null;
+}
+
+export function listUsersInDb(): UserRecord[] {
+  const rows = db.prepare('SELECT * FROM users ORDER BY created_at ASC').all() as any[];
+  return rows.map(mapUserRow);
+}
+
+export function disableUserInDb(id: string): boolean {
+  return db.prepare('UPDATE users SET disabled = 1 WHERE id = ? AND disabled = 0').run(id).changes > 0;
+}
+
+export function createCredentialInDb(record: {
+  id: string;
+  userId: string;
   name: string;
   digest: string;
+  resource: string;
+  scopes: string[];
   createdAt: number;
-}) {
+  expiresAt: number;
+}): CredentialRecord {
   db.prepare(
-    `INSERT INTO api_keys (id, principal_id, name, digest, created_at)
-     VALUES (?, ?, ?, ?, ?)`
-  ).run(record.id, record.principalId, record.name, record.digest, record.createdAt);
-  return getApiKeyByIdInDb(record.id)!;
+    `INSERT INTO credentials (id, user_id, name, digest, resource, scopes_json, created_at, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    record.id,
+    record.userId,
+    record.name,
+    record.digest,
+    record.resource,
+    JSON.stringify(record.scopes),
+    record.createdAt,
+    record.expiresAt
+  );
+  return getCredentialByIdInDb(record.id)!;
 }
 
-export function getApiKeyByIdInDb(id: string): ApiKeyRecord | null {
-  const row = db.prepare('SELECT * FROM api_keys WHERE id = ?').get(id) as any;
-  return row ? mapApiKeyRow(row) : null;
+export function getCredentialByIdInDb(id: string): CredentialRecord | null {
+  const row = db.prepare('SELECT * FROM credentials WHERE id = ?').get(id) as any;
+  return row ? mapCredentialRow(row) : null;
 }
 
-export function getApiKeyByDigestInDb(digest: string): ApiKeyRecord | null {
-  const row = db.prepare('SELECT * FROM api_keys WHERE digest = ?').get(digest) as any;
-  return row ? mapApiKeyRow(row) : null;
+export function getCredentialByDigestInDb(digest: string): CredentialRecord | null {
+  const row = db.prepare('SELECT * FROM credentials WHERE digest = ?').get(digest) as any;
+  return row ? mapCredentialRow(row) : null;
 }
 
-export function listApiKeysInDb(): ApiKeyRecord[] {
-  const rows = db.prepare('SELECT * FROM api_keys ORDER BY created_at ASC').all() as any[];
-  return rows.map(mapApiKeyRow);
+export function listCredentialsInDb(userId?: string): CredentialRecord[] {
+  const rows = userId
+    ? (db.prepare('SELECT * FROM credentials WHERE user_id = ? ORDER BY created_at ASC').all(userId) as any[])
+    : (db.prepare('SELECT * FROM credentials ORDER BY created_at ASC').all() as any[]);
+  return rows.map(mapCredentialRow);
+}
+
+export function countCredentialsInDb(userId: string): number {
+  const row = db.prepare('SELECT COUNT(*) AS cnt FROM credentials WHERE user_id = ?').get(userId) as { cnt: number };
+  return row.cnt;
 }
 
 /** Updates last_used_at only when it is stale, to keep reads cheap. */
-export function touchApiKeyInDb(id: string, at: number, minIntervalMs = 60_000) {
+export function touchCredentialInDb(id: string, at: number, minIntervalMs = 60_000) {
   db.prepare(
-    `UPDATE api_keys SET last_used_at = ?
+    `UPDATE credentials SET last_used_at = ?
      WHERE id = ? AND (last_used_at IS NULL OR last_used_at < ?)`
   ).run(at, id, at - minIntervalMs);
 }
 
-export function revokeApiKeyInDb(id: string, at: number): boolean {
-  const result = db.prepare('UPDATE api_keys SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL').run(at, id);
-  return result.changes > 0;
-}
-
-/**
- * Public projection of a listing: the storefront is readable without a key, so
- * it must not carry owner principal ids, the stored embedding vector or contact
- * channels. Author display data stays.
- */
-export function toPublicListing(listing: any): any {
-  if (!listing) return listing;
-  const { owner, embedding_json, profile_id, profile, ...rest } = listing;
-  const publicProfile = profile
-    ? {
-        id: profile.id,
-        type: profile.type,
-        name: profile.name,
-        headline: profile.headline,
-        bio: profile.bio,
-        avatar_url: profile.avatar_url,
-        locality: profile.locality,
-        verified: profile.verified,
-        reputation_score: profile.reputation_score,
-      }
-    : undefined;
-  return { ...rest, profile: publicProfile };
+export function revokeCredentialInDb(id: string, at: number): boolean {
+  return (
+    db.prepare('UPDATE credentials SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL').run(at, id).changes > 0
+  );
 }

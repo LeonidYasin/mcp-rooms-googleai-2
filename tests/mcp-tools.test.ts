@@ -7,8 +7,9 @@ describe('Model Context Protocol (MCP) Tools & JSON-RPC Protocol', () => {
     initDatabase();
   });
 
-  const alice = { principalId: 'user:mcp-alice' };
-  const mallory = { principalId: 'user:mcp-mallory' };
+  const scopes = new Set(['rooms:read', 'rooms:write', 'listings:read', 'listings:write']);
+  const alice = { userId: 'user:mcp-alice', scopes };
+  const mallory = { userId: 'user:mcp-mallory', scopes };
 
   describe('MCP Tools Manifest', () => {
     it('manifest defines all required autonomous tools', () => {
@@ -25,9 +26,13 @@ describe('Model Context Protocol (MCP) Tools & JSON-RPC Protocol', () => {
 
   describe('executeMcpToolCall', () => {
     it('search_listings returns listings matching category or query', async () => {
-      const result = await executeMcpToolCall('search_listings', {
-        category: 'real_estate',
-      });
+      const result = await executeMcpToolCall(
+        'search_listings',
+        {
+          category: 'real_estate',
+        },
+        alice
+      );
 
       expect(result).toHaveProperty('items');
       expect(Array.isArray(result.items)).toBe(true);
@@ -54,7 +59,7 @@ describe('Model Context Protocol (MCP) Tools & JSON-RPC Protocol', () => {
 
       expect(result.success).toBe(true);
       expect(result.created_listing).toBeDefined();
-      expect(result.created_listing.owner).toBe(alice.principalId);
+      expect(result.created_listing.owner).toBe(alice.userId);
       expect(result.created_listing.id).toBeDefined();
       expect(result.created_listing.content.title).toBe(testTitle);
 
@@ -94,7 +99,7 @@ describe('Model Context Protocol (MCP) Tools & JSON-RPC Protocol', () => {
       expect(msgResult.success).toBe(true);
       expect(msgResult.message.text).toContain('подтверждаем');
       // The server stamps the sender; the client cannot choose it.
-      expect(msgResult.message.sender).toBe(alice.principalId);
+      expect(msgResult.message.sender).toBe(alice.userId);
 
       // 3. Get room history
       const historyResult = await executeMcpToolCall('get_room_history', { room_id: roomId }, alice);
@@ -148,7 +153,7 @@ describe('Model Context Protocol (MCP) Tools & JSON-RPC Protocol', () => {
       );
 
       expect(joinResult.success).toBe(true);
-      expect(joinResult.room.participants).toContain(mallory.principalId);
+      expect(joinResult.room.participants).toContain(mallory.userId);
       // The seller of the seeded listing, not the spoofed buyer_id, is the other side.
       expect(joinResult.room.participants).not.toContain('user:mcp-alice');
 
@@ -157,19 +162,23 @@ describe('Model Context Protocol (MCP) Tools & JSON-RPC Protocol', () => {
         { room_id: joinResult.room_id },
         mallory
       );
-      expect(history.messages[0].sender).toBe(mallory.principalId);
+      expect(history.messages[0].sender).toBe(mallory.userId);
     });
 
     it('get_embedding_status returns current provider status without throwing', async () => {
-      const statusResult = await executeMcpToolCall('get_embedding_status', {});
+      const statusResult = await executeMcpToolCall('get_embedding_status', {}, alice);
       expect(statusResult).toHaveProperty('provider');
       expect(['google', 'fallback', 'disabled']).toContain(statusResult.provider);
     });
 
     it('get_profile retrieves existing author profile from SQLite', async () => {
-      const profileResult = await executeMcpToolCall('get_profile', {
-        profile_id: 'user:founder-alex',
-      });
+      const profileResult = await executeMcpToolCall(
+        'get_profile',
+        {
+          profile_id: 'user:founder-alex',
+        },
+        alice
+      );
 
       expect(profileResult.profile).toBeDefined();
       expect(profileResult.profile.id).toBe('user:founder-alex');
@@ -193,17 +202,20 @@ describe('Model Context Protocol (MCP) Tools & JSON-RPC Protocol', () => {
     });
 
     it('handles tools/call request for search_listings', async () => {
-      const response = await handleMcpJsonRpcRequest({
-        jsonrpc: '2.0',
-        id: 2,
-        method: 'tools/call',
-        params: {
-          name: 'search_listings',
-          arguments: {
-            category: 'communities',
+      const response = await handleMcpJsonRpcRequest(
+        {
+          jsonrpc: '2.0',
+          id: 2,
+          method: 'tools/call',
+          params: {
+            name: 'search_listings',
+            arguments: {
+              category: 'communities',
+            },
           },
         },
-      });
+        alice
+      );
 
       expect(response.jsonrpc).toBe('2.0');
       expect(response.id).toBe(2);

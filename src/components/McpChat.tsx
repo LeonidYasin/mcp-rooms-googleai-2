@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Listing, McpRoom, NegotiationResult, EmbeddingProviderStatus } from '../types';
-import { authHeaders, getStoredApiKey, withAccessToken } from '../lib/api';
+import { authHeaders, getStoredApiKey, streamSse, type SseEvent } from '../lib/api';
 
 export interface ChatMessage {
   id: string;
@@ -68,7 +68,8 @@ export const McpChat: React.FC<McpChatProps> = ({
   } | null>(null);
 
   const seenMessageIds = useRef<Set<string>>(new Set());
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const streamAbortRef = useRef<AbortController | null>(null);
+  const streamDoneRef = useRef(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -82,9 +83,7 @@ export const McpChat: React.FC<McpChatProps> = ({
 
   useEffect(() => {
     return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-      }
+      streamAbortRef.current?.abort();
     };
   }, []);
 
@@ -97,6 +96,148 @@ export const McpChat: React.FC<McpChatProps> = ({
       })
       .catch(() => {});
   }, []);
+
+  /** Applies one server-sent room event to the chat transcript. */
+  const applyStreamEvent = (evt: SseEvent, assistantMsgId: string, roomId: string) => {
+    if (evt.event === 'ping' || evt.event === 'retry') return;
+
+    let data: any;
+    try {
+      data = JSON.parse(evt.data);
+    } catch {
+      return;
+    }
+
+    switch (evt.event) {
+      case 'init': {
+        if (Array.isArray(data.messages)) {
+          data.messages.forEach((m: any) => {
+            if (m?.id) seenMessageIds.current.add(m.id);
+          });
+        }
+        setSseStatus('connected');
+        break;
+      }
+
+      case 'step': {
+        const newStep = data;
+        setMessages((prev) =>
+          prev.map((msg) => {
+            if (msg.id !== assistantMsgId || !msg.negotiation) return msg;
+            const existingStepIndex = msg.negotiation.steps.findIndex((s) => s.type === newStep.type);
+            const updatedSteps = [...msg.negotiation.steps];
+            if (existingStepIndex >= 0) updatedSteps[existingStepIndex] = newStep;
+            else updatedSteps.push(newStep);
+            return { ...msg, negotiation: { ...msg.negotiation, steps: updatedSteps } };
+          })
+        );
+        break;
+      }
+
+      case 'typing':
+        setTypingAgent(data);
+        break;
+
+      case 'turn': {
+        const newTurn = data;
+        setTypingAgent(null);
+        setMessages((prev) =>
+          prev.map((msg) => {
+            if (msg.id !== assistantMsgId || !msg.negotiation) return msg;
+            // Deduplicate turn by timestamp and text
+            const exists = msg.negotiation.dialogue.some(
+              (t) => t.timestamp === newTurn.timestamp && t.text === newTurn.text
+            );
+            if (exists) return msg;
+            return {
+              ...msg,
+              negotiation: { ...msg.negotiation, dialogue: [...msg.negotiation.dialogue, newTurn] },
+            };
+          })
+        );
+        break;
+      }
+
+      case 'message':
+        if (data?.id) seenMessageIds.current.add(data.id);
+        setTypingAgent(null);
+        break;
+
+      case 'agreement': {
+        setTypingAgent(null);
+        setSseStatus('done');
+        streamDoneRef.current = true;
+
+        setMessages((prev) =>
+          prev.map((msg) => {
+            if (msg.id !== assistantMsgId || !msg.negotiation) return msg;
+            return {
+              ...msg,
+              content:
+                '✅ Переговоры успешно завершены! Все условия согласованы между агентами и зафиксированы в SQLite базе данных на сервере.',
+              negotiation: {
+                ...msg.negotiation,
+                status: 'agreed',
+                agreedTerms: data.agreedTerms,
+                summary: `Детали согласованы в комнате #${data.roomId || roomId}. Все условия зафиксированы в SQLite.`,
+              },
+            };
+          })
+        );
+
+        streamAbortRef.current?.abort();
+        setIsLoading(false);
+        onRefreshData?.();
+        break;
+      }
+
+      default:
+        break;
+    }
+  };
+
+  /**
+   * Reads the room stream with fetch (so the Authorization header is sent) and
+   * retries twice on a transient failure. Tokens never appear in the URL.
+   */
+  const connectRoomStream = (streamUrl: string, assistantMsgId: string, roomId: string) => {
+    streamAbortRef.current?.abort();
+    const controller = new AbortController();
+    streamAbortRef.current = controller;
+    streamDoneRef.current = false;
+    let attempt = 0;
+
+    const run = async () => {
+      try {
+        setSseStatus(attempt === 0 ? 'connecting' : 'reconnecting');
+        await streamSse(
+          streamUrl,
+          (evt) => applyStreamEvent(evt, assistantMsgId, roomId),
+          controller.signal
+        );
+        if (!controller.signal.aborted && !streamDoneRef.current) setSseStatus('idle');
+      } catch (err: any) {
+        if (controller.signal.aborted) return;
+        const status = err?.failure?.status;
+        if (status === 401 || status === 403) {
+          setSseStatus('idle');
+          onRequireKey?.('Поток комнаты отклонил ключ. Проверьте срок и области действия ключа.');
+          return;
+        }
+        if (attempt < 2) {
+          attempt += 1;
+          setSseStatus('reconnecting');
+          window.setTimeout(() => {
+            if (!controller.signal.aborted) void run();
+          }, 2500);
+        } else {
+          setSseStatus('idle');
+        }
+      }
+    };
+
+    void run();
+  };
 
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || input).trim();
@@ -194,139 +335,7 @@ export const McpChat: React.FC<McpChatProps> = ({
 
           setMessages((prev) => [...prev, initialAssistantMsg]);
 
-          // Connect SSE Stream
-          if (eventSourceRef.current) {
-            eventSourceRef.current.close();
-          }
-
-          // EventSource cannot send headers; the token goes in the query for now.
-          const es = new EventSource(withAccessToken(streamUrl));
-          eventSourceRef.current = es;
-
-          es.onopen = () => {
-            setSseStatus('connected');
-          };
-
-          es.addEventListener('init', (e: MessageEvent) => {
-            try {
-              const data = JSON.parse(e.data);
-              if (Array.isArray(data.messages)) {
-                data.messages.forEach((m: any) => seenMessageIds.current.add(m.id));
-              }
-              setSseStatus('connected');
-            } catch {}
-          });
-
-          es.addEventListener('step', (e: MessageEvent) => {
-            try {
-              const newStep = JSON.parse(e.data);
-              setMessages((prev) =>
-                prev.map((msg) => {
-                  if (msg.id === assistantMsgId && msg.negotiation) {
-                    const existingStepIndex = msg.negotiation.steps.findIndex(
-                      (s) => s.type === newStep.type
-                    );
-                    let updatedSteps = [...msg.negotiation.steps];
-                    if (existingStepIndex >= 0) {
-                      updatedSteps[existingStepIndex] = newStep;
-                    } else {
-                      updatedSteps.push(newStep);
-                    }
-                    return {
-                      ...msg,
-                      negotiation: {
-                        ...msg.negotiation,
-                        steps: updatedSteps,
-                      },
-                    };
-                  }
-                  return msg;
-                })
-              );
-            } catch {}
-          });
-
-          es.addEventListener('typing', (e: MessageEvent) => {
-            try {
-              const typingData = JSON.parse(e.data);
-              setTypingAgent(typingData);
-            } catch {}
-          });
-
-          es.addEventListener('turn', (e: MessageEvent) => {
-            try {
-              const newTurn = JSON.parse(e.data);
-              setTypingAgent(null);
-
-              setMessages((prev) =>
-                prev.map((msg) => {
-                  if (msg.id === assistantMsgId && msg.negotiation) {
-                    // Deduplicate turn by timestamp and text
-                    const exists = msg.negotiation.dialogue.some(
-                      (t) => t.timestamp === newTurn.timestamp && t.text === newTurn.text
-                    );
-                    if (exists) return msg;
-
-                    return {
-                      ...msg,
-                      negotiation: {
-                        ...msg.negotiation,
-                        dialogue: [...msg.negotiation.dialogue, newTurn],
-                      },
-                    };
-                  }
-                  return msg;
-                })
-              );
-            } catch {}
-          });
-
-          es.addEventListener('message', (e: MessageEvent) => {
-            try {
-              const msgData = JSON.parse(e.data);
-              if (msgData.id) {
-                seenMessageIds.current.add(msgData.id);
-              }
-              setTypingAgent(null);
-            } catch {}
-          });
-
-          es.addEventListener('agreement', (e: MessageEvent) => {
-            try {
-              const agreeData = JSON.parse(e.data);
-              setTypingAgent(null);
-              setSseStatus('done');
-
-              setMessages((prev) =>
-                prev.map((msg) => {
-                  if (msg.id === assistantMsgId && msg.negotiation) {
-                    return {
-                      ...msg,
-                      content: `✅ Переговоры успешно завершены! Все условия согласованы между агентами и зафиксированы в SQLite базе данных на сервере.`,
-                      negotiation: {
-                        ...msg.negotiation,
-                        status: 'agreed',
-                        agreedTerms: agreeData.agreedTerms,
-                        summary: `Детали согласованы в комнате #${agreeData.roomId || roomId}. Все условия зафиксированы в SQLite.`,
-                      },
-                    };
-                  }
-                  return msg;
-                })
-              );
-
-              es.close();
-              setIsLoading(false);
-              if (onRefreshData) {
-                onRefreshData();
-              }
-            } catch {}
-          });
-
-          es.onerror = () => {
-            setSseStatus('reconnecting');
-          };
-
+          connectRoomStream(streamUrl, assistantMsgId, roomId);
           return;
         }
       } catch (err: any) {

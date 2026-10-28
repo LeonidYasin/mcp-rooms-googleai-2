@@ -7,7 +7,7 @@
     "dev": "tsx server.ts",
     "build": "tsc && vite build",
     "start": "tsx server.ts",
-    "key:issue": "tsx scripts/issue-key.ts",
+    "auth": "tsx scripts/auth-cli.ts",
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "preview": "vite preview"

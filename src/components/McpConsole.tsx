@@ -195,7 +195,7 @@ export const McpConsole: React.FC<McpConsoleProps> = ({
         {!getStoredApiKey() && (
           <p className="text-xs text-amber-800 dark:text-amber-300 mt-2">
             Ключ не задан: <code>tools/list</code> открыт, но <code>tools/call</code> вернёт 401.
-            Нажмите 🔑 в шапке и вставьте ключ, выданный командой <code>npm run key:issue</code>.
+            Нажмите 🔑 в шапке и вставьте ключ, выданный командой <code>npm run auth -- key issue --user user:… --name "…"</code>.
           </p>
         )}
       </div>

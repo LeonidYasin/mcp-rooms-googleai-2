@@ -70,36 +70,54 @@ npm install
 npm run dev
 ```
 
-## Доступ: ключи и границы
+## Доступ: пользователи, ключи и границы
 
 Без ключа доступны каталог, карточка объявления, профили, статус эмбеддингов и `POST /api/match`.
-Всё остальное требует ключ.
+Всё остальное требует ключ. Ключ принадлежит пользователю, имеет области действия (scopes)
+и срок жизни. Контракт повторяет `identity.py` из исходного `mcp-rooms`.
+
+### Выдача ключей (только через CLI)
 
 ```bash
-# выдать ключ (показывается один раз)
-npm run key:issue -- --principal user:leonid --name "laptop"
-# посмотреть выпущенные ключи (без токенов)
-npm run key:issue -- --list
-# отозвать: последующие запросы получают 401
-npm run key:issue -- --revoke key_ab12cd34ef56
+# 1. Создать пользователя (id можно задать, иначе сгенерируется user:u-xxxxxxxx)
+npm run auth -- user create --name "Леонид" --id user:leonid
+
+# 2. Выдать ключ: токен показывается один раз
+npm run auth -- key issue --user user:leonid --name "laptop" \
+  --scope rooms:read --scope rooms:write --scope listings:read --scope listings:write --days 7
+
+# 3. Посмотреть ключи без токенов / отозвать / отключить пользователя
+npm run auth -- key list
+npm run auth -- key revoke <credential_id>
+npm run auth -- user disable --id user:leonid
 ```
 
-`--principal` — `user:<slug>`, `agent:<slug>` или `org:<slug>` (строчные буквы, цифры, `.`, `-`, `_`).
-Ключ отправляется как `Authorization: Bearer mcr_…`; в браузере его можно сохранить через кнопку 🔑 в шапке.
+- Scopes: `rooms:read`, `rooms:write`, `listings:read`, `listings:write`. По умолчанию выдаются все четыре.
+- TTL: по умолчанию 7 дней, максимум 90 (`--days`).
+- Токен: `mcr_<32 hex>.<43 base64url>`, хранится только sha256-дайджест.
+- Ключ отправляется как `Authorization: Bearer mcr_…`; в браузере его можно сохранить через кнопку 🔑.
+- `MCP_RESOURCE=https://host/mcp` привязывает все ключи к этому ресурсу (в production обязателен;
+  пустое значение — только локальная разработка).
 
-| Endpoint | Без ключа | С ключом |
-| --- | --- | --- |
-| `GET /api/listings`, `GET /api/listings/:id` | 200, публичная проекция | 200 |
-| `GET /api/profiles`, `GET /api/profiles/:id`, `GET /api/embedding/status`, `POST /api/match` | 200 | 200 |
-| `POST /api/listings` | 401 | 201, `owner` = субъект ключа |
-| `GET /api/rooms`, `GET /api/rooms/:id`, `GET /api/rooms/:id/stream` | 401 | только комнаты участника, иначе 403 |
-| `POST /api/rooms/:id/messages` | 401 | 201, `sender` = субъект ключа |
-| `POST /api/chat`, `POST /api/agent/negotiate*`, `GET /api/negotiations` | 401 | 200, действия от имени субъекта |
-| `POST /mcp` `tools/list`, `resources/read listings://all` | 200 | 200 |
-| `POST /mcp` `tools/call`, `resources/read rooms://all` | 401 | 200, только свои комнаты |
+### Что доступно
 
-Ограничение: `EventSource` не умеет отправлять заголовки, поэтому SSE-поток принимает
-`?access_token=…`. Токен в URL может попасть в логи прокси — транспорт меняется в PR-8.
+| Endpoint | Требование |
+| --- | --- |
+| `GET /api/listings`, `GET /api/listings/:id`, `GET /api/profiles*`, `GET /api/embedding/status`, `POST /api/match` | анонимно |
+| `POST /api/listings` | `listings:write` |
+| `GET /api/rooms`, `/api/rooms/:id`, `/stream`, `GET /api/negotiations` | `rooms:read` + участие в комнате |
+| `POST /api/rooms/:id/messages`, `/api/agent/negotiate*`, `/api/chat` | `rooms:write` + участие |
+| `POST /mcp` `tools/list`, `resources/read listings://all` | анонимно |
+| `POST /mcp` `tools/call` | ключ; каждый инструмент проверяет свой scope |
+| `GET /identity` | ключ; возвращает пользователя, credential id, scopes и срок — без секрета |
+| `POST /credentials` | ключ; выпускает копию не шире текущей (scopes и TTL не расширяются) |
+| `DELETE /credentials/current` | ключ; отзывает только текущий ключ |
+
+Недостающий scope даёт `403 {"error":"insufficient_scope","required_scope":"…"}` на REST и
+ошибку в payload инструмента на `tools/call` (а не OAuth-ошибку транспорта). Истёкший,
+отозванный или отключённый ключ — `401 invalid_token` с `WWW-Authenticate`.
+Query-строки как канал аутентификации запрещены: `?access_token=` отклоняется (`400`),
+SSE читается через `fetch` с заголовком `Authorization`.
 
 Dev-сервер запускается на `http://0.0.0.0:3000`.
 
