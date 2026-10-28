@@ -9,6 +9,7 @@ import {
   getProfilesFromDb,
   getProfileByIdFromDb,
   toPublicListing,
+  classifyMessageInsertError,
 } from './db';
 import {
   matchListingAsymmetric,
@@ -356,7 +357,18 @@ export async function executeMcpToolCall(
         timestamp: Date.now(),
       };
 
-      addMessageToRoomInDb(msg);
+      try {
+        addMessageToRoomInDb(msg);
+      } catch (err) {
+        const reason = classifyMessageInsertError(err);
+        if (reason === 'room_not_found') {
+          return { error: 'room_not_found', message: `Комната ${args.room_id} не найдена` };
+        }
+        if (reason === 'duplicate_message_id') {
+          return { error: 'duplicate_message_id', message: 'Сообщение с таким id уже существует' };
+        }
+        throw err;
+      }
       return { success: true, message: msg };
     }
 

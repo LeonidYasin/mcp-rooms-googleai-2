@@ -12,6 +12,7 @@ import {
   getProfilesFromDb,
   getProfileByIdFromDb,
   toPublicListing,
+  classifyMessageInsertError,
 } from './server/db';
 import { handleMcpJsonRpcRequest, executeMcpToolCall, MCP_TOOLS_MANIFEST } from './server/mcp';
 import { runAutonomousNegotiation } from './server/negotiator';
@@ -468,7 +469,22 @@ app.post('/api/rooms/:id/messages', requireAuth, (req, res) => {
       text,
       timestamp: Date.now(),
     };
-    addMessageToRoomInDb(message);
+    // 201 only when the row was actually written. A concurrent delete of the
+    // room, or a duplicate id, must not look like a successful post.
+    try {
+      addMessageToRoomInDb(message);
+    } catch (err) {
+      const reason = classifyMessageInsertError(err);
+      if (reason === 'room_not_found') {
+        res.status(404).json({ error: 'room_not_found', message: 'Room not found' });
+        return;
+      }
+      if (reason === 'duplicate_message_id') {
+        res.status(409).json({ error: 'duplicate_message_id' });
+        return;
+      }
+      throw err;
+    }
     // Broadcast live event to SSE subscribers
     roomEventBus.broadcast(roomId, 'message', message);
     res.status(201).json(message);

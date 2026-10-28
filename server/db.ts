@@ -17,6 +17,11 @@ export const db = new Database(dbPath);
 // Enable WAL mode for high performance and concurrency
 db.pragma('journal_mode = WAL');
 
+// Enforce the foreign keys declared in the schema (messages -> rooms,
+// listings -> listings, negotiations -> rooms). SQLite leaves them off by
+// default, which used to let orphan rows in silently.
+db.pragma('foreign_keys = ON');
+
 // Initialize database schema
 export function initDatabase() {
   db.exec(`
@@ -842,6 +847,26 @@ export function createRoomInDb(room: {
   return getRoomByIdFromDb(room.id);
 }
 
+export type MessageInsertFailure = 'room_not_found' | 'duplicate_message_id';
+
+/**
+ * Maps a SQLite constraint error to a caller-facing reason. Anything else
+ * returns null and must be surfaced as a real error, never swallowed.
+ */
+export function classifyMessageInsertError(err: unknown): MessageInsertFailure | null {
+  const code = (err as { code?: string } | null)?.code;
+  if (code === 'SQLITE_CONSTRAINT_FOREIGNKEY') return 'room_not_found';
+  if (code === 'SQLITE_CONSTRAINT_PRIMARYKEY' || code === 'SQLITE_CONSTRAINT_UNIQUE') {
+    return 'duplicate_message_id';
+  }
+  return null;
+}
+
+/**
+ * Inserts a message and bumps the room timestamp in one transaction.
+ * Throws on a missing room or a duplicate message id — `INSERT OR IGNORE`
+ * used to hide both, so a write into a non-existent room looked successful.
+ */
 export function addMessageToRoomInDb(message: {
   id: string;
   roomId: string;
@@ -852,20 +877,24 @@ export function addMessageToRoomInDb(message: {
   timestamp?: number;
 }) {
   const now = message.timestamp || Date.now();
-  db.prepare(`
-    INSERT OR IGNORE INTO messages (id, room_id, sender, role, text, tool_call_json, timestamp)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    message.id,
-    message.roomId,
-    message.sender,
-    message.role,
-    message.text,
-    message.toolCall ? JSON.stringify(message.toolCall) : null,
-    now
-  );
+  const write = db.transaction(() => {
+    db.prepare(`
+      INSERT INTO messages (id, room_id, sender, role, text, tool_call_json, timestamp)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      message.id,
+      message.roomId,
+      message.sender,
+      message.role,
+      message.text,
+      message.toolCall ? JSON.stringify(message.toolCall) : null,
+      now
+    );
 
-  db.prepare('UPDATE rooms SET updated_at = ? WHERE id = ?').run(now, message.roomId);
+    db.prepare('UPDATE rooms SET updated_at = ? WHERE id = ?').run(now, message.roomId);
+  });
+
+  write();
 }
 
 export function saveNegotiationInDb(negotiation: {
