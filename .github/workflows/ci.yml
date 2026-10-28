@@ -26,7 +26,7 @@ jobs:
           node-version: '22'
 
       - name: Install
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Typecheck
         run: npx tsc --noEmit
@@ -61,3 +61,71 @@ jobs:
           grep -q '"tools"' /tmp/mcp.json
           grep -q 'search_listings' /tmp/mcp.json
           echo 'smoke ok'
+
+  docker:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Validate compose file
+        run: docker compose config -q
+
+      - name: Build image
+        run: docker build --tag mcp-rooms:ci .
+
+      - name: Assert image is hardened
+        run: |
+          set -euo pipefail
+          test "$(docker image inspect --format '{{.Config.User}}' mcp-rooms:ci)" = "node"
+          test "$(docker run --rm --entrypoint id mcp-rooms:ci -u)" = "1000"
+          # /app must be read-only for the process, /app/data writable.
+          docker run --rm --entrypoint sh mcp-rooms:ci -c 'test ! -w /app && test -w /app/data'
+          # Build tooling and local secrets must not ship in the image.
+          docker run --rm --entrypoint sh mcp-rooms:ci -c '
+            set -e
+            test ! -e /app/.env
+            test ! -d /app/tests
+            test ! -d /app/src
+            test ! -d /app/node_modules/vite
+            test ! -d /app/node_modules/vitest
+            test ! -d /app/node_modules/typescript
+            test -d /app/node_modules/tsx
+            test -f /app/dist/index.html
+          '
+          echo 'image hardening ok'
+
+      - name: Run container smoke test
+        run: |
+          set -euo pipefail
+          docker run -d --name mcp-rooms-ci \
+            --security-opt no-new-privileges \
+            --cap-drop ALL \
+            -p 127.0.0.1:3200:3000 \
+            -e EMBEDDING_PROVIDER=disabled \
+            -e DATABASE_PATH=/app/data/mcp_rooms.db \
+            mcp-rooms:ci
+          trap 'docker logs mcp-rooms-ci || true; docker rm -f mcp-rooms-ci || true' EXIT
+          for _ in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:3200/api/listings > /dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3200/api/listings > /tmp/listings.json
+          grep -q '\[' /tmp/listings.json
+          # The SPA is served from dist/ (production branch of start()).
+          curl -fsS http://127.0.0.1:3200/ | grep -q 'id="root"'
+          curl -fsS -X POST http://127.0.0.1:3200/mcp \
+            -H 'content-type: application/json' \
+            -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' > /tmp/mcp.json
+          grep -q 'search_listings' /tmp/mcp.json
+          # Proves the SQLite directory is writable by the unprivileged user.
+          docker exec mcp-rooms-ci node --import tsx scripts/issue-key.ts \
+            --principal user:ci-smoke --name ci > /tmp/key.txt
+          grep -q 'mcr_' /tmp/key.txt
+          docker exec mcp-rooms-ci node --import tsx scripts/issue-key.ts --list > /tmp/keys.txt
+          grep -q 'ci-smoke' /tmp/keys.txt
+          docker exec mcp-rooms-ci id -u | grep -qx 1000
+          echo 'container smoke ok'

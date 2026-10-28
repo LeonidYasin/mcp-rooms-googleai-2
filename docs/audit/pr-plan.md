@@ -98,6 +98,11 @@ PR-11 test+docs: E2E, abuse, переписать документацию    [L
 - **Область:** `seedInitialData()`/`seedProfilesIfEmpty()` (`server/db.ts:127-134`) вызываются только при `DEMO_SEED=1`; отдельный скрипт `npm run seed:demo`; в production пустая БД остаётся пустой.
 - **Приёмка:** старт с пустой БД и без флага → 0 объявлений, 0 профилей; с флагом → фиксированный набор; тест на оба режима.
 
+**Статус (2026-10-28, PR #5):** сделано — сидирование только при `DEMO_SEED=1`,
+`npm run seed:demo`, `tests/seed-mode.test.ts` на пустую БД, демо-набор и идемпотентность.
+Отдельного production-гарда нет: флаг действует на любую БД, это записано в
+`docs/deployment.md`.
+
 ## 10. PR-8 — SSE
 
 - **Область:** авторизация подписки (PR-3), лимит подписчиков на комнату и на процесс, реплей по `Last-Event-ID` из таблицы событий (а не из памяти), идемпотентные `event.id` (монотонный счётчик в БД), корректное завершение при shutdown.
@@ -108,10 +113,25 @@ PR-11 test+docs: E2E, abuse, переписать документацию    [L
 - **Область:** `model` из env (`GEMINI_MODEL`), проверка доступности при старте (`GET /api/llm/status`), явный `degraded` в ответах, `timeout`/`retry`, лимит вызовов на субъекта, удаление keyword-роутинга, выдающего себя за агента (оставить как `rule_based_fallback: true`).
 - **Приёмка:** при неверном ключе `/api/chat` возвращает `200` + `degraded: true` и ни одного `executedTools`; в логах — одна запись, без 30-секундного кэша-сюрприза (`server.ts:34-40` заменить на явный circuit breaker с метрикой).
 
+**Статус (2026-10-28, PR #5):** частично. Модель — только из `GEMINI_MODEL`, без
+угадывания; `GET /api/llm/status` отдаёт конфигурацию (не живую проверку);
+`degradedReason` — стабильные коды; вместо негативного кэша — явный cooldown на 30 с
+с `cooldownUntil` и счётчиками `modelCalls`/`modelFailures`/`suppressedCalls`; неудача
+пишет одну строку в лог. Покрыто `tests/llm-status.test.ts` без сетевых вызовов.
+Не сделано: `timeout`/`retry` вызова модели, удаление keyword-роутинга (сейчас он
+честно помечен `degraded: true`), проверка реального ID модели в CI (нужен ключ).
+
 ## 12. PR-10 — сборка и эксплуатация
 
 - **Область:** `bun install --frozen-lockfile` (lock уже есть) **или** добавить `package-lock.json` и `npm ci` — выбрать одно и убрать второе; multi-stage Docker только с `dist/` и production-зависимостями; `USER node`; права `700` на `/app/data`; `HEALTHCHECK`; `docker-compose` без `${GEMINI_API_KEY:-}`-умолчания (падать, если ключ пуст и `EMBEDDING_PROVIDER=google`); скрипт бэкапа SQLite (`VACUUM INTO`) и проверенный restore.
 - **Приёмка:** два прогона сборки дают одинаковый `sha256` артефакта; контейнер стартует non-root; restore из бэкапа проверен на копии.
+
+**Статус (2026-10-28, PR #5):** закрыта часть про сборку — `package-lock.json` + `npm ci`
+вместо `bun.lock`, multi-stage образ без devDependencies, `USER node`, `/app/data` с
+правами `700` и владельцем `node`, `HEALTHCHECK`, job `docker` в CI (build + non-root +
+smoke). Не сделано: скрипт бэкапа `VACUUM INTO` и проверенный restore, поведение
+compose при пустом `GEMINI_API_KEY` (сейчас допустим degraded-режим). Побитовой
+воспроизводимости `sha256` никто не проверял.
 
 ## 13. PR-11 — E2E, abuse, документация
 

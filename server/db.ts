@@ -17,6 +17,11 @@ export const db = new Database(dbPath);
 // Enable WAL mode for high performance and concurrency
 db.pragma('journal_mode = WAL');
 
+// Enforce the foreign keys declared in the schema (messages -> rooms,
+// listings -> listings, negotiations -> rooms). SQLite leaves them off by
+// default, which used to let orphan rows in silently.
+db.pragma('foreign_keys = ON');
+
 // Initialize database schema
 export function initDatabase() {
   db.exec(`
@@ -136,16 +141,27 @@ export function initDatabase() {
     // Column already exists or table freshly initialized
   }
 
-  seedProfilesIfEmpty();
+  if (demoSeedEnabled()) {
+    seedProfilesIfEmpty();
 
-  // Seed default data if database is empty
-  const count = db.prepare('SELECT COUNT(*) as cnt FROM listings').get() as { cnt: number };
-  if (count.cnt === 0) {
-    seedInitialData();
+    // Seed default data if database is empty
+    const count = db.prepare('SELECT COUNT(*) as cnt FROM listings').get() as { cnt: number };
+    if (count.cnt === 0) {
+      seedInitialData();
+    }
+    // Real estate / communities were added later than the original seed set, so
+    // they must be ensured on every init, not only when the table already has rows.
+    ensureNewCategoriesSeeded();
   }
-  // Real estate / communities were added later than the original seed set, so
-  // they must be ensured on every init, not only when the table already has rows.
-  ensureNewCategoriesSeeded();
+}
+
+/**
+ * F-11: the fictional catalogue and profiles are demo data. They must never
+ * appear in a real database, so seeding is opt-in (`DEMO_SEED=1`, or
+ * `npm run seed:demo`). A fresh deployment starts with an empty catalogue.
+ */
+export function demoSeedEnabled(): boolean {
+  return process.env.DEMO_SEED === '1';
 }
 
 function ensureNewCategoriesSeeded() {
@@ -663,11 +679,7 @@ function seedInitialData() {
     'agent:mcp-angel',
     'agent',
     'Агент-Ангел: Проверил параметры объявления. Самовывоз в Казани подтверждён обеими сторонами. Напоминаю: безопасная встреча в публичном месте рекомендуется правилами площадки.',
-    JSON.stringify({
-      tool: 'inspect_room_agreement',
-      params: { roomId: 'room-bike-negotiation-01', mode: 'pickup' },
-      result: { ok: true, matched_terms: ['pickup', 'kazan'] },
-    }),
+    null,
     now - 3600000 * 2
   );
 }
@@ -846,6 +858,26 @@ export function createRoomInDb(room: {
   return getRoomByIdFromDb(room.id);
 }
 
+export type MessageInsertFailure = 'room_not_found' | 'duplicate_message_id';
+
+/**
+ * Maps a SQLite constraint error to a caller-facing reason. Anything else
+ * returns null and must be surfaced as a real error, never swallowed.
+ */
+export function classifyMessageInsertError(err: unknown): MessageInsertFailure | null {
+  const code = (err as { code?: string } | null)?.code;
+  if (code === 'SQLITE_CONSTRAINT_FOREIGNKEY') return 'room_not_found';
+  if (code === 'SQLITE_CONSTRAINT_PRIMARYKEY' || code === 'SQLITE_CONSTRAINT_UNIQUE') {
+    return 'duplicate_message_id';
+  }
+  return null;
+}
+
+/**
+ * Inserts a message and bumps the room timestamp in one transaction.
+ * Throws on a missing room or a duplicate message id — `INSERT OR IGNORE`
+ * used to hide both, so a write into a non-existent room looked successful.
+ */
 export function addMessageToRoomInDb(message: {
   id: string;
   roomId: string;
@@ -856,20 +888,24 @@ export function addMessageToRoomInDb(message: {
   timestamp?: number;
 }) {
   const now = message.timestamp || Date.now();
-  db.prepare(`
-    INSERT OR IGNORE INTO messages (id, room_id, sender, role, text, tool_call_json, timestamp)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    message.id,
-    message.roomId,
-    message.sender,
-    message.role,
-    message.text,
-    message.toolCall ? JSON.stringify(message.toolCall) : null,
-    now
-  );
+  const write = db.transaction(() => {
+    db.prepare(`
+      INSERT INTO messages (id, room_id, sender, role, text, tool_call_json, timestamp)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      message.id,
+      message.roomId,
+      message.sender,
+      message.role,
+      message.text,
+      message.toolCall ? JSON.stringify(message.toolCall) : null,
+      now
+    );
 
-  db.prepare('UPDATE rooms SET updated_at = ? WHERE id = ?').run(now, message.roomId);
+    db.prepare('UPDATE rooms SET updated_at = ? WHERE id = ?').run(now, message.roomId);
+  });
+
+  write();
 }
 
 export function saveNegotiationInDb(negotiation: {

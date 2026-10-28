@@ -13,6 +13,9 @@ export default defineConfig({
       DATABASE_PATH: './data/test-mcp-rooms.db',
       EMBEDDING_PROVIDER: 'disabled',
       GEMINI_API_KEY: '',
+      // Demo catalogue for tests that read seeded listings. Production and a
+      // plain `npm run dev` start empty unless DEMO_SEED=1 is set.
+      DEMO_SEED: '1',
     },
   },
 });

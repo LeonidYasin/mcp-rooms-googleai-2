@@ -9,6 +9,7 @@ import {
   getProfilesFromDb,
   getProfileByIdFromDb,
   toPublicListing,
+  classifyMessageInsertError,
 } from './db';
 import {
   matchListingAsymmetric,
@@ -135,7 +136,7 @@ export const MCP_TOOLS_MANIFEST = [
   {
     name: 'negotiate_agreement',
     description:
-      'Запускает автономный цикл переговоров (Multi-Agent Negotiation Loop) между агентом-инициатором и агентом-контрагентом в изолированной комнате для согласования условий, цены и фиксации соглашения в SQLite.',
+      'Находит подходящее объявление и возвращает демонстрационный сценарий переговоров (demo_preview). Ничего не отправляет автору, не создаёт комнату и не фиксирует соглашение: для реального контакта используйте join_room и send_message.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -333,7 +334,7 @@ export async function executeMcpToolCall(
 
       const room = getRoomByIdFromDb(args.room_id);
       if (!room) {
-        return { error: `Комната ${args.room_id} не найдена` };
+        return { error: 'room_not_found', message: `Комната ${args.room_id} не найдена` };
       }
       if (!isRoomParticipant(room, sender)) {
         return { error: 'forbidden', message: 'Вы не участник этой комнаты' };
@@ -356,7 +357,18 @@ export async function executeMcpToolCall(
         timestamp: Date.now(),
       };
 
-      addMessageToRoomInDb(msg);
+      try {
+        addMessageToRoomInDb(msg);
+      } catch (err) {
+        const reason = classifyMessageInsertError(err);
+        if (reason === 'room_not_found') {
+          return { error: 'room_not_found', message: `Комната ${args.room_id} не найдена` };
+        }
+        if (reason === 'duplicate_message_id') {
+          return { error: 'duplicate_message_id', message: 'Сообщение с таким id уже существует' };
+        }
+        throw err;
+      }
       return { success: true, message: msg };
     }
 
@@ -389,13 +401,14 @@ export async function executeMcpToolCall(
       });
       return {
         success: true,
+        demo: true,
         negotiation_id: negotiationResult.negotiationId,
         status: negotiationResult.status,
         room_id: negotiationResult.roomId,
-        target_listing: negotiationResult.targetListing?.content?.title,
+        target_listing: negotiationResult.targetListing?.content?.title ?? null,
         rounds_count: negotiationResult.dialogue.length,
         summary: negotiationResult.summary,
-        agreed_terms: negotiationResult.agreedTerms,
+        demo_terms: negotiationResult.demoTerms ?? null,
         steps: negotiationResult.steps,
       };
     }
