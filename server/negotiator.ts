@@ -16,6 +16,8 @@ import { roomEventBus } from './events';
 export interface NegotiationOptions {
   livePacing?: boolean;
   roomId?: string;
+  /** Principal on whose behalf the negotiation runs. Rooms list it as a participant. */
+  principalId?: string;
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -63,6 +65,7 @@ export async function runAutonomousNegotiation(
   targetListingId?: string,
   options?: NegotiationOptions
 ): Promise<NegotiationResult> {
+  const principalId = options?.principalId || 'user:client';
   const promptLower = userPrompt.toLowerCase();
   const now = Date.now();
   const steps: NegotiationStep[] = [];
@@ -179,7 +182,7 @@ export async function runAutonomousNegotiation(
       id: roomId,
       listingId: bestMatch.id,
       listingTitle: bestMatch.content.title,
-      participants: ['user:client', bestMatch.owner, 'agent:angel', 'agent:counterpart'],
+      participants: [principalId, bestMatch.owner],
     });
 
     // Broadcast initial steps to room event bus
@@ -482,8 +485,8 @@ export async function runAutonomousNegotiation(
   const newListingTitle = `Запрос: ${userPrompt.length > 70 ? userPrompt.substring(0, 70) + '...' : userPrompt}`;
   const newListing = {
     id: 'listing-' + Date.now(),
-    owner: 'user:client',
-    author_name: 'Агент-Ангел (по поручению пользователя)',
+    owner: principalId,
+    author_name: principalId,
     content: {
       title: newListingTitle,
       description: `Пользовательский запрос, сформулированный Агентом-Ангелом: «${userPrompt}». Готов к встречным предложениям и автономным переговорам в Shared Room.`,
@@ -512,7 +515,7 @@ export async function runAutonomousNegotiation(
     id: roomId,
     listingId: createdInDb.id,
     listingTitle: createdInDb.content.title,
-    participants: ['user:client', 'agent:angel'],
+    participants: [principalId],
   });
 
   steps.push({
@@ -537,12 +540,17 @@ export async function runAutonomousNegotiation(
   };
 }
 
-export function prepareNegotiationRoom(userPrompt: string, targetListingId?: string): {
+export function prepareNegotiationRoom(
+  userPrompt: string,
+  targetListingId?: string,
+  options?: NegotiationOptions
+): {
   roomId: string;
   bestMatch: any;
   targetListingTitle: string;
   isExistingMatch: boolean;
 } {
+  const principalId = options?.principalId || 'user:client';
   const promptLower = userPrompt.toLowerCase();
   let bestMatch: any = null;
 
@@ -593,7 +601,7 @@ export function prepareNegotiationRoom(userPrompt: string, targetListingId?: str
       id: roomId,
       listingId: bestMatch.id,
       listingTitle: bestMatch.content.title,
-      participants: ['user:client', bestMatch.owner, 'agent:angel', 'agent:counterpart'],
+      participants: [principalId, bestMatch.owner],
     });
     return {
       roomId,
@@ -609,7 +617,7 @@ export function prepareNegotiationRoom(userPrompt: string, targetListingId?: str
     id: roomId,
     listingId: tempId,
     listingTitle: `Поручение: ${userPrompt.slice(0, 40)}`,
-    participants: ['user:client', 'agent:angel'],
+    participants: [principalId],
   });
   return {
     roomId,

@@ -12,11 +12,13 @@ import {
   getNegotiationsFromDb,
   getProfilesFromDb,
   getProfileByIdFromDb,
+  toPublicListing,
 } from './server/db';
 import { handleMcpJsonRpcRequest, executeMcpToolCall, MCP_TOOLS_MANIFEST } from './server/mcp';
 import { runAutonomousNegotiation, prepareNegotiationRoom } from './server/negotiator';
 import { getEmbeddingProviderStatus, matchListingAsymmetric } from './server/embeddings';
 import { roomEventBus } from './server/events';
+import { isRoomParticipant, optionalAuth, requireAuth } from './server/auth';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -144,9 +146,33 @@ const mcpGeminiTools: FunctionDeclaration[] = [
 // -------------------------------------------------------------
 // 1. Official Model Context Protocol (MCP) JSON-RPC 2.0 Endpoint
 // -------------------------------------------------------------
-app.post('/mcp', async (req, res) => {
+// tools/list and the public listing resources are open, but anything that
+// touches a room or writes data requires a key (audit F-01).
+function mcpRequiresAuth(body: any): boolean {
+  if (body?.method === 'tools/call') return true;
+  if (body?.method === 'resources/read') {
+    const uri = typeof body?.params?.uri === 'string' ? body.params.uri : '';
+    return uri.startsWith('rooms://');
+  }
+  return false;
+}
+
+app.post('/mcp', optionalAuth, async (req, res) => {
+  if (mcpRequiresAuth(req.body) && !req.principal) {
+    res.status(401).json({
+      jsonrpc: '2.0',
+      id: req.body?.id ?? null,
+      error: {
+        code: -32001,
+        message: 'Unauthorized: this MCP method requires Authorization: Bearer <token>',
+      },
+    });
+    return;
+  }
   try {
-    const result = await handleMcpJsonRpcRequest(req.body);
+    const result = await handleMcpJsonRpcRequest(req.body, {
+      principalId: req.principal?.principalId,
+    });
     res.json(result);
   } catch (err: any) {
     res.status(500).json({
@@ -220,7 +246,7 @@ app.get('/api/listings', (req, res) => {
   try {
     const { category, kind, locality, query } = req.query as any;
     const listings = getListingsFromDb({ category, kind, locality, query });
-    res.json(listings);
+    res.json(listings.map(toPublicListing));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -233,7 +259,7 @@ app.get('/api/listings/:id', (req, res) => {
       res.status(404).json({ error: 'Listing not found' });
       return;
     }
-    res.json(listing);
+    res.json(toPublicListing(listing));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -247,7 +273,10 @@ const LISTING_CATEGORIES = [
 ];
 const LISTING_MODES = ['pickup', 'shipping', 'online'];
 
-function normalizeListingInput(body: any): { ok: true; listing: any } | { ok: false; errors: string[] } {
+function normalizeListingInput(
+  body: any,
+  ownerPrincipalId: string
+): { ok: true; listing: any } | { ok: false; errors: string[] } {
   const errors: string[] = [];
   const text = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
 
@@ -277,8 +306,8 @@ function normalizeListingInput(body: any): { ok: true; listing: any } | { ok: fa
     ok: true,
     listing: {
       id: 'listing-' + now + '-' + Math.random().toString(36).substring(2, 8),
-      owner: 'user:web-guest',
-      author_name: text(body.author_name) || 'Гость площадки',
+      owner: ownerPrincipalId,
+      author_name: text(body.author_name) || ownerPrincipalId,
       content: {
         title,
         description,
@@ -303,8 +332,9 @@ function normalizeListingInput(body: any): { ok: true; listing: any } | { ok: fa
   };
 }
 
-app.post('/api/listings', (req, res) => {
-  const normalized = normalizeListingInput(req.body || {});
+app.post('/api/listings', requireAuth, (req, res) => {
+  const principalId = req.principal!.principalId;
+  const normalized = normalizeListingInput(req.body || {}, principalId);
   if (!normalized.ok) {
     res.status(422).json({ error: 'invalid_listing', errors: normalized.errors });
     return;
@@ -317,20 +347,27 @@ app.post('/api/listings', (req, res) => {
   }
 });
 
-app.get('/api/rooms', (_req, res) => {
+app.get('/api/rooms', requireAuth, (req, res) => {
   try {
-    const rooms = getRoomsFromDb();
+    const principalId = req.principal!.principalId;
+    // Only the rooms this key belongs to, never the whole table.
+    const rooms = getRoomsFromDb().filter((room: any) => isRoomParticipant(room, principalId));
     res.json(rooms);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/api/rooms/:id', (req, res) => {
+app.get('/api/rooms/:id', requireAuth, (req, res) => {
   try {
-    const room = getRoomByIdFromDb(req.params.id);
+    const roomId = String(req.params.id);
+    const room = getRoomByIdFromDb(roomId);
     if (!room) {
       res.status(404).json({ error: 'Room not found' });
+      return;
+    }
+    if (!isRoomParticipant(room, req.principal!.principalId)) {
+      res.status(403).json({ error: 'forbidden', message: 'Вы не участник этой комнаты' });
       return;
     }
     res.json(room);
@@ -342,11 +379,15 @@ app.get('/api/rooms/:id', (req, res) => {
 // -------------------------------------------------------------
 // Server-Sent Events (SSE) Endpoint for Real-Time Room Streaming
 // -------------------------------------------------------------
-app.get('/api/rooms/:id/stream', (req, res) => {
-  const roomId = req.params.id;
+app.get('/api/rooms/:id/stream', requireAuth, (req, res) => {
+  const roomId = String(req.params.id);
   const room = getRoomByIdFromDb(roomId);
   if (!room) {
     res.status(404).json({ error: `Комната ${roomId} не найдена` });
+    return;
+  }
+  if (!isRoomParticipant(room, req.principal!.principalId)) {
+    res.status(403).json({ error: 'forbidden', message: 'Вы не участник этой комнаты' });
     return;
   }
 
@@ -400,37 +441,61 @@ app.get('/api/rooms/:id/stream', (req, res) => {
   });
 });
 
-app.post('/api/rooms/:id/messages', (req, res) => {
+app.post('/api/rooms/:id/messages', requireAuth, (req, res) => {
   try {
-    const { sender, role, text } = req.body;
+    const roomId = String(req.params.id);
+    const room = getRoomByIdFromDb(roomId);
+    if (!room) {
+      res.status(404).json({ error: 'Room not found' });
+      return;
+    }
+    const principalId = req.principal!.principalId;
+    if (!isRoomParticipant(room, principalId)) {
+      res.status(403).json({ error: 'forbidden', message: 'Вы не участник этой комнаты' });
+      return;
+    }
+    const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+    if (!text) {
+      res.status(422).json({ error: 'invalid_message', message: 'text is required' });
+      return;
+    }
+
+    // The sender is the authenticated principal: a client cannot post as someone else.
     const message = {
       id: 'msg-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
-      roomId: req.params.id,
-      sender: sender || 'user:guest',
-      role: role || 'human',
-      text: text || '',
+      roomId,
+      sender: principalId,
+      role: req.body?.role === 'agent' ? 'agent' : 'human',
+      text,
       timestamp: Date.now(),
     };
     addMessageToRoomInDb(message);
     // Broadcast live event to SSE subscribers
-    roomEventBus.broadcast(req.params.id, 'message', message);
+    roomEventBus.broadcast(roomId, 'message', message);
     res.status(201).json(message);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/api/negotiations', (_req, res) => {
+app.get('/api/negotiations', requireAuth, (req, res) => {
   try {
-    const negs = getNegotiationsFromDb();
+    const principalId = req.principal!.principalId;
+    const visibleRoomIds = new Set(
+      getRoomsFromDb()
+        .filter((room: any) => isRoomParticipant(room, principalId))
+        .map((room: any) => room.id)
+    );
+    const negs = getNegotiationsFromDb().filter((n: any) => visibleRoomIds.has(n.roomId));
     res.json(negs);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/agent/negotiate/start', (req, res) => {
+app.post('/api/agent/negotiate/start', requireAuth, (req, res) => {
   try {
+    const principalId = req.principal!.principalId;
     const { prompt, targetListingId } = req.body;
     if (!prompt) {
       res.status(400).json({ error: 'Prompt is required' });
@@ -439,7 +504,8 @@ app.post('/api/agent/negotiate/start', (req, res) => {
 
     const { roomId, bestMatch, targetListingTitle, isExistingMatch } = prepareNegotiationRoom(
       prompt,
-      targetListingId
+      targetListingId,
+      { principalId }
     );
 
     // Run autonomous negotiation in background with live pacing for SSE stream
@@ -448,6 +514,7 @@ app.post('/api/agent/negotiate/start', (req, res) => {
         await runAutonomousNegotiation(prompt, targetListingId, {
           roomId,
           livePacing: true,
+          principalId,
         });
       } catch (err) {
         console.error('Error during autonomous negotiation:', err);
@@ -466,14 +533,15 @@ app.post('/api/agent/negotiate/start', (req, res) => {
   }
 });
 
-app.post('/api/agent/negotiate', async (req, res) => {
+app.post('/api/agent/negotiate', requireAuth, async (req, res) => {
   try {
+    const principalId = req.principal!.principalId;
     const { prompt, targetListingId } = req.body;
     if (!prompt) {
       res.status(400).json({ error: 'Prompt is required' });
       return;
     }
-    const result = await runAutonomousNegotiation(prompt, targetListingId);
+    const result = await runAutonomousNegotiation(prompt, targetListingId, { principalId });
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -483,8 +551,9 @@ app.post('/api/agent/negotiate', async (req, res) => {
 // -------------------------------------------------------------
 // 3. Angel Agent Conversational Endpoint with MCP & Autonomy
 // -------------------------------------------------------------
-app.post('/api/chat', async (req, res) => {
+app.post('/api/chat', requireAuth, async (req, res) => {
   try {
+    const principalId = req.principal!.principalId;
     const { messages, targetListingId } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
@@ -496,6 +565,9 @@ app.post('/api/chat', async (req, res) => {
   const promptLower = userPrompt.toLowerCase();
 
   // Try real Gemini API with autonomous MCP Function Calling
+  // Every response below declares whether a model was actually used: the UI must
+  // never present rule-based answers as model-driven work.
+  let llmDegradedReason: string | null = null;
   const aiClient = getGenAiClient();
   if (aiClient) {
     try {
@@ -562,7 +634,7 @@ app.post('/api/chat', async (req, res) => {
           if (!call.name) continue;
           const toolName = call.name;
           try {
-            const result = await executeMcpToolCall(toolName, call.args || {});
+            const result = await executeMcpToolCall(toolName, call.args || {}, { principalId });
             executedToolsLog.push({ name: toolName, args: call.args, result });
 
             if (call.name === 'negotiate_agreement' && result?.success) {
@@ -631,7 +703,14 @@ app.post('/api/chat', async (req, res) => {
         lastInvalidKeyTimestamp = Date.now();
       }
       console.warn('Gemini API call failed, switching to dynamic SQLite fallback:', errStr);
+      llmDegradedReason = errStr;
     }
+  }
+
+  if (!llmDegradedReason) {
+    llmDegradedReason = aiClient
+      ? 'gemini returned no text for this prompt'
+      : 'GEMINI_API_KEY is not configured';
   }
 
   // -----------------------------------------------------------------
@@ -663,30 +742,26 @@ app.post('/api/chat', async (req, res) => {
 
   if (isAutonomousTask) {
     try {
-      const negotiationResult = await runAutonomousNegotiation(userPrompt, targetListingId);
+      const negotiationResult = await runAutonomousNegotiation(userPrompt, targetListingId, {
+        principalId,
+      });
       res.json({
-        text: negotiationResult.summary,
+        text:
+          '⚠️ Переговоры выполнил встроенный демо-сценарий (модель не вызывалась).\n\n' +
+          negotiationResult.summary,
         negotiation: negotiationResult,
+        degraded: true,
+        degradedReason: llmDegradedReason,
         executedTools: [
           {
-            name: 'match_listings',
-            args: { query: userPrompt, targetListingId },
+            name: 'negotiate_agreement',
+            args: { goal: userPrompt, target_listing_id: targetListingId ?? null },
             result: {
-              matched_listing: negotiationResult.targetListing?.content?.title,
-              similarity_score: negotiationResult.similarityScore,
-              match_method: negotiationResult.matchMethod,
-              match_reason: negotiationResult.matchReason,
+              room_id: negotiationResult.roomId,
+              status: negotiationResult.status,
+              rounds: negotiationResult.dialogue.length,
+              target_listing: negotiationResult.targetListing?.content?.title ?? null,
             },
-          },
-          {
-            name: 'join_room',
-            args: { room_id: negotiationResult.roomId },
-            result: { room_created: true },
-          },
-          {
-            name: 'send_message',
-            args: { rounds_count: negotiationResult.dialogue.length },
-            result: { agreement: negotiationResult.status },
           },
         ],
         createdListing: negotiationResult.status === 'listing_created' ? negotiationResult.targetListing : null,
@@ -730,10 +805,12 @@ app.post('/api/chat', async (req, res) => {
         price_rubles: 0,
         modes: ['pickup', 'online'],
         condition: 'Указано в описании',
-      });
+      }, { principalId });
 
       res.json({
         text: `✅ Я успешно создал и сохранил в постоянную базу данных SQLite ваше объявление «${toolResult.created_listing.content.title}» в категории «${detectedCategory}». Карточка опубликована в каталоге площадки!`,
+        degraded: true,
+        degradedReason: llmDegradedReason,
         executedTools: [{ name: 'create_listing', args: { prompt: userPrompt }, result: toolResult }],
         createdListing: toolResult.created_listing,
       });
@@ -746,8 +823,14 @@ app.post('/api/chat', async (req, res) => {
   // 3. Safety & Privacy Intent
   if (promptLower.includes('безопасн') || promptLower.includes('приватн') || promptLower.includes('телефон') || promptLower.includes('адрес') || promptLower.includes('правил')) {
     res.json({
-      text: `🛡️ **Принципы безопасности и приватности MCP Rooms:**\n\n1. **Личные данные — не витрина:** телефон и точный домашний адрес никогда не отображаются в открытом интернете. Обмен контактами происходит только по взаимному согласию участников в защищённой комнате переговоров.\n2. **Открыта для всех:** город и регион служат фильтром для удобства поиска, а не барьером для регистрации.\n3. **Осознанная публикация:** сначала создаётся черновик и проходит предпросмотр.\n4. **Защита сделки:** переговоры между агентами фиксируются в SQLite, встречи проводятся в безопасных местах или онлайн.`,
-      executedTools: [{ name: 'inspect_safety_guidelines', args: { topic: 'privacy' }, result: { verified: true } }],
+      text: `🛡️ **Что верно сейчас:** в карточках витрины нет телефонов и точных адресов — этих полей в объявлении нет вообще.
+
+**Чего пока нет:** изолированных комнат. Сейчас любую переписку комнаты может прочитать любой клиент API — это известное ограничение, зафиксированное в аудите; оно исправляется отдельным этапом. Публикация тоже пока прямая, без черновика и предпросмотра.
+
+Поэтому не передавайте в комнату личные данные, пока доступ не ограничен.`,
+      degraded: true,
+      degradedReason: llmDegradedReason,
+      executedTools: [],
     });
     return;
   }
@@ -791,13 +874,17 @@ app.post('/api/chat', async (req, res) => {
           result: { count: foundItems.length, top_item: foundItems[0].content.title },
         },
       ],
+      degraded: true,
+      degradedReason: llmDegradedReason,
     });
     return;
   }
 
     // 5. Context-aware guidance with SQLite categories
     res.json({
-      text: `Я проанализировал ваш запрос «${userPrompt}». В базе данных SQLite площадки **MCP Rooms** доступны следующие направления:\n\n🏢 **Недвижимость** — аренда коворкингов, офисов и поиск сожителей;\n🏛️ **Сообщества и Парламент** — команды проектов, инициативы и открытое самоуправление;\n🤝 **Бизнес** — кофаундеры и B2B AI-партнёрства;\n💼 **Вакансии** — Senior инженеры и удалённые позиции;\n🔧 **Услуги** — проверенные мастера и ремонт;\n🌲 **Знакомства** — совместные походы и веловыезды.\n\nУкажите конкретную задачу (например: *«Снять коворкинг в Казани»* или *«Вступить в Парламент сообществ»*), и я автономно найду совпадения и запущу раунд согласования условий в защищённой комнате!`,
+      text: `Я проанализировал ваш запрос «${userPrompt}». В базе данных SQLite площадки **MCP Rooms** доступны следующие направления:\n\n🏢 **Недвижимость** — аренда коворкингов, офисов и поиск сожителей;\n🏛️ **Сообщества и Парламент** — команды проектов, инициативы и открытое самоуправление;\n🤝 **Бизнес** — кофаундеры и B2B AI-партнёрства;\n💼 **Вакансии** — Senior инженеры и удалённые позиции;\n🔧 **Услуги** — проверенные мастера и ремонт;\n🌲 **Знакомства** — совместные походы и веловыезды.\n\nУкажите конкретную задачу (например: *«Снять коворкинг в Казани»* или *«Вступить в Парламент сообществ»*), и я найду совпадения в каталоге.`,
+      degraded: true,
+      degradedReason: llmDegradedReason,
       executedTools: [],
     });
   } catch (chatErr: any) {
@@ -805,6 +892,7 @@ app.post('/api/chat', async (req, res) => {
     res.status(500).json({
       error: chatErr?.message || 'Внутренняя ошибка обработки чата',
       text: 'Извините, произошла техническая ошибка при обработке запроса. База данных SQLite сохранена и доступна.',
+      degraded: true,
       executedTools: [],
     });
   }

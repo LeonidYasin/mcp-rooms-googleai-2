@@ -13,6 +13,8 @@ interface HeaderProps {
   onChangeTab: (tab: 'catalog' | 'mcp' | 'principles' | 'chat') => void;
   selectedLocality: string;
   onLocalityChange: (loc: string) => void;
+  hasApiKey: boolean;
+  onOpenApiKey: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -27,6 +29,8 @@ export const Header: React.FC<HeaderProps> = ({
   onChangeTab,
   selectedLocality,
   onLocalityChange,
+  hasApiKey,
+  onOpenApiKey,
 }) => {
   const [categoriesOpen, setCategoriesOpen] = React.useState(false);
 
@@ -132,6 +136,24 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <span>👼 Агент-Ангел</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onOpenApiKey}
+                title={
+                  hasApiKey
+                    ? 'Ключ сохранён в этом браузере'
+                    : 'Без ключа доступны только чтение каталога и поиск'
+                }
+                className={`font-semibold text-sm px-3 py-2 rounded-lg border transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  hasApiKey
+                    ? 'bg-[var(--surface)] border-[var(--line)] text-[var(--ink)] hover:bg-[var(--raised)]'
+                    : 'bg-[var(--surface)] border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300 hover:bg-[var(--raised)]'
+                }`}
+              >
+                <span>🔑</span>
+                <span className="hidden md:inline">{hasApiKey ? 'Ключ' : 'Нет ключа'}</span>
               </button>
 
               <button

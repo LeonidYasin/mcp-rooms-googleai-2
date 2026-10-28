@@ -25,19 +25,21 @@ MCP-first площадка объявлений для людей и AI-аген
    - Добавление и предпросмотр реальных фотографий.
 
 4. **Интерактивная консоль MCP Rooms**:
-   - 8 инструментов комнат (Room Tools: `inspect_room`, `send_message`, `inspect_room_agreement`, `record_agreement` и др.).
-   - 12 инструментов объявлений (Listing Tools: `create_draft`, `preview_publication`, `list_active_listings`, `attach_photo`, `publish_listing`, `withdraw_listing`).
-   - Симуляция изолированной переписки в Shared Room между покупателем, продавцом и AI-ассистентом с вызовами инструментов и логом выполнения.
+   - 9 инструментов в манифесте сервера: `search_listings`, `match_listings`, `create_listing`, `join_room`, `send_message`, `get_room_history`, `get_profile`, `get_embedding_status`, `negotiate_agreement`.
+   - Консоль загружает список из `tools/list` и вызывает реальные `tools/call` через `POST /mcp`; ответы сервера показываются без изменений, локальной имитации нет.
+   - Переписка в Shared Room: сообщения сохраняются в SQLite; комнату видят и в неё пишут только её участники (см. пункт 5).
 
-5. **Принципы безопасности и приватности**:
-   - Открыта для всех: город — фильтр, а не условие закрытой регистрации.
-   - Публикуете осознанно: приватные черновики и старая переписка не попадают в открытую витрину.
-   - Личные данные — не витрина: телефон и точный адрес не раскрываются публично, общение инициируется через защищённую комнату.
+5. **Доступ и ограничения текущего прототипа (важно)**:
+   - Чтение каталога и профилей — без ключа. Публичная выдача карточек не содержит `owner`, `profile_id` и векторов эмбеддингов.
+   - Публикация, комнаты, `/mcp` `tools/call`, чат и переговоры требуют ключ `Authorization: Bearer mcr_…`; ключ выдаётся CLI и хранится в БД только как sha256-digest.
+   - Комнаты изолированы по участникам: список фильтруется, чтение/запись/SSE чужой комнаты → `403`, `sender` берётся из ключа, а не из тела запроса.
+   - Чего ещё нет: ролей и scope у ключей (любой ключ может всё), rate limiting, аудит-лога чтения комнат, проверки «владелец = ключ» для уже существующих карточек. Публикация по-прежнему идёт сразу, без черновика (PR-5), а переговоры без модели — демо-сценарий (PR-6).
+   - Подробный разбор и план исправлений: [`docs/audit/`](docs/audit/).
 
 6. **Автономный «Агент-Ангел» и SSE-стриминг переговоров**:
-   - Чат-агент пользователя на базе Gemini с прямым вызовом реальных MCP-инструментов.
-   - Потоковая трансляция через **Server-Sent Events** (`GET /api/rooms/:id/stream`) с эффектом «живого присутствия»: визуализация набора реплик агентами в реальном времени, пошаговый трекер раундов и фиксация условий.
-   - Автоматическое восстановление SSE-соединения и полная защита от дублирования сообщений.
+   - При наличии `GEMINI_API_KEY` чат вызывает реальные MCP-инструменты; без ключа или при ошибке модели ответы строятся правилами и помечаются `degraded: true`.
+   - `negotiate_agreement` без модели — демо-сценарий с фиксированными репликами; это явно указано в ответе.
+   - SSE-поток комнаты: `GET /api/rooms/:id/stream`, heartbeat 15 с. Реплей по `Last-Event-ID` пока не реализован.
 
 7. **Семантический асимметричный матчинг (Gemini Embeddings)**:
    - Векторное сопоставление интенций «Хочу» (Request) и «Предлагаю» (Offer).
@@ -49,7 +51,7 @@ MCP-first площадка объявлений для людей и AI-аген
 - **Фронтенд:** React 19, TypeScript, Vite 6, Tailwind CSS v4, Lucide Icons
 - **Бэкенд:** Node.js 22, Express 5, Model Context Protocol (MCP) JSON-RPC 2.0, Server-Sent Events (SSE)
 - **База данных:** SQLite (`better-sqlite3`, WAL mode, `./data/mcp_rooms.db`, `DATABASE_PATH`)
-- **ИИ и векторы:** `@google/genai` (Gemini 3.8 Flash, text-embedding-004)
+- **ИИ и векторы:** `@google/genai` (ID модели задан в `server.ts` и не подтверждён; эмбеддинги `text-embedding-004`)
 - **Деплой:** Docker, Docker Compose, systemd/PM2, Ubuntu VPS
 
 ## Быстрый запуск в Docker Compose (1 команда)
@@ -67,6 +69,37 @@ docker compose up -d --build
 npm install
 npm run dev
 ```
+
+## Доступ: ключи и границы
+
+Без ключа доступны каталог, карточка объявления, профили, статус эмбеддингов и `POST /api/match`.
+Всё остальное требует ключ.
+
+```bash
+# выдать ключ (показывается один раз)
+npm run key:issue -- --principal user:leonid --name "laptop"
+# посмотреть выпущенные ключи (без токенов)
+npm run key:issue -- --list
+# отозвать: последующие запросы получают 401
+npm run key:issue -- --revoke key_ab12cd34ef56
+```
+
+`--principal` — `user:<slug>`, `agent:<slug>` или `org:<slug>` (строчные буквы, цифры, `.`, `-`, `_`).
+Ключ отправляется как `Authorization: Bearer mcr_…`; в браузере его можно сохранить через кнопку 🔑 в шапке.
+
+| Endpoint | Без ключа | С ключом |
+| --- | --- | --- |
+| `GET /api/listings`, `GET /api/listings/:id` | 200, публичная проекция | 200 |
+| `GET /api/profiles`, `GET /api/profiles/:id`, `GET /api/embedding/status`, `POST /api/match` | 200 | 200 |
+| `POST /api/listings` | 401 | 201, `owner` = субъект ключа |
+| `GET /api/rooms`, `GET /api/rooms/:id`, `GET /api/rooms/:id/stream` | 401 | только комнаты участника, иначе 403 |
+| `POST /api/rooms/:id/messages` | 401 | 201, `sender` = субъект ключа |
+| `POST /api/chat`, `POST /api/agent/negotiate*`, `GET /api/negotiations` | 401 | 200, действия от имени субъекта |
+| `POST /mcp` `tools/list`, `resources/read listings://all` | 200 | 200 |
+| `POST /mcp` `tools/call`, `resources/read rooms://all` | 401 | 200, только свои комнаты |
+
+Ограничение: `EventSource` не умеет отправлять заголовки, поэтому SSE-поток принимает
+`?access_token=…`. Токен в URL может попасть в логи прокси — транспорт меняется в PR-8.
 
 Dev-сервер запускается на `http://0.0.0.0:3000`.
 

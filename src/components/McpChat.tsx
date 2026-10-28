@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Listing, McpRoom, NegotiationResult, EmbeddingProviderStatus } from '../types';
+import { authHeaders, getStoredApiKey, withAccessToken } from '../lib/api';
 
 export interface ChatMessage {
   id: string;
@@ -13,6 +14,8 @@ export interface ChatMessage {
     result: any;
   }>;
   createdListing?: any;
+  degraded?: boolean;
+  degradedReason?: string;
 }
 
 interface McpChatProps {
@@ -24,6 +27,8 @@ interface McpChatProps {
   onRefreshData?: () => void;
   contextListing?: Listing | null;
   onClearContextListing?: () => void;
+  /** Called when the request needs a key (no key stored, or the server said 401). */
+  onRequireKey?: (reason: string) => void;
 }
 
 export const McpChat: React.FC<McpChatProps> = ({
@@ -35,6 +40,7 @@ export const McpChat: React.FC<McpChatProps> = ({
   onRefreshData,
   contextListing,
   onClearContextListing,
+  onRequireKey,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -96,6 +102,12 @@ export const McpChat: React.FC<McpChatProps> = ({
     const text = (textToSend || input).trim();
     if (!text || isLoading) return;
 
+    // Chat writes data (rooms, listings), so it is a keyed operation.
+    if (!getStoredApiKey()) {
+      onRequireKey?.('Чат с агентом требует API-ключ: он определяет, от чьего имени агент пишет.');
+      return;
+    }
+
     const userMessage: ChatMessage = {
       id: 'msg-' + Date.now(),
       role: 'user',
@@ -136,7 +148,7 @@ export const McpChat: React.FC<McpChatProps> = ({
         setSseStatus('connecting');
         const startRes = await fetch('/api/agent/negotiate/start', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({
             prompt: text,
             targetListingId: contextListing?.id || undefined,
@@ -187,7 +199,8 @@ export const McpChat: React.FC<McpChatProps> = ({
             eventSourceRef.current.close();
           }
 
-          const es = new EventSource(streamUrl);
+          // EventSource cannot send headers; the token goes in the query for now.
+          const es = new EventSource(withAccessToken(streamUrl));
           eventSourceRef.current = es;
 
           es.onopen = () => {
@@ -325,7 +338,7 @@ export const McpChat: React.FC<McpChatProps> = ({
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           targetListingId: contextListing?.id || undefined,
           messages: [...messages, userMessage].map((m) => ({
@@ -337,8 +350,12 @@ export const McpChat: React.FC<McpChatProps> = ({
 
       const data = await response.json();
 
+      if (response.status === 401) {
+        onRequireKey?.('Сервер отклонил ключ. Вставьте действующий ключ (401).');
+        return;
+      }
       if (!response.ok) {
-        throw new Error(data.error || 'Ошибка обработки запроса');
+        throw new Error(data.message || data.error || 'Ошибка обработки запроса');
       }
 
       const assistantMessage: ChatMessage = {
@@ -349,6 +366,8 @@ export const McpChat: React.FC<McpChatProps> = ({
         negotiation: data.negotiation,
         executedTools: data.executedTools || [],
         createdListing: data.createdListing,
+        degraded: data.degraded === true,
+        degradedReason: data.degradedReason,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -523,6 +542,14 @@ export const McpChat: React.FC<McpChatProps> = ({
               </span>
               <span>·</span>
               <span>{new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              {m.degraded && (
+                <span
+                  className="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 font-semibold"
+                  title={m.degradedReason || 'Модель не вызывалась'}
+                >
+                  без модели
+                </span>
+              )}
             </div>
 
             <div
