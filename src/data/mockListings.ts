@@ -210,11 +210,6 @@ export const INITIAL_ROOMS = [
         role: 'agent' as const,
         text: 'MCP Agent: Проверил параметры объявления. Самовывоз в Казани подтверждён обеими сторонами. Напоминаю: безопасная встреча в публичном месте рекомендуется правилами площадки.',
         timestamp: Date.now() - 3600000 * 2,
-        toolCall: {
-          tool: 'inspect_room_agreement',
-          params: { roomId: 'room-bike-negotiation-01', mode: 'pickup' },
-          result: { ok: true, matched_terms: ['pickup', 'kazan'] },
-        },
       },
     ],
   },

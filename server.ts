@@ -15,7 +15,7 @@ import {
   toPublicListing,
 } from './server/db';
 import { handleMcpJsonRpcRequest, executeMcpToolCall, MCP_TOOLS_MANIFEST } from './server/mcp';
-import { runAutonomousNegotiation, prepareNegotiationRoom } from './server/negotiator';
+import { runAutonomousNegotiation } from './server/negotiator';
 import { getEmbeddingProviderStatus, matchListingAsymmetric } from './server/embeddings';
 import { roomEventBus } from './server/events';
 import { isRoomParticipant, optionalAuth, requireAuth } from './server/auth';
@@ -493,46 +493,6 @@ app.get('/api/negotiations', requireAuth, (req, res) => {
   }
 });
 
-app.post('/api/agent/negotiate/start', requireAuth, (req, res) => {
-  try {
-    const principalId = req.principal!.principalId;
-    const { prompt, targetListingId } = req.body;
-    if (!prompt) {
-      res.status(400).json({ error: 'Prompt is required' });
-      return;
-    }
-
-    const { roomId, bestMatch, targetListingTitle, isExistingMatch } = prepareNegotiationRoom(
-      prompt,
-      targetListingId,
-      { principalId }
-    );
-
-    // Run autonomous negotiation in background with live pacing for SSE stream
-    setTimeout(async () => {
-      try {
-        await runAutonomousNegotiation(prompt, targetListingId, {
-          roomId,
-          livePacing: true,
-          principalId,
-        });
-      } catch (err) {
-        console.error('Error during autonomous negotiation:', err);
-      }
-    }, 100);
-
-    res.json({
-      roomId,
-      targetListingTitle,
-      isExistingMatch,
-      bestMatch,
-      streamUrl: `/api/rooms/${roomId}/stream`,
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 app.post('/api/agent/negotiate', requireAuth, async (req, res) => {
   try {
     const principalId = req.principal!.principalId;
@@ -588,13 +548,13 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 - search_listings: поиск объявлений в постоянной базе данных SQLite
 - match_listings: асимметричный семантический матчинг (Хочу <-> Предлагаю)
 - create_listing: публикация нового объявления в базу данных SQLite
-- negotiate_agreement: запуск автономных переговоров между агентами в изолированной комнате (Shared Room) для согласования условий
+- negotiate_agreement: находит объявление и возвращает демонстрационный сценарий переговоров; ничего не отправляет автору и не фиксирует соглашение
 - get_room_history: просмотр истории переговоров и соглашений
 - get_profile: публичный профиль автора или компании
 
 Всегда выполняй интент-анализ входящего сообщения:
 1. Если пользователь ищет объявления, партнеров, жилье, работу или команду — вызывай search_listings или match_listings.
-2. Если просит договориться, провести переговоры или согласовать условия — вызывай negotiate_agreement.
+2. Если просит договориться или провести переговоры — вызывай negotiate_agreement, но всегда называй результат демонстрационным сценарием: комнату и реальные сообщения создаёт только пользователь через join_room/send_message.
 3. Если просит создать или опубликовать объявление — вызывай create_listing.
 4. Отвечай дружелюбно, структурированно, на русском языке, ссылайся на конкретные результаты из SQLite и предлагай следующий практический шаг.`;
 
@@ -747,7 +707,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       });
       res.json({
         text:
-          '⚠️ Переговоры выполнил встроенный демо-сценарий (модель не вызывалась).\n\n' +
+          '⚠️ Демонстрационный сценарий (модель не вызывалась, автору ничего не отправлено).\n\n' +
           negotiationResult.summary,
         negotiation: negotiationResult,
         degraded: true,
@@ -764,7 +724,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
             },
           },
         ],
-        createdListing: negotiationResult.status === 'listing_created' ? negotiationResult.targetListing : null,
+        createdListing: null,
       });
       return;
     } catch {
@@ -825,9 +785,11 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     res.json({
       text: `🛡️ **Что верно сейчас:** в карточках витрины нет телефонов и точных адресов — этих полей в объявлении нет вообще.
 
-**Чего пока нет:** изолированных комнат. Сейчас любую переписку комнаты может прочитать любой клиент API — это известное ограничение, зафиксированное в аудите; оно исправляется отдельным этапом. Публикация тоже пока прямая, без черновика и предпросмотра.
+**Комнаты переговоров изолированы:** список комнат и историю видит только участник комнаты, сообщения пишутся от имени владельца ключа, а не из тела запроса. Участники комнаты — владелец объявления и тот, кто открыл переговоры.
 
-Поэтому не передавайте в комнату личные данные, пока доступ не ограничен.`,
+**Чего пока нет:** ролей и scope у ключей (любой действующий ключ может многое), rate limiting и аудит-лога чтения комнат. Для SSE-потока токен передаётся в query-параметре и может попасть в логи прокси. Публикация идёт сразу, без модерации.
+
+Поэтому не передавайте в комнату личные данные сверх необходимого: собеседник — реальный участник, а не демо-агент.`,
       degraded: true,
       degradedReason: llmDegradedReason,
       executedTools: [],

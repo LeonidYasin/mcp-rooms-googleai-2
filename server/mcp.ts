@@ -135,7 +135,7 @@ export const MCP_TOOLS_MANIFEST = [
   {
     name: 'negotiate_agreement',
     description:
-      'Запускает автономный цикл переговоров (Multi-Agent Negotiation Loop) между агентом-инициатором и агентом-контрагентом в изолированной комнате для согласования условий, цены и фиксации соглашения в SQLite.',
+      'Находит подходящее объявление и возвращает демонстрационный сценарий переговоров (demo_preview). Ничего не отправляет автору, не создаёт комнату и не фиксирует соглашение: для реального контакта используйте join_room и send_message.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -389,13 +389,14 @@ export async function executeMcpToolCall(
       });
       return {
         success: true,
+        demo: true,
         negotiation_id: negotiationResult.negotiationId,
         status: negotiationResult.status,
         room_id: negotiationResult.roomId,
-        target_listing: negotiationResult.targetListing?.content?.title,
+        target_listing: negotiationResult.targetListing?.content?.title ?? null,
         rounds_count: negotiationResult.dialogue.length,
         summary: negotiationResult.summary,
-        agreed_terms: negotiationResult.agreedTerms,
+        demo_terms: negotiationResult.demoTerms ?? null,
         steps: negotiationResult.steps,
       };
     }

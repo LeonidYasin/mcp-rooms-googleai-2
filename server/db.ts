@@ -663,11 +663,7 @@ function seedInitialData() {
     'agent:mcp-angel',
     'agent',
     'Агент-Ангел: Проверил параметры объявления. Самовывоз в Казани подтверждён обеими сторонами. Напоминаю: безопасная встреча в публичном месте рекомендуется правилами площадки.',
-    JSON.stringify({
-      tool: 'inspect_room_agreement',
-      params: { roomId: 'room-bike-negotiation-01', mode: 'pickup' },
-      result: { ok: true, matched_terms: ['pickup', 'kazan'] },
-    }),
+    null,
     now - 3600000 * 2
   );
 }

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Listing, McpRoom, NegotiationResult, EmbeddingProviderStatus } from '../types';
-import { authHeaders, getStoredApiKey, withAccessToken } from '../lib/api';
+import { authHeaders, getStoredApiKey } from '../lib/api';
 
 export interface ChatMessage {
   id: string;
@@ -47,7 +47,7 @@ export const McpChat: React.FC<McpChatProps> = ({
       id: 'welcome-angel',
       role: 'assistant',
       content:
-        'Здравствуйте! Я ваш персональный **Агент-Ангел** площадки MCP Rooms.\n\nЯ автономно анализирую ваши поручения через реальный Gemini API, вызываю инструменты протокола MCP и работаю с базой данных SQLite:\n\n• 🏢 **Недвижимость:** подберу коворкинг, офис, жилье или сожителей и согласую просмотр;\n• 🏛️ **Сообщества и Парламент:** найду проектные команды и согласую участие в открытом самоуправлении;\n• 🤝 **Бизнес:** найду бизнес-партнёра, кофаундера или инвестора;\n• 🔧 **Услуги:** найду проверенного мастера и согласую смету и выезд;\n• 💼 **Работа:** подберу вакансию или специалистов по стеку;\n• 🌲 **Знакомства:** найду компанию для хобби, спорта и походов;\n• 🚴 **Товары:** договорюсь о покупке, проверке и безопасном самовывозе.\n\nДайте мне любое поручение на естественном языке — я найду совпадения через асимметричный семантический матчинг, войду в комнату переговоров и проведу раунд согласования условий в реальном времени через SSE!',
+        'Здравствуйте! Я ваш персональный **Агент-Ангел** площадки MCP Rooms.\n\nЯ ищу совпадения в каталоге и работаю с базой данных SQLite. Без настроенного Gemini API ответы строятся правилами и помечаются как деградировавшие.\n\n• 🏢 **Недвижимость:** найду коворкинг, офис или жильё в каталоге;\n• 🏛️ **Сообщества:** найду проектные команды и инициативы;\n• 🤝 **Бизнес:** найду партнёра или кофаундера;\n• 🔧 **Услуги:** найду мастера в каталоге;\n• 💼 **Работа:** подберу вакансию или специалистов по стеку;\n• 🌲 **Знакомства:** найду компанию для хобби и спорта;\n• 🚴 **Товары:** найду объявление о покупке.\n\nСценарий переговоров — демонстрационный: он не отправляет сообщения автору и не создаёт комнату. Реальная комната открывается из карточки объявления.',
       timestamp: Date.now(),
     },
   ]);
@@ -57,19 +57,6 @@ export const McpChat: React.FC<McpChatProps> = ({
   const [expandedDialogueId, setExpandedDialogueId] = useState<string | null>(null);
   const [embeddingStatus, setEmbeddingStatus] = useState<EmbeddingProviderStatus | null>(null);
 
-  // SSE Real-Time Streaming State
-  const [streamingRoomId, setStreamingRoomId] = useState<string | null>(null);
-  const [sseStatus, setSseStatus] = useState<'idle' | 'connecting' | 'connected' | 'reconnecting' | 'done'>('idle');
-  const [typingAgent, setTypingAgent] = useState<{
-    sender?: string;
-    agentName: string;
-    avatar: string;
-    text: string;
-  } | null>(null);
-
-  const seenMessageIds = useRef<Set<string>>(new Set());
-  const eventSourceRef = useRef<EventSource | null>(null);
-
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -78,15 +65,7 @@ export const McpChat: React.FC<McpChatProps> = ({
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, isLoading, typingAgent]);
-
-  useEffect(() => {
-    return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-      }
-    };
-  }, []);
+  }, [messages, isLoading]);
 
   useEffect(() => {
     // Fetch live embedding provider status from backend
@@ -119,222 +98,8 @@ export const McpChat: React.FC<McpChatProps> = ({
     if (!textToSend) setInput('');
     setIsLoading(true);
 
-    const promptLower = text.toLowerCase();
-    const isAutonomousTask =
-      Boolean(contextListing?.id) ||
-      promptLower.includes('найди') ||
-      promptLower.includes('найти') ||
-      promptLower.includes('подбери') ||
-      promptLower.includes('договорись') ||
-      promptLower.includes('согласуй') ||
-      promptLower.includes('партнер') ||
-      promptLower.includes('исполнитель') ||
-      promptLower.includes('мастер') ||
-      promptLower.includes('ваканси') ||
-      promptLower.includes('купи') ||
-      promptLower.includes('коворкинг') ||
-      promptLower.includes('офис') ||
-      promptLower.includes('квартир') ||
-      promptLower.includes('сожител') ||
-      promptLower.includes('парламент') ||
-      promptLower.includes('сообществ') ||
-      promptLower.includes('команд') ||
-      promptLower.includes('познакомиться') ||
-      promptLower.includes('поход') ||
-      promptLower.includes('проведи');
-
-    if (isAutonomousTask) {
-      try {
-        setSseStatus('connecting');
-        const startRes = await fetch('/api/agent/negotiate/start', {
-          method: 'POST',
-          headers: authHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({
-            prompt: text,
-            targetListingId: contextListing?.id || undefined,
-          }),
-        });
-
-        if (startRes.ok) {
-          const startData = await startRes.json();
-          const { roomId, targetListingTitle, bestMatch, streamUrl } = startData;
-
-          setStreamingRoomId(roomId);
-          seenMessageIds.current.clear();
-
-          const assistantMsgId = 'msg-' + (Date.now() + 1);
-          setExpandedDialogueId(assistantMsgId);
-
-          const initialNegotiation: NegotiationResult = {
-            negotiationId: 'neg-' + Date.now(),
-            status: 'in_progress',
-            targetListing: bestMatch,
-            roomId,
-            roomTitle: targetListingTitle,
-            steps: [
-              {
-                type: 'search',
-                title: 'Семантический поиск совпадений в SQLite...',
-                detail: `Анализ запроса: «${text.slice(0, 50)}»`,
-                status: 'in_progress',
-                timestamp: Date.now(),
-              },
-            ],
-            dialogue: [],
-            summary: 'Агенты подключаются к комнате переговоров...',
-          };
-
-          const initialAssistantMsg: ChatMessage = {
-            id: assistantMsgId,
-            role: 'assistant',
-            content: `⚡ Запущен автономный процесс переговоров через MCP по поручению: «${text}».\n\nПодключаюсь к защищённой комнате #${roomId}...`,
-            timestamp: Date.now(),
-            negotiation: initialNegotiation,
-          };
-
-          setMessages((prev) => [...prev, initialAssistantMsg]);
-
-          // Connect SSE Stream
-          if (eventSourceRef.current) {
-            eventSourceRef.current.close();
-          }
-
-          // EventSource cannot send headers; the token goes in the query for now.
-          const es = new EventSource(withAccessToken(streamUrl));
-          eventSourceRef.current = es;
-
-          es.onopen = () => {
-            setSseStatus('connected');
-          };
-
-          es.addEventListener('init', (e: MessageEvent) => {
-            try {
-              const data = JSON.parse(e.data);
-              if (Array.isArray(data.messages)) {
-                data.messages.forEach((m: any) => seenMessageIds.current.add(m.id));
-              }
-              setSseStatus('connected');
-            } catch {}
-          });
-
-          es.addEventListener('step', (e: MessageEvent) => {
-            try {
-              const newStep = JSON.parse(e.data);
-              setMessages((prev) =>
-                prev.map((msg) => {
-                  if (msg.id === assistantMsgId && msg.negotiation) {
-                    const existingStepIndex = msg.negotiation.steps.findIndex(
-                      (s) => s.type === newStep.type
-                    );
-                    let updatedSteps = [...msg.negotiation.steps];
-                    if (existingStepIndex >= 0) {
-                      updatedSteps[existingStepIndex] = newStep;
-                    } else {
-                      updatedSteps.push(newStep);
-                    }
-                    return {
-                      ...msg,
-                      negotiation: {
-                        ...msg.negotiation,
-                        steps: updatedSteps,
-                      },
-                    };
-                  }
-                  return msg;
-                })
-              );
-            } catch {}
-          });
-
-          es.addEventListener('typing', (e: MessageEvent) => {
-            try {
-              const typingData = JSON.parse(e.data);
-              setTypingAgent(typingData);
-            } catch {}
-          });
-
-          es.addEventListener('turn', (e: MessageEvent) => {
-            try {
-              const newTurn = JSON.parse(e.data);
-              setTypingAgent(null);
-
-              setMessages((prev) =>
-                prev.map((msg) => {
-                  if (msg.id === assistantMsgId && msg.negotiation) {
-                    // Deduplicate turn by timestamp and text
-                    const exists = msg.negotiation.dialogue.some(
-                      (t) => t.timestamp === newTurn.timestamp && t.text === newTurn.text
-                    );
-                    if (exists) return msg;
-
-                    return {
-                      ...msg,
-                      negotiation: {
-                        ...msg.negotiation,
-                        dialogue: [...msg.negotiation.dialogue, newTurn],
-                      },
-                    };
-                  }
-                  return msg;
-                })
-              );
-            } catch {}
-          });
-
-          es.addEventListener('message', (e: MessageEvent) => {
-            try {
-              const msgData = JSON.parse(e.data);
-              if (msgData.id) {
-                seenMessageIds.current.add(msgData.id);
-              }
-              setTypingAgent(null);
-            } catch {}
-          });
-
-          es.addEventListener('agreement', (e: MessageEvent) => {
-            try {
-              const agreeData = JSON.parse(e.data);
-              setTypingAgent(null);
-              setSseStatus('done');
-
-              setMessages((prev) =>
-                prev.map((msg) => {
-                  if (msg.id === assistantMsgId && msg.negotiation) {
-                    return {
-                      ...msg,
-                      content: `✅ Переговоры успешно завершены! Все условия согласованы между агентами и зафиксированы в SQLite базе данных на сервере.`,
-                      negotiation: {
-                        ...msg.negotiation,
-                        status: 'agreed',
-                        agreedTerms: agreeData.agreedTerms,
-                        summary: `Детали согласованы в комнате #${agreeData.roomId || roomId}. Все условия зафиксированы в SQLite.`,
-                      },
-                    };
-                  }
-                  return msg;
-                })
-              );
-
-              es.close();
-              setIsLoading(false);
-              if (onRefreshData) {
-                onRefreshData();
-              }
-            } catch {}
-          });
-
-          es.onerror = () => {
-            setSseStatus('reconnecting');
-          };
-
-          return;
-        }
-      } catch (err: any) {
-        console.warn('Fallback to standard chat fetch due to:', err);
-      }
-    }
-
-    // Standard POST /api/chat fallback
+    // All chat goes through POST /api/chat. Negotiation results come back as an
+    // explicit demo_preview; there is no live SSE negotiation stream.
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -458,7 +223,7 @@ export const McpChat: React.FC<McpChatProps> = ({
               )}
             </div>
             <p className="text-xs text-[var(--muted)]">
-              Автономный асимметричный поиск «Хочу» ↔ «Предлагаю», вход в Shared Rooms и согласование условий
+              Подбор объявлений и демонстрационный сценарий переговоров; реальная комната открывается из карточки
             </p>
           </div>
         </div>
@@ -510,12 +275,12 @@ export const McpChat: React.FC<McpChatProps> = ({
                 type="button"
                 onClick={() =>
                   handleSendMessage(
-                    `Проведи автономные переговоры с агентом автора по объявлению «${contextListing.content.title}». Наша задача: согласовать условия, график и подтвердить сделку в безопасной комнате MCP.`
+                    `Покажи демонстрационный сценарий переговоров по объявлению «${contextListing.content.title}». Ничего не отправляй автору и не создавай комнату.`
                   )
                 }
                 className="text-xs font-bold px-3 py-1.5 bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white rounded-lg transition-colors cursor-pointer"
               >
-                ⚡ Провести переговоры
+                ⚡ Демо-сценарий
               </button>
               {onClearContextListing && (
                 <button
@@ -566,37 +331,23 @@ export const McpChat: React.FC<McpChatProps> = ({
                 <div className="mt-4 pt-4 border-t border-[var(--line)] space-y-3.5">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <span className="text-xs font-black tracking-wider uppercase text-[var(--blue)] flex items-center gap-1.5">
-                      <span>⚡ Ход автономных переговоров через MCP:</span>
+                      <span>⚡ Демонстрационный сценарий переговоров:</span>
                     </span>
                     <div className="flex items-center gap-2">
-                      {m.negotiation.roomId === streamingRoomId && sseStatus !== 'done' && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1.5 bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full ${
-                              sseStatus === 'connected'
-                                ? 'bg-emerald-500 animate-ping'
-                                : 'bg-amber-500 animate-pulse'
-                            }`}
-                          />
-                          {sseStatus === 'connected'
-                            ? 'SSE Live'
-                            : sseStatus === 'reconnecting'
-                            ? 'Переподключение...'
-                            : 'Подключение...'}
-                        </span>
-                      )}
                       <span
                         className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
-                          m.negotiation.status === 'agreed'
-                            ? 'bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300'
+                          m.negotiation.status === 'demo_preview'
+                            ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300'
                             : 'bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300'
                         }`}
                       >
-                        {m.negotiation.status === 'agreed'
-                          ? '✓ Договорённость достигнута'
+                        {m.negotiation.status === 'demo_preview'
+                          ? 'Демо · ничего не отправлено'
+                          : m.negotiation.status === 'no_match'
+                          ? 'Совпадений нет'
                           : m.negotiation.status === 'in_progress'
-                          ? 'Переговоры в процессе...'
-                          : 'Карточка создана'}
+                          ? 'В процессе...'
+                          : 'Демо'}
                       </span>
                     </div>
                   </div>
@@ -628,21 +379,7 @@ export const McpChat: React.FC<McpChatProps> = ({
                     ))}
                   </div>
 
-                  {/* Live Typing Presence Indicator for Active Agent */}
-                  {m.negotiation.roomId === streamingRoomId && typingAgent && (
-                    <div className="flex items-center gap-2.5 p-3 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 text-xs">
-                      <span className="text-base">{typingAgent.avatar}</span>
-                      <span className="font-semibold text-[var(--ink)]">{typingAgent.agentName}:</span>
-                      <span className="text-[var(--muted)]">{typingAgent.text}</span>
-                      <span className="flex gap-1 ml-auto">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--blue)] animate-bounce" />
-                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--blue)] animate-bounce [animation-delay:0.2s]" />
-                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--blue)] animate-bounce [animation-delay:0.4s]" />
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Dialogue Accordion between Angel and Counterpart Agent */}
+                  {/* Dialogue Accordion: scripted demo, not a real conversation */}
                   {m.negotiation.dialogue && m.negotiation.dialogue.length > 0 && (
                     <div className="bg-[var(--canvas)] border border-[var(--line)] rounded-xl overflow-hidden">
                       <button
@@ -653,10 +390,7 @@ export const McpChat: React.FC<McpChatProps> = ({
                         className="w-full px-3.5 py-2.5 flex items-center justify-between text-xs font-bold text-[var(--ink)] bg-[var(--surface)] hover:bg-[var(--raised)] transition-colors cursor-pointer"
                       >
                         <span className="flex items-center gap-2">
-                          <span>💬 Стенограмма переговоров агентов ({m.negotiation.dialogue.length} реплик)</span>
-                          {m.negotiation.roomId === streamingRoomId && sseStatus !== 'done' && (
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                          )}
+                          <span>💬 Пример диалога из демо-сценария ({m.negotiation.dialogue.length} реплик)</span>
                         </span>
                         <span className="text-[var(--blue)]">
                           {expandedDialogueId === m.id ? 'Свернуть ▲' : 'Развернуть диалог ▼'}
@@ -669,9 +403,9 @@ export const McpChat: React.FC<McpChatProps> = ({
                             <div
                               key={tIdx}
                               className={`p-3 rounded-xl border ${
-                                turn.sender === 'agent:angel'
+                                turn.sender === 'demo:angel'
                                   ? 'bg-[var(--soft)] border-blue-200/60 dark:border-blue-900/50 mr-4'
-                                  : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200/60 dark:border-emerald-800/40 ml-4'
+                                  : 'bg-amber-50/60 dark:bg-amber-950/30 border-amber-200/60 dark:border-amber-800/40 ml-4'
                               }`}
                             >
                               <div className="flex justify-between items-center text-[11px] font-semibold text-[var(--muted)] mb-1">
@@ -686,21 +420,22 @@ export const McpChat: React.FC<McpChatProps> = ({
                     </div>
                   )}
 
-                  {/* Agreed Terms Box */}
-                  {m.negotiation.agreedTerms && (
-                    <div className="p-3 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 rounded-xl space-y-1.5 text-xs">
-                      <strong className="text-emerald-800 dark:text-emerald-300 font-bold block">
-                        🤝 Согласованные условия:
+                  {/* Example terms: explicitly not an agreement */}
+                  {m.negotiation.demoTerms && (
+                    <div className="p-3 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl space-y-1.5 text-xs">
+                      <strong className="text-amber-800 dark:text-amber-300 font-bold block">
+                        📝 Пример условий (не согласовано):
                       </strong>
                       <div className="text-[var(--ink)] space-y-1">
-                        <div>• <strong>Тема:</strong> {m.negotiation.agreedTerms.topic}</div>
-                        {m.negotiation.agreedTerms.price && (
-                          <div>• <strong>Цена/Условия:</strong> {m.negotiation.agreedTerms.price}</div>
+                        <div>• <strong>Тема:</strong> {m.negotiation.demoTerms.topic}</div>
+                        {m.negotiation.demoTerms.price && (
+                          <div>• <strong>Цена/Условия:</strong> {m.negotiation.demoTerms.price}</div>
                         )}
-                        {m.negotiation.agreedTerms.schedule && (
-                          <div>• <strong>Слот:</strong> {m.negotiation.agreedTerms.schedule}</div>
+                        {m.negotiation.demoTerms.schedule && (
+                          <div>• <strong>Слот:</strong> {m.negotiation.demoTerms.schedule}</div>
                         )}
-                        <div>• <strong>Приватность:</strong> {m.negotiation.agreedTerms.locationProtocol}</div>
+                        <div>• <strong>Формат:</strong> {m.negotiation.demoTerms.locationProtocol}</div>
+                        <div className="text-[11px] text-[var(--muted)] pt-1">{m.negotiation.demoTerms.note}</div>
                       </div>
                     </div>
                   )}
@@ -710,19 +445,10 @@ export const McpChat: React.FC<McpChatProps> = ({
                     {m.negotiation.targetListing && (
                       <button
                         type="button"
-                        onClick={() => onOpenListing(m.negotiation!.targetListing)}
+                        onClick={() => onOpenListing(m.negotiation!.targetListing!)}
                         className="px-3 py-1.5 rounded-lg bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white font-semibold text-xs transition-colors cursor-pointer flex items-center gap-1"
                       >
-                        <span>Карточка объявления →</span>
-                      </button>
-                    )}
-                    {m.negotiation.roomId && onOpenRoom && (
-                      <button
-                        type="button"
-                        onClick={() => onOpenRoom(m.negotiation!.roomId)}
-                        className="px-3 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--canvas)] hover:bg-[var(--raised)] text-[var(--ink)] font-semibold text-xs transition-colors cursor-pointer"
-                      >
-                        <span>Комната переговоров #{m.negotiation.roomId.substring(0, 16)}</span>
+                        <span>Открыть карточку и написать автору →</span>
                       </button>
                     )}
                   </div>
@@ -743,7 +469,7 @@ export const McpChat: React.FC<McpChatProps> = ({
                 <span>Автономная работа через протокол MCP...</span>
               </div>
               <p className="text-[var(--muted)] text-[11px] leading-relaxed">
-                1. Запрос в базу данных SQLite ➔ 2. Вход в Shared Room ➔ 3. Согласование условий с агентом контрагента.
+                1. Поиск в SQLite ➔ 2. Подбор карточки ➔ 3. Демо-сценарий переговоров (автору ничего не отправляется).
               </p>
             </div>
           </div>
