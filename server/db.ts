@@ -1271,3 +1271,27 @@ export function revokeCredentialInDb(id: string, at: number): boolean {
     db.prepare('UPDATE credentials SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL').run(at, id).changes > 0
   );
 }
+
+/**
+ * Public projection of a listing: the storefront is readable without a key, so
+ * it must not carry owner principal ids, the stored embedding vector or contact
+ * channels. Author display data stays.
+ */
+export function toPublicListing(listing: any): any {
+  if (!listing) return listing;
+  const { owner, embedding_json, profile_id, profile, ...rest } = listing;
+  const publicProfile = profile
+    ? {
+        id: profile.id,
+        type: profile.type,
+        name: profile.name,
+        headline: profile.headline,
+        bio: profile.bio,
+        avatar_url: profile.avatar_url,
+        locality: profile.locality,
+        verified: profile.verified,
+        reputation_score: profile.reputation_score,
+      }
+    : undefined;
+  return { ...rest, profile: publicProfile };
+}
