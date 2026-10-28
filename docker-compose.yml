@@ -1,12 +1,12 @@
-version: '3.8'
-
 services:
   mcp-rooms:
     container_name: mcp_rooms_marketplace
     build:
       context: .
       dockerfile: Dockerfile
+    image: mcp-rooms:local
     restart: unless-stopped
+    init: true
     ports:
       - "${PORT:-3000}:3000"
     environment:
@@ -17,14 +17,20 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - DATABASE_PATH=/app/data/mcp_rooms.db
     volumes:
-      # Persistent SQLite storage on host disk
+      # Persistent SQLite storage on host disk.
+      # The container runs as UID/GID 1000 (`node`), so this directory must be
+      # owned by 1000:1000 on the host: `sudo chown -R 1000:1000 ./data`.
       - ./data:/app/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/listings"]
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3000/api/listings"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 20s
     logging:
       driver: "json-file"
       options:

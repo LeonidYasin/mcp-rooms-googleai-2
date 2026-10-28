@@ -23,7 +23,7 @@ Start with:
 ## Runtime
 
 - [`deployment.md`](deployment.md) — how to run the app with Docker Compose, with the
-  caveats that matter (no CI-verified deployment, no TLS/reverse proxy included).
+  caveats that matter (image build is CI-verified; no TLS, reverse proxy, or deployment).
 
 ## What is not documented as done
 

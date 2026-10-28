@@ -1,5 +1,4 @@
 import express from 'express';
-import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type, FunctionDeclaration } from '@google/genai';
 import {
   initDatabase,
@@ -862,6 +861,9 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
 async function start() {
   if (process.env.NODE_ENV !== 'production') {
+    // Vite is a dev dependency: import it lazily so the production image can be
+    // built without devDependencies (see Dockerfile, `prod-deps` stage).
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true, host: '0.0.0.0', port: PORT },
       appType: 'spa',

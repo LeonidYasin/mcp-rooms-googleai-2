@@ -113,6 +113,13 @@ PR-11 test+docs: E2E, abuse, переписать документацию    [L
 - **Область:** `bun install --frozen-lockfile` (lock уже есть) **или** добавить `package-lock.json` и `npm ci` — выбрать одно и убрать второе; multi-stage Docker только с `dist/` и production-зависимостями; `USER node`; права `700` на `/app/data`; `HEALTHCHECK`; `docker-compose` без `${GEMINI_API_KEY:-}`-умолчания (падать, если ключ пуст и `EMBEDDING_PROVIDER=google`); скрипт бэкапа SQLite (`VACUUM INTO`) и проверенный restore.
 - **Приёмка:** два прогона сборки дают одинаковый `sha256` артефакта; контейнер стартует non-root; restore из бэкапа проверен на копии.
 
+**Статус (2026-10-28, PR #5):** закрыта часть про сборку — `package-lock.json` + `npm ci`
+вместо `bun.lock`, multi-stage образ без devDependencies, `USER node`, `/app/data` с
+правами `700` и владельцем `node`, `HEALTHCHECK`, job `docker` в CI (build + non-root +
+smoke). Не сделано: скрипт бэкапа `VACUUM INTO` и проверенный restore, поведение
+compose при пустом `GEMINI_API_KEY` (сейчас допустим degraded-режим). Побитовой
+воспроизводимости `sha256` никто не проверял.
+
 ## 13. PR-11 — E2E, abuse, документация
 
 - **Область:** E2E: агент публикует карточку → второй пользователь видит её в витрине → отклик в комнате → `403` для третьего; abuse: 10 МБ тело, 1000 сообщений/мин, XSS в названии, SQL-строка в фильтре; переписать `README.md`, `AGENTS.md`, удалить `docs/` основного проекта и `web/prototype/`, `.aistudio/`; зафиксировать `docs/api.md` как контракт; `docs/production-readiness.md` — свои, а не унаследованные.

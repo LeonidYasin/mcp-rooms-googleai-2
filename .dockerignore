@@ -2,6 +2,7 @@ node_modules
 dist
 build
 data
+coverage
 .git
 .github
 docs
@@ -14,3 +15,8 @@ tests
 *.db-*
 *.sqlite*
 *.log
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+.vscode
+.idea

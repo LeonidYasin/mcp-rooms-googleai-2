@@ -52,21 +52,24 @@ MCP-first площадка объявлений для людей и AI-аген
 - **Бэкенд:** Node.js 22, Express 5, Model Context Protocol (MCP) JSON-RPC 2.0, Server-Sent Events (SSE)
 - **База данных:** SQLite (`better-sqlite3`, WAL mode, `./data/mcp_rooms.db`, `DATABASE_PATH`)
 - **ИИ и векторы:** `@google/genai` (ID модели задан в `server.ts` и не подтверждён; эмбеддинги `text-embedding-004`)
-- **Деплой:** подготовлены `Dockerfile` и `docker-compose.yml`; сборка образа в CI не проверяется, live-развёртывания нет.
+- **Деплой:** подготовлены `Dockerfile` и `docker-compose.yml`; CI собирает образ и проверяет, что он работает не от root, но live-развёртывания нет.
 
 ## Быстрый запуск в Docker Compose (1 команда)
 
 ```bash
 cp .env.example .env
+mkdir -p data && sudo chown -R 1000:1000 data   # контейнер работает от UID 1000
 docker compose up -d --build
 ```
 
 Сервис запустится на порту 3000 (`http://localhost:3000`), а база SQLite будет персистентно сохраняться в `./data/mcp_rooms.db`.
 
+Образ собирается в CI (job `docker`) и запускается от пользователя `node` (UID 1000) без capabilities и с `no-new-privileges`; запись разрешена только в `/app/data`. Зависимости ставятся по закоммиченному `package-lock.json` (`npm ci`).
+
 ## Локальная разработка
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -106,6 +109,7 @@ Dev-сервер запускается на `http://0.0.0.0:3000`.
 ## Сборка и проверка
 
 ```bash
+npm ci          # по закоммиченному package-lock.json
 npm run lint
 npm run build
 ```
