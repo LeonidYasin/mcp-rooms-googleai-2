@@ -14,7 +14,7 @@ process.env.DEMO_SEED = '1';
 
 initDatabase();
 
-const listings = getListingsFromDb();
+const listings = getListingsFromDb({});
 const profiles = getProfilesFromDb();
 
 process.stdout.write(

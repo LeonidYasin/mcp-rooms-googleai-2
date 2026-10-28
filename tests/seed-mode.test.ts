@@ -53,7 +53,7 @@ describe('demo seed mode', () => {
 
     db.initDatabase();
 
-    expect(db.getListingsFromDb()).toHaveLength(0);
+    expect(db.getListingsFromDb({})).toHaveLength(0);
     expect(db.getProfilesFromDb()).toHaveLength(0);
     db.db.close();
   });
@@ -63,14 +63,14 @@ describe('demo seed mode', () => {
     expect(db.demoSeedEnabled()).toBe(true);
 
     db.initDatabase();
-    const listings = db.getListingsFromDb().length;
+    const listings = db.getListingsFromDb({}).length;
     const profiles = db.getProfilesFromDb().length;
     expect(listings).toBeGreaterThan(0);
     expect(profiles).toBeGreaterThan(0);
 
     // A second start must not duplicate the demo set.
     db.initDatabase();
-    expect(db.getListingsFromDb().length).toBe(listings);
+    expect(db.getListingsFromDb({}).length).toBe(listings);
     expect(db.getProfilesFromDb().length).toBe(profiles);
     db.db.close();
   });
