@@ -334,7 +334,7 @@ export async function executeMcpToolCall(
 
       const room = getRoomByIdFromDb(args.room_id);
       if (!room) {
-        return { error: `Комната ${args.room_id} не найдена` };
+        return { error: 'room_not_found', message: `Комната ${args.room_id} не найдена` };
       }
       if (!isRoomParticipant(room, sender)) {
         return { error: 'forbidden', message: 'Вы не участник этой комнаты' };

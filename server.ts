@@ -446,7 +446,7 @@ app.post('/api/rooms/:id/messages', requireAuth, (req, res) => {
     const roomId = String(req.params.id);
     const room = getRoomByIdFromDb(roomId);
     if (!room) {
-      res.status(404).json({ error: 'Room not found' });
+      res.status(404).json({ error: 'room_not_found', message: 'Room not found' });
       return;
     }
     const principalId = req.principal!.principalId;
