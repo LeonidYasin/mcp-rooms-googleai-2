@@ -45,9 +45,9 @@
   - Поддержка `X-Forwarded-For` с настройкой доверенных прокси (`trust proxy`).
   - *Затронутые файлы:* `server/rate_limiter.ts`, `server/index.ts`.
 
-- [ ] **1.4 Поддержка `Last-Event-ID` в SSE**
+- [x] **1.4 Поддержка `Last-Event-ID` в SSE** *(Завершено — PR #28)*
   - Присвоение порядковых ID сообщениям комнат и доотправка пропущенных сообщений при переподключении.
-  - *Затронутые файлы:* `server/sse.ts`, `server/db.ts`.
+  - *Затронутые файлы:* `server.ts`, `tests/sse_replay.test.ts`.
 
 ---
 
