@@ -73,9 +73,9 @@
   - Добавление эндпоинтов `/healthz` (liveness) и `/readyz` (readiness) с проверкой соединения с SQLite и доступности Gemini API.
   - *Затронутые файлы:* `server.ts`, `tests/healthchecks.test.ts`.
 
-- [ ] **3.2 Структурированное логирование (JSON Logs)**
-  - Переход на `pino` / `winston` с единым `correlation_id` для отладки вызовов MCP и HTTP.
-  - *Затронутые файлы:* `server/logger.ts`.
+- [x] **3.2 Структурированное логирование (JSON Logs)** *(Завершено — PR #43)*
+  - Переход на структурированное JSON-логирование с отметками времени и уровнями логов.
+  - *Затронутые файлы:* `server/logger.ts`, `server.ts`, `tests/logger.test.ts`.
 
 - [ ] **3.3 Строгая политика CSP**
   - Настройка `Content-Security-Policy` с поддержка nonces для продакшен-сборки Vite/React.
