@@ -12,7 +12,6 @@ Start with:
 
 - [`audit/2026-10-27-audit.md`](audit/2026-10-27-audit.md) — initial audit (P0/P1/P2 defect list).
 - [`audit/2026-10-29-status-audit.md`](audit/2026-10-29-status-audit.md) — current audit and production readiness assessment (~88-90% RC1).
-- [`agent_orchestration.md`](agent_orchestration.md) — multi-agent orchestration architecture and protocol.
 - [`audit/2026-10-28-pr3-access.md`](audit/2026-10-28-pr3-access.md) — access/isolation
   review for PR #3.
 - [`audit/pr-plan.md`](audit/pr-plan.md) — bounded PR sequence from the audit.
