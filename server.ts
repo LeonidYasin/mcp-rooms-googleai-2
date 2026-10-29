@@ -20,6 +20,11 @@ import {
   classifyMessageInsertError,
   saveUploadInDb,
   addAuditLog,
+  createWebhookInDb,
+  getWebhooksFromDb,
+  getWebhookByIdFromDb,
+  deleteWebhookFromDb,
+  dispatchWebhooksForEvent,
 } from './server/db';
 import { handleMcpJsonRpcRequest, executeMcpToolCall, MCP_TOOLS_MANIFEST } from './server/mcp';
 import { runAutonomousNegotiation } from './server/negotiator';
@@ -92,6 +97,75 @@ app.post('/api/uploads', requireAuth, (req, res) => {
   addAuditLog('media.upload', req.principal!.principalId, record.id, { filename: record.filename, size: record.size });
 
   res.status(201).json({ success: true, upload: record });
+});
+
+// ---------------------------------------------------------------------------
+// Webhooks API
+// ---------------------------------------------------------------------------
+app.post('/api/webhooks', requireAuth, (req, res) => {
+  try {
+    const url = typeof req.body?.url === 'string' ? req.body.url.trim() : '';
+    const eventType = typeof req.body?.event_type === 'string' ? req.body.event_type.trim() : 'room.message';
+    const secret = typeof req.body?.secret === 'string' ? req.body.secret.trim() : undefined;
+
+    if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+      res.status(422).json({ error: 'invalid_url', message: 'Valid HTTP/HTTPS URL is required' });
+      return;
+    }
+
+    const principalId = req.principal!.principalId;
+    const webhook = createWebhookInDb({
+      id: 'wh-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+      url,
+      eventType,
+      owner: principalId,
+      secret,
+      createdAt: Date.now(),
+    });
+
+    addAuditLog('webhook.create', principalId, webhook.id, { url, eventType });
+    res.status(201).json({ success: true, webhook });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/webhooks', requireAuth, (req, res) => {
+  try {
+    const principalId = req.principal!.principalId;
+    const webhooks = getWebhooksFromDb(principalId);
+    res.json(webhooks);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/webhooks/:id', requireAuth, (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const principalId = req.principal!.principalId;
+    const existing = getWebhookByIdFromDb(id);
+
+    if (!existing) {
+      res.status(404).json({ error: 'not_found', message: 'Webhook not found' });
+      return;
+    }
+
+    if (existing.owner !== principalId) {
+      res.status(403).json({ error: 'forbidden', message: 'Forbidden' });
+      return;
+    }
+
+    const deleted = deleteWebhookFromDb(id, principalId);
+    if (deleted) {
+      addAuditLog('webhook.delete', principalId, id);
+      res.json({ success: true, id });
+    } else {
+      res.status(404).json({ error: 'not_found' });
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 
@@ -708,6 +782,13 @@ app.post('/api/rooms/:id/messages', requireAuth, rateLimit('messages', 'RATE_LIM
     }
     // Broadcast live event to SSE subscribers
     roomEventBus.broadcast(roomId, 'message', message);
+
+    // Dispatch Webhook notification asynchronously
+    dispatchWebhooksForEvent('room.message', {
+      roomId,
+      message,
+    }).catch(() => {});
+
     res.status(201).json(message);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
