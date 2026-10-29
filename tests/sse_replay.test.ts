@@ -3,7 +3,7 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { initDatabase, addMessageToRoomInDb, createRoomInDb } from '../server/db';
-import { issueSseTicket } from '../server/auth';
+import { issueSseTicket, ApiScope } from '../server/auth';
 import { app } from '../server';
 
 describe('SSE Last-Event-ID & Replay Support', () => {
@@ -38,12 +38,9 @@ describe('SSE Last-Event-ID & Replay Support', () => {
 
     createRoomInDb({
       id: roomId,
-      listingId: null,
+      listingId: undefined,
       listingTitle: 'SSE Test Listing',
       participants: ['user:alice', 'user:bob'],
-      status: 'active',
-      createdAt: now,
-      updatedAt: now,
     });
 
     const msg1 = {
@@ -75,7 +72,8 @@ describe('SSE Last-Event-ID & Replay Support', () => {
     addMessageToRoomInDb(msg2);
     addMessageToRoomInDb(msg3);
 
-    const principal = { principalId: 'user:alice', scopes: ['*'] };
+    const scopes: ApiScope[] = ['*'];
+    const principal = { principalId: 'user:alice', keyId: 'key-test-sse', scopes };
     const ticket = issueSseTicket(principal, roomId);
 
     const responseText = await new Promise<string>((resolve, reject) => {
