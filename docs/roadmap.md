@@ -89,6 +89,10 @@
   - Конфигурация `Caddyfile` с проксированием SSE/WebSocket, TLS и заголовочной безопасностью.
   - *Затронутые файлы:* `Caddyfile`, `docs/deployment.md`.
 
+- [x] **3.5 Automated GitHub Actions CD Deploy Workflow** — ✅ **Issue #34 / PR #34 (merged)**
+  - Автоматизированное непрерывное развертывание (CD) на VPS через GitHub Actions (`.github/workflows/deploy.yml`).
+  - *Затронутые файлы:* `.github/workflows/deploy.yml`, `scripts/pre-deploy-check.sh`, `docker-compose.prod.yml`, `Caddyfile.prod`.
+
 - [x] **3.4 Строгая политика CSP (Content Security Policy)** — ✅ **Issue #33 / PR #33 (merged)**
   - Настройка продуктовой Content-Security-Policy в `securityHeaders` middleware.
   - *Затронутые файлы:* `server/http-guard.ts`, `tests/csp-security.test.ts`.

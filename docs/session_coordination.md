@@ -23,7 +23,7 @@
 | **Мульти-модельные переговоры (Claude/OpenAI)** | Issue #32 | PR #32 (merged) | Сессия A (Jules) | ✅ Завершено |
 | **Строгая CSP & Security Headers** | Issue #33 | PR #33 (merged) | Сессия A (Jules) | ✅ Завершено |
 | **Уведомления и Webhooks** | Issue #35 | PR #35 (merged) | Сессия A (Jules) | ✅ Завершено |
-| **Деплой на боевой VPS (TLS + Domain)** | Issue #34 | `ops/vps-live-deploy` | Ops / CTO | 🛑 Одобрение владельца |
+| **Деплой на боевой VPS (TLS + Domain)** | Issue #34 | PR #34 (merged) | Ops / CTO | ✅ Завершено (.github/workflows/deploy.yml) |
 
 ---
 

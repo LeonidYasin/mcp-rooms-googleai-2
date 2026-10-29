@@ -1,0 +1,27 @@
+# Production Caddy Reverse Proxy Configuration for MCP Rooms Marketplace
+# Proxies requests to mcp-rooms-app container with automatic TLS, compression, and SSE headers
+
+{$DOMAIN_NAME:localhost} {
+    encode zstd gzip
+
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+        Permissions-Policy "camera=(), geolocation=(), microphone=()"
+        -Server
+    }
+
+    @sse path /api/rooms/*/stream
+    header @sse {
+        X-Accel-Buffering "no"
+        Cache-Control "no-cache, no-transform"
+    }
+
+    reverse_proxy mcp-rooms-app:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}

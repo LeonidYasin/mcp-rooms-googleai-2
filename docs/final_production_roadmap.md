@@ -43,3 +43,4 @@
 | **Модуль 1** | Ticket-based SSE Auth | Issue #25 | PR #25 (merged) | Сессия A (Jules) | ✅ Завершено |
 | **Модуль 2** | Playwright Headless E2E | Issue #30 | PR #30 (merged) | Сессия B | ✅ Завершено |
 | **Модуль 3** | Caddy/Nginx TLS & Runbook | Issue #29 | PR #29 (merged) | Сессия A (Jules) | ✅ Завершено |
+| **Модуль 4** | Live Deployment Pipeline | Issue #34 | PR #34 (merged) | Ops / CTO | ✅ Завершено (.github/workflows/deploy.yml) |
