@@ -19,7 +19,13 @@ import {
   classifyMessageInsertError,
   saveUploadInDb,
   addAuditLog,
+  createWebhookInDb,
+  getWebhooksFromDb,
+  getWebhookByIdFromDb,
+  deleteWebhookFromDb,
+  getWebhookDeliveriesFromDb,
 } from './server/db';
+import { dispatchWebhookEvent } from './server/webhooks';
 import { handleMcpJsonRpcRequest, executeMcpToolCall, MCP_TOOLS_MANIFEST } from './server/mcp';
 import { runAutonomousNegotiation, generateMultiModelNegotiationTurn } from './server/negotiator';
 import { getEmbeddingProviderStatus, matchListingAsymmetric } from './server/embeddings';
@@ -709,14 +715,96 @@ app.post('/api/rooms/:id/messages', requireAuth, rateLimit('messages', 'RATE_LIM
     // Broadcast live event to SSE subscribers
     roomEventBus.broadcast(roomId, 'message', message);
 
+    // Dispatch webhook notification to external agent subscribers
+    void dispatchWebhookEvent('message.created', message);
+
     // Trigger multi-model reactive agent turn
     void generateMultiModelNegotiationTurn(roomId, principalId, text).then((autoMsg) => {
       if (autoMsg) {
         roomEventBus.broadcast(roomId, 'message', autoMsg);
+        void dispatchWebhookEvent('message.created', autoMsg);
       }
     });
 
     res.status(201).json(message);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// Webhooks REST API Endpoints (Issue #35)
+// -------------------------------------------------------------
+app.get('/api/webhooks', requireAuth, (req, res) => {
+  try {
+    const owner = req.principal!.principalId;
+    const hooks = getWebhooksFromDb(owner);
+    res.json(hooks);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/webhooks', requireAuth, (req, res) => {
+  try {
+    const owner = req.principal!.principalId;
+    const { url, events, secret } = req.body || {};
+
+    if (!url || typeof url !== 'string' || !url.startsWith('http')) {
+      res.status(400).json({ error: 'invalid_url', message: 'Valid HTTP/HTTPS URL is required' });
+      return;
+    }
+
+    const eventList = Array.isArray(events) && events.length > 0 ? events : ['*'];
+    const webhookSecret = secret && typeof secret === 'string' ? secret : 'whsec_' + Math.random().toString(36).substring(2, 10);
+    const hookId = 'wh-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+
+    const record = createWebhookInDb({
+      id: hookId,
+      owner,
+      url,
+      secret: webhookSecret,
+      events: eventList,
+    });
+
+    addAuditLog('webhook.create', owner, hookId, { url, events: eventList });
+    res.status(201).json(record);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/webhooks/:id', requireAuth, (req, res) => {
+  try {
+    const owner = req.principal!.principalId;
+    const hookId = String(req.params.id);
+    const success = deleteWebhookFromDb(hookId, owner);
+
+    if (!success) {
+      res.status(404).json({ error: 'not_found', message: 'Webhook not found or forbidden' });
+      return;
+    }
+
+    addAuditLog('webhook.delete', owner, hookId);
+    res.json({ success: true, id: hookId });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/webhooks/:id/deliveries', requireAuth, (req, res) => {
+  try {
+    const owner = req.principal!.principalId;
+    const hookId = String(req.params.id);
+    const hook = getWebhookByIdFromDb(hookId);
+
+    if (!hook || hook.owner !== owner) {
+      res.status(404).json({ error: 'not_found', message: 'Webhook not found or forbidden' });
+      return;
+    }
+
+    const deliveries = getWebhookDeliveriesFromDb(hookId);
+    res.json(deliveries);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

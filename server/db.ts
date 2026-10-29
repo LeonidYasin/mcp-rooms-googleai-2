@@ -156,6 +156,31 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON audit_logs(actor_id);
     CREATE INDEX IF NOT EXISTS idx_audit_logs_event ON audit_logs(event_type);
 
+    CREATE TABLE IF NOT EXISTS webhooks (
+      id TEXT PRIMARY KEY,
+      owner TEXT NOT NULL,
+      url TEXT NOT NULL,
+      secret TEXT NOT NULL,
+      events_json TEXT NOT NULL, -- JSON array of events e.g. ["message.created", "listing.published"]
+      status TEXT NOT NULL DEFAULT 'active', -- 'active' or 'disabled'
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS webhook_deliveries (
+      id TEXT PRIMARY KEY,
+      webhook_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      status_code INTEGER,
+      success INTEGER NOT NULL DEFAULT 0,
+      error_message TEXT,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY(webhook_id) REFERENCES webhooks(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_webhooks_owner ON webhooks(owner);
+    CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_webhook ON webhook_deliveries(webhook_id);
+
   `);
 
   // Safe migration for existing listings table
@@ -1449,4 +1474,122 @@ export function getUploadByIdFromDb(id: string): UploadRecord | null {
     owner: row.owner,
     createdAt: row.created_at,
   };
+}
+
+export interface WebhookRecord {
+  id: string;
+  owner: string;
+  url: string;
+  secret: string;
+  events: string[];
+  status: 'active' | 'disabled';
+  createdAt: number;
+}
+
+export interface WebhookDeliveryRecord {
+  id: string;
+  webhookId: string;
+  eventType: string;
+  payload: Record<string, any>;
+  statusCode: number | null;
+  success: boolean;
+  errorMessage: string | null;
+  createdAt: number;
+}
+
+export function createWebhookInDb(record: {
+  id: string;
+  owner: string;
+  url: string;
+  secret: string;
+  events: string[];
+  status?: 'active' | 'disabled';
+  createdAt?: number;
+}): WebhookRecord {
+  const now = record.createdAt || Date.now();
+  db.prepare(`
+    INSERT INTO webhooks (id, owner, url, secret, events_json, status, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    record.id,
+    record.owner,
+    record.url,
+    record.secret,
+    JSON.stringify(record.events),
+    record.status || 'active',
+    now
+  );
+  return getWebhookByIdFromDb(record.id)!;
+}
+
+export function getWebhooksFromDb(owner?: string): WebhookRecord[] {
+  let query = 'SELECT * FROM webhooks';
+  const params: any[] = [];
+  if (owner) {
+    query += ' WHERE owner = ?';
+    params.push(owner);
+  }
+  query += ' ORDER BY created_at DESC';
+  const rows = db.prepare(query).all(...params) as any[];
+  return rows.map((r) => ({
+    id: r.id,
+    owner: r.owner,
+    url: r.url,
+    secret: r.secret,
+    events: JSON.parse(r.events_json || '[]'),
+    status: r.status,
+    createdAt: r.created_at,
+  }));
+}
+
+export function getWebhookByIdFromDb(id: string): WebhookRecord | null {
+  const row = db.prepare('SELECT * FROM webhooks WHERE id = ?').get(id) as any;
+  if (!row) return null;
+  return {
+    id: row.id,
+    owner: row.owner,
+    url: row.url,
+    secret: row.secret,
+    events: JSON.parse(row.events_json || '[]'),
+    status: row.status,
+    createdAt: row.created_at,
+  };
+}
+
+export function deleteWebhookFromDb(id: string, owner: string): boolean {
+  const res = db.prepare('DELETE FROM webhooks WHERE id = ? AND owner = ?').run(id, owner);
+  return res.changes > 0;
+}
+
+export function saveWebhookDeliveryInDb(delivery: WebhookDeliveryRecord): WebhookDeliveryRecord {
+  db.prepare(`
+    INSERT INTO webhook_deliveries (id, webhook_id, event_type, payload_json, status_code, success, error_message, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    delivery.id,
+    delivery.webhookId,
+    delivery.eventType,
+    JSON.stringify(delivery.payload),
+    delivery.statusCode,
+    delivery.success ? 1 : 0,
+    delivery.errorMessage || null,
+    delivery.createdAt
+  );
+  return delivery;
+}
+
+export function getWebhookDeliveriesFromDb(webhookId: string): WebhookDeliveryRecord[] {
+  const rows = db
+    .prepare('SELECT * FROM webhook_deliveries WHERE webhook_id = ? ORDER BY created_at DESC LIMIT 50')
+    .all(webhookId) as any[];
+  return rows.map((r) => ({
+    id: r.id,
+    webhookId: r.webhook_id,
+    eventType: r.event_type,
+    payload: JSON.parse(r.payload_json || '{}'),
+    statusCode: r.status_code,
+    success: Boolean(r.success),
+    errorMessage: r.error_message,
+    createdAt: r.created_at,
+  }));
 }
