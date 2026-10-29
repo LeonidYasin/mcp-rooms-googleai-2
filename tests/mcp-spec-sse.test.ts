@@ -73,7 +73,38 @@ describe('MCP Spec Protocol & SSE Replay/Limits (PR-4 & PR-8)', () => {
     expect(profileRes.error).toBe('invalid_params');
   });
 
-  it('replays room messages and persisted room_events based on Last-Event-ID header', async () => {
+  it('persists room events in SQLite and replays missed events based on Last-Event-ID', async () => {
+    const roomId = `room-event-store-${run}`;
+    createRoomInDb({ id: roomId, listingTitle: 'Event Store Test', participants: [ownerId] });
+
+    const ev1 = roomEventBus.broadcast(roomId, 'turn', { round: 1, text: 'Round 1 Event' });
+    const ev2 = roomEventBus.broadcast(roomId, 'turn', { round: 2, text: 'Round 2 Event' });
+    const ev3 = roomEventBus.broadcast(roomId, 'turn', { round: 3, text: 'Round 3 Event' });
+
+    // Request SSE stream with Last-Event-ID = ev1.id -> should replay ev2 and ev3 from room_events
+    const controller = new AbortController();
+    const res = await fetch(`${baseUrl}/api/rooms/${roomId}/stream`, {
+      signal: controller.signal,
+      headers: {
+        ...authJson(key),
+        'Last-Event-ID': ev1.id,
+      },
+    });
+
+    expect(res.status).toBe(200);
+    const reader = res.body?.getReader();
+    expect(reader).toBeDefined();
+
+    const { value } = await reader!.read();
+    const chunk = new TextDecoder().decode(value);
+    controller.abort();
+
+    expect(chunk).toContain('Round 2 Event');
+    expect(chunk).toContain('Round 3 Event');
+    expect(chunk).not.toContain('Round 1 Event');
+  });
+
+  it('replays room messages based on Last-Event-ID header', async () => {
     const roomId = `room-replay-${run}`;
     createRoomInDb({ id: roomId, listingTitle: 'Replay Test', participants: [ownerId] });
 
@@ -82,11 +113,10 @@ describe('MCP Spec Protocol & SSE Replay/Limits (PR-4 & PR-8)', () => {
     const t3 = 300000;
 
     addMessageToRoomInDb({ id: `msg-${run}-${t1}`, roomId, sender: ownerId, role: 'human', text: 'Msg 1', timestamp: t1 });
-    // Broadcast events via bus to populate SQLite room_events
-    roomEventBus.broadcast(roomId, 'typing', { user: ownerId }, `evt-${t2}`);
+    addMessageToRoomInDb({ id: `msg-${run}-${t2}`, roomId, sender: ownerId, role: 'human', text: 'Msg 2', timestamp: t2 });
     addMessageToRoomInDb({ id: `msg-${run}-${t3}`, roomId, sender: ownerId, role: 'human', text: 'Msg 3', timestamp: t3 });
 
-    // Request stream with Last-Event-ID = msg-100000 -> should replay events after 100000
+    // Request stream with Last-Event-ID = msg-100000 -> should only replay msg-200000 and msg-300000
     const controller = new AbortController();
     const res = await fetch(`${baseUrl}/api/rooms/${roomId}/stream`, {
       signal: controller.signal,
@@ -104,7 +134,7 @@ describe('MCP Spec Protocol & SSE Replay/Limits (PR-4 & PR-8)', () => {
     const chunk = new TextDecoder().decode(value);
     controller.abort();
 
-    expect(chunk).toContain('replayedEvents');
+    expect(chunk).toContain('Msg 2');
     expect(chunk).toContain('Msg 3');
     expect(chunk).not.toContain('Msg 1');
   });
