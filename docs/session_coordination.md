@@ -4,39 +4,46 @@
 
 ---
 
-## 🚦 Текущий статус и разделение зон ответственности
+## 🚦 Текущий статус и синхронизированный пул задач (Issues & PR Matrix)
 
-| Задача / Раздел | Ответственная сессия | Статус | Коммиты / PR |
-| :--- | :--- | :--- | :--- |
-| **Управление PR/Issues через CLI** | Сессия A (Jules) | ✅ Завершено | `scripts/github_mcp_cli.py`, `docs/mcp_cli_instructions.md` |
-| **Транспорт MCP JSON-RPC & SSE** | Сессия B | ✅ Завершено (PR #7) | PR #7 merged in `main` |
-| **Жизненный цикл объявлений (Draft -> Preview -> Publish)** | Сессия B | ✅ Завершено (PR #7) | PR #7 merged in `main` |
-| **Реактивный мульти-агентный чат в комнатах** | Сессия A (Jules) | ✅ Завершено (PR #10) | PR #10 merged in `main` (`server/negotiator.ts`) |
-| **RBAC / Scope-based Access Control для API-ключей** | Сессия A (Jules) | ✅ Завершено (PR #11) | PR #11 merged in `main` (`server/auth.ts`) |
-| **Audit Logs (Трассировка действий агентов и прав)** | Сессия A (Jules) | ✅ Завершено (PR #12) | PR #12 merged in `main` (`server/db.ts`) |
-| **Персистентный Rate Limiting & Trust Proxy** | Сессия A (Jules) | ✅ Завершено (PR #14) | PR #14 merged in `main` (`server/http-guard.ts`) |
-| **Персистентное хранилище изображений (`/uploads`)** | Сессия A (Jules) | ✅ Завершено (PR #16) | PR #16 merged in `server.ts`) |
-| **Ticket-based SSE Auth & Stream Security** | Сессия A (Jules) | ✅ Завершено (PR #25) | PR #25 merged in `main` (`server/auth.ts`) |
-| **Caddy / Reverse Proxy Config & TLS** | Сессия A (Jules) | 🔄 В разработке | `feat/caddy-tls-production-config` |
-| **Playwright Headless E2E Tests** | Сессия B (Рекомендуется) | ⏳ Ожидает | Добавление E2E на фронтенд React |
+| Задача / Модуль | Связанное Issue | Ветка / PR | Ответственная сессия | Статус |
+| :--- | :--- | :--- | :--- | :--- |
+| **Управление PR/Issues через CLI** | Issue #1 | PR #1 (merged) | Сессия A (Jules) | ✅ Завершено |
+| **Транспорт MCP JSON-RPC & SSE** | Issue #7 | PR #7 (merged) | Сессия B | ✅ Завершено |
+| **Жизненный цикл объявлений (Draft -> Preview -> Publish)** | Issue #7 | PR #7 (merged) | Сессия B | ✅ Завершено |
+| **Реактивный мульти-агентный чат в комнатах** | Issue #10 | PR #10 (merged) | Сессия A (Jules) | ✅ Завершено |
+| **RBAC / Scope-based Access Control для API-ключей** | Issue #11 | PR #11 (merged) | Сессия A (Jules) | ✅ Завершено |
+| **Audit Logs (Трассировка действий агентов)** | Issue #12 | PR #12 (merged) | Сессия A (Jules) | ✅ Завершено |
+| **Персистентный Rate Limiting & Trust Proxy** | Issue #14 | PR #14 (merged) | Сессия A (Jules) | ✅ Завершено |
+| **Персистентное хранилище изображений (`/uploads`)** | Issue #16 | PR #16 (merged) | Сессия A (Jules) | ✅ Завершено |
+| **Ticket-based SSE Auth & Stream Security** | Issue #25 | PR #25 (merged) | Сессия A (Jules) | ✅ Завершено |
+| **Caddy / Reverse Proxy Config & TLS** | Issue #29 | PR #29 (merged) | Сессия A (Jules) | ✅ Завершено |
+| **Playwright Headless E2E Tests** | Issue #30 | `feat/playwright-e2e` | Сессия B (Параллельная) | ⏳ Ожидает / Backlog |
+| **SSE Replay & Last-Event-ID** | Issue #31 | `feat/sse-last-event-id` | Сессия A/B | ⏳ Ожидает / Backlog |
+| **Мульти-модельные переговоры (Claude/OpenAI)** | Issue #32 | `feat/multi-model-negotiation` | Сессия A/B | ⏳ Ожидает / Backlog |
+| **Строгая CSP & Security Headers** | Issue #33 | `feat/csp-security-headers` | Сессия C | ⏳ Ожидает / Backlog |
+| **Деплой на боевой VPS (TLS + Domain)** | Issue #34 | `ops/vps-live-deploy` | Ops / CTO | 🛑 Одобрение владельца |
 
 ---
 
-## 🤝 Правила совместной работы
+## 🤝 Протокол синхронизации Пула Задач ↔ Issues ↔ PR
 
-1. **Создание веток:**
-   - Всегда создавайте новую отдельную ветку для задачи: `feat/<название-задачи>` или `fix/<описание>`.
-   - Именуйте ветки явно, чтобы не затирать работу соседней сессии.
+Для поддержания 100% актуальности между текстовыми роадмапами и GitHub Issues/PRs применяется следующий алгоритм:
 
-2. **Запуск тестов перед PR:**
-   - Обязательно проверяйте прохождение всех тестов через `npm test` (в проекте используются `vitest`).
-
-3. **Создание и слияние PR:**
-   - Используйте инструмент `scripts/github_mcp_cli.py` для создания PR:
+1. **Единый источник правды:**
+   - Каждая задача из роадмапов (`docs/roadmap.md`, `docs/final_production_roadmap.md`) связывается с отдельным GitHub Issue (`#Issue_ID`).
+2. **Создание ветки и PR:**
+   - Ветка именуется по номеру Issue или фичи: `feat/issue-30-playwright-e2e` или `feat/caddy-tls-production-config`.
+   - В теле PR и в коммитах обязательно указывается связь с Issue: `Closes #30` или `Fixes #29`.
+3. **Автоматическая регистрация через CLI:**
+   - Управление и создание проводятся через `scripts/github_mcp_cli.py`:
      ```bash
-     GITHUB_TOKEN="$TOKEN" python3 scripts/github_mcp_cli.py --repo LeonidYasin/mcp-rooms-googleai-2 prs create --title "..." --head <branch> --base main --body "..."
-     ```
-   - Если тесты CI проходят, PR можно сливать командой `prs merge --number <PR_NUM>`.
+     # Создание Issue:
+     python3 scripts/github_mcp_cli.py --repo LeonidYasin/mcp-rooms-googleai-2 issues create --title "..." --body "..."
 
-4. **Обновление этого документа (`docs/session_coordination.md`):**
-   - В завершение работы по каждой задаче отмечайте статус `✅ Завершено` в таблице выше, чтобы параллельная сессия всегда видела актуальный прогресс!
+     # Создание PR с привязкой:
+     python3 scripts/github_mcp_cli.py --repo LeonidYasin/mcp-rooms-googleai-2 prs create --title "..." --head <branch> --base main --body "Closes #<IssueID>"
+     ```
+4. **Синхронизация таблиц координирования:**
+   - При создании Issue / PR или изменении статуса агенты обновляют таблицу в `docs/session_coordination.md`, указывая номера `#Issue` и `#PR`.
+   - При слиянии PR статус в таблице переводится в `✅ Завершено (PR #X)`.

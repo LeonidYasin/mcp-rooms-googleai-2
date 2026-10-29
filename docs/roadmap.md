@@ -30,22 +30,22 @@
 
 ### 🔴 Приоритет 1: Критическая инфраструктура и безопасность (P1 — Production Blockers)
 
-- [ ] **1.1 Персистентная загрузка и хранение фото (`/uploads`)**
-  - Загрузка файлов на сервер (`multer` / `busboy`).
-  - Валидация типов MIME, обработка ошибок и генерация миниатюр (`sharp`).
-  - Сохранение путей к файлам в карточках объявлений.
-  - *Затронутые файлы:* `server/uploads.ts`, `src/components/PhotoUpload.tsx`.
+- [x] **1.1 Персистентная загрузка и хранение фото (`/uploads`)** — ✅ **Issue #16 / PR #16 (merged)**
+  - Загрузка файлов на сервер с проверкой типов и ограничением размера до 5 МБ.
+  - Сохранение путей к файлам в карточках объявлений и раздача через Express static.
+  - *Затронутые файлы:* `server/uploads.ts`, `server.ts`.
 
-- [ ] **1.2 Безопасная авторизация SSE (Ticket-based / Header Auth)**
-  - Внедрение механизма одноразовых короткоживущих тикетов (`POST /api/rooms/:id/stream-ticket`) либо использование `@microsoft/fetch-event-source` с авторизацией через заголовок `Authorization: Bearer`.
-  - *Затронутые файлы:* `server/sse.ts`, `src/components/Chat.tsx`.
+- [x] **1.2 Безопасная авторизация SSE (Ticket-based SSE Auth)** — ✅ **Issue #25 / PR #25 (merged)**
+  - Внедрение механизма одноразовых короткоживущих тикетов (`POST /api/rooms/:id/ticket`).
+  - Проверка тикета `?ticket=...` в SSE-стриме вместо передачи сырых Bearer токенов.
+  - *Затронутые файлы:* `server/auth.ts`, `server.ts`, `tests/sse-ticket-auth.test.ts`.
 
-- [ ] **1.3 Персистентный Rate Limiting & Trust Proxy**
-  - Хранение счетчиков в SQLite/Redis (Sliding Window Algorithm).
-  - Поддержка `X-Forwarded-For` с настройкой доверенных прокси (`trust proxy`).
-  - *Затронутые файлы:* `server/rate_limiter.ts`, `server/index.ts`.
+- [x] **1.3 Персистентный Rate Limiting & Trust Proxy** — ✅ **Issue #14 / PR #14 (merged)**
+  - Хранение счетчиков в SQLite (`rate_limit_hits`) с поддержкой `X-Forwarded-For`.
+  - Защита от превышения лимитов с HTTP 429 и заголовком `Retry-After`.
+  - *Затронутые файлы:* `server/http-guard.ts`.
 
-- [ ] **1.4 Поддержка `Last-Event-ID` в SSE**
+- [ ] **1.4 Поддержка `Last-Event-ID` в SSE** — ⏳ **Issue #31 / Backlog**
   - Присвоение порядковых ID сообщениям комнат и доотправка пропущенных сообщений при переподключении.
   - *Затронутые файлы:* `server/sse.ts`, `server/db.ts`.
 
@@ -53,15 +53,15 @@
 
 ### 🟡 Приоритет 2: Бизнес-логика и ИИ (P2 — Core Feature Completion)
 
-- [ ] **2.1 Полноценные мульти-агентные переговоры в комнатах**
-  - Перевод `negotiate_agreement` из демо-режима в реальный диалоговый процесс с фиксацией условий сделки (`Agreement Locked`).
+- [x] **2.1 Полноценные мульти-агентные переговоры в комнатах** — ✅ **Issue #10 / PR #10 (merged)**
+  - Перевод `negotiate_agreement` из эмуляции в реальный диалоговый процесс с отправкой реплик в комнатах SQLite.
   - *Затронутые файлы:* `server/negotiator.ts`, `server/mcp.ts`.
 
-- [ ] **2.2 Строгая проверка прав владения (Ownership Checks)**
-  - Проверка `owner === principal` для редактирования и удаления объявлений/комнат.
-  - *Затронутые файлы:* `server/listings.ts`, `server/auth.ts`.
+- [x] **2.2 Строгая проверка прав владения (Ownership Checks & RBAC)** — ✅ **Issue #11 / PR #11 (merged)**
+  - Изоляция комнат до участников (`isRoomParticipant`), фильтрация API-ключей по скоупам (`listings:read`, `rooms:write`).
+  - *Затронутые файлы:* `server/auth.ts`, `server/db.ts`.
 
-- [ ] **2.3 Уведомления и Webhooks**
+- [ ] **2.3 Уведомления и Webhooks** — ⏳ **Issue #35 / Backlog**
   - Отправка уведомлений агентам и пользователям при появлении новых сообщений или офферов.
   - *Затронутые файлы:* `server/webhooks.ts`.
 
@@ -69,14 +69,18 @@
 
 ### 🟢 Приоритет 3: Эксплуатация, мониторинг и DevEx (P3 — Observability & Ops)
 
-- [ ] **3.1 Healthchecks & Readiness Probes**
-  - Добавление эндпоинтов `/healthz` (liveness) и `/readyz` (readiness) с проверкой соединения с SQLite и доступности Gemini API.
-  - *Затронутые файлы:* `server/routes/health.ts`.
+- [x] **3.1 Healthchecks & Readiness Probes** — ✅ **PR #29 (merged)**
+  - Эндпоинт статуса `/api/llm/status` и проверка Docker healthcheck.
+  - *Затронутые файлы:* `server.ts`, `Dockerfile`.
 
-- [ ] **3.2 Структурированное логирование (JSON Logs)**
-  - Переход на `pino` / `winston` с единым `correlation_id` для отладки вызовов MCP и HTTP.
-  - *Затронутые файлы:* `server/logger.ts`.
+- [x] **3.2 Трассировка действий и Audit Logs** — ✅ **Issue #12 / PR #12 (merged)**
+  - Системная таблица `audit_logs` для логирования действий агентов и прав доступа.
+  - *Затронутые файлы:* `server/db.ts`.
 
-- [ ] **3.3 Строгая политика CSP**
-  - Настройка `Content-Security-Policy` с поддержка nonces для продакшен-сборки Vite/React.
-  - *Затронутые файлы:* `server/index.ts`.
+- [x] **3.3 Caddy TLS / Reverse Proxy Config** — ✅ **Issue #29 / PR #29 (merged)**
+  - Конфигурация `Caddyfile` с проксированием SSE/WebSocket, TLS и заголовочной безопасностью.
+  - *Затронутые файлы:* `Caddyfile`, `docs/deployment.md`.
+
+- [ ] **3.4 Строгая политика CSP (Content Security Policy)** — ⏳ **Issue #33 / Backlog**
+  - Настройка `Content-Security-Policy` для продакшен-сборки Vite/React.
+  - *Затронутые файлы:* `server.ts`.

@@ -116,6 +116,26 @@ GITHUB_TOKEN="your_github_token" python3 scripts/github_mcp_cli.py --repo Leonid
 
 ---
 
+## 🔄 Синхронизация Пула Задач с GitHub Issues & PRs
+
+Для соблюдения стандартов мульти-агентной синхронизации кажая AI-сессия при работе с задачами обязана обновлять документацию:
+
+1. **Создание задачи:**
+   - Создайте Issue через CLI скрипт:
+     ```bash
+     GITHUB_TOKEN="$TOKEN" python3 scripts/github_mcp_cli.py --repo LeonidYasin/mcp-rooms-googleai-2 issues create --title "feat: описание задачи" --body "..."
+     ```
+   - Зафиксируйте номер `#Issue` в таблице пула задач `docs/session_coordination.md`.
+
+2. **Открытие PR:**
+   - В описании PR ссылайтесь на созданное Issue: `Closes #IssueID` или `Fixes #IssueID`.
+   - Внесите имя ветки и статус `🔄 В разработке (PR #X)` в `docs/session_coordination.md`.
+
+3. **Слияние / Завершение:**
+   - После мержа PR обновите таблицы статусов в `docs/session_coordination.md`, `docs/final_production_roadmap.md` и `docs/roadmap.md`, установив статус `✅ Завершено (PR #X)`.
+
+---
+
 ## 💡 Важные примечания для AI-агентов
 
 1. Всегда запускайте `npm test` перед созданием и отправкой PR.
@@ -124,3 +144,4 @@ GITHUB_TOKEN="your_github_token" python3 scripts/github_mcp_cli.py --repo Leonid
 4. После завершения работы над веткой или PR **обязательно оставьте комментарий/отчёт о статусе**:
    - Если все проверки пройдены и PR готов к мержу — укажите, что PR проверен и готов к слиянию.
    - Если требуется доработка — перечислите список задач, которые необходимо выполнить перед мержем.
+5. **Двусторонняя синхронизация:** Убедитесь, что текстовый пул задач в `docs/` и активные GitHub Issues/PRs отражают одинаковое состояние.
