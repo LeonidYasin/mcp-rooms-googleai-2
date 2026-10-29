@@ -3,7 +3,7 @@ import { addAuditLog, getAuditLogs } from '../server/db';
 
 describe('Audit Logs & Event Observability', () => {
   it('records and retrieves audit logs', () => {
-    const actor = 'user:audit-tester-unique-1';
+    const actor = 'user:audit-tester-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
     const log1 = addAuditLog('listing.create', actor, 'listing-101', { title: 'Test Listing' });
     expect(log1.id).toBeDefined();
     expect(log1.eventType).toBe('listing.create');
@@ -16,7 +16,7 @@ describe('Audit Logs & Event Observability', () => {
   });
 
   it('filters audit logs by eventType', () => {
-    const actor = 'user:audit-tester-unique-2';
+    const actor = 'user:audit-tester-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
     addAuditLog('room.send_message', actor, 'room-1', { text: 'Hello' });
     addAuditLog('auth.forbidden_scope', actor, undefined, { requiredScope: 'admin' });
 
