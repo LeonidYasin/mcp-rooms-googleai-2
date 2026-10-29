@@ -98,9 +98,11 @@ describe('MCP Spec Protocol & SSE Replay/Limits (PR-4 & PR-8)', () => {
     let fullText = '';
     while (true) {
       const { value, done } = await reader!.read();
-      if (done) break;
+      if (done || !value) break;
       fullText += new TextDecoder().decode(value);
-      if (fullText.includes('Round 3 Event')) break;
+      if (fullText.includes('Round 3 Event')) {
+        break;
+      }
     }
     controller.abort();
 
@@ -138,9 +140,11 @@ describe('MCP Spec Protocol & SSE Replay/Limits (PR-4 & PR-8)', () => {
     let fullText = '';
     while (true) {
       const { value, done } = await reader!.read();
-      if (done) break;
+      if (done || !value) break;
       fullText += new TextDecoder().decode(value);
-      if (fullText.includes('Msg 3')) break;
+      if (fullText.includes('Msg 3')) {
+        break;
+      }
     }
     controller.abort();
 
