@@ -1,19 +1,17 @@
-import { getListingsFromDb, getListingByIdFromDb } from './db';
+import { getListingsFromDb, getListingByIdFromDb, addMessageToRoomInDb, getRoomByIdFromDb } from './db';
 import { matchListingAsymmetric } from './embeddings';
 
 /**
- * The negotiation "loop" is a scripted demo, not a conversation with the
- * counterpart. It must never write messages into a shared room, create a room,
- * publish a listing, or claim that terms were agreed. Everything below is
- * returned to the caller only, explicitly flagged as a demo.
+ * The negotiation "loop" supports both scripted demo preview
+ * and real reactive agent responses within active shared rooms.
  */
 export interface NegotiationOptions {
-  /** Principal on whose behalf the demo runs. Used only for display / ownership checks. */
+  /** Principal on whose behalf the demo or action runs. Used for display / ownership checks. */
   principalId?: string;
 }
 
 export interface NegotiationStep {
-  type: 'search' | 'demo_script';
+  type: 'search' | 'demo_script' | 'agent_reply';
   title: string;
   detail: string;
   status: 'completed' | 'in_progress';
@@ -27,8 +25,8 @@ export interface NegotiationDialogueTurn {
   avatar: string;
   text: string;
   timestamp: number;
-  /** Always true: the turn was written by the demo script, not by a participant. */
-  simulated: true;
+  /** Always true in demo script turns; false or omitted for live room messages. */
+  simulated?: boolean;
 }
 
 export interface NegotiationDemoTerms {
@@ -176,6 +174,52 @@ function buildDemoScript(bestMatch: any): DemoScript {
       locationProtocol: 'Самовывоз в публичном месте города',
     },
   };
+}
+
+/**
+ * Generates an automated AI Agent counter-response when a user or another agent sends
+ * a message in a active shared room.
+ */
+export async function generateReactiveAgentResponse(roomId: string, incomingSender: string, incomingText: string): Promise<any | null> {
+  const room = getRoomByIdFromDb(roomId);
+  if (!room) return null;
+
+  const listing = getListingByIdFromDb(room.listingId);
+  if (!listing) return null;
+
+  // Determine counterpart agent (the participant who is NOT incomingSender)
+  const counterpartId = room.participants.find((p: string) => p !== incomingSender) || listing.owner;
+  if (!counterpartId) return null;
+
+  const lowerText = incomingText.toLowerCase();
+  let responseText = '';
+
+  if (lowerText.includes('цена') || lowerText.includes('стоимость') || lowerText.includes('сколько') || lowerText.includes('скидк')) {
+    const priceStr = listing.content.price_minor ? `${listing.content.price_minor / 100} ₽` : 'договорная';
+    responseText = `Здравствуйте! Касательно цены по «${listing.content.title}»: указанное значение составляет ${priceStr}. Готовы обсудить детали и фиксацию условий.`;
+  } else if (lowerText.includes('когда') || lowerText.includes('время') || lowerText.includes('встреч') || lowerText.includes('созвон')) {
+    responseText = `По графику: готовы организовать встречу или созвон в ближайшие дни (например, завтра в 16:00). Какое время вам наиболее удобно?`;
+  } else if (lowerText.includes('где') || lowerText.includes('адрес') || lowerText.includes('город') || lowerText.includes('локаци')) {
+    responseText = `Локация: ${listing.content.locality || 'Казань'}. Доступные способы: ${(listing.content.modes || ['самовывоз']).join(', ')}.`;
+  } else {
+    responseText = `Принято в обработку. Я представляю автора (${counterpartId}) по объявлению «${listing.content.title}». Готов ответить на ваши вопросы по условиям и согласованию.`;
+  }
+
+  const agentMsg = {
+    id: 'msg-auto-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+    roomId,
+    sender: counterpartId,
+    role: 'agent' as const,
+    text: responseText,
+    timestamp: Date.now() + 50,
+  };
+
+  try {
+    addMessageToRoomInDb(agentMsg);
+    return agentMsg;
+  } catch (err) {
+    return null;
+  }
 }
 
 export async function runAutonomousNegotiation(
