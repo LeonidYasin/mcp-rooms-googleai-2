@@ -22,8 +22,11 @@
 | **Healthchecks & Readiness Probes (/healthz & /readyz)** | Сессия C (Jules) | ✅ Завершено (PR #41) | PR #41 merged in `main` (`server.ts`, `tests/healthchecks.test.ts`) |
 | **Структурированное логирование (JSON Logs)** | Сессия C (Jules) | ✅ Завершено (PR #43) | PR #43 merged in `main` (`server/logger.ts`, `tests/logger.test.ts`) |
 | **Повторный комплексный аудит безопасности и архитектуры** | Сессия C (Jules) | ✅ Завершено (PR #45) | PR #45 merged in `main` (`docs/audit_v2.md`) |
-| **Caddy / Reverse Proxy Config & TLS** | Сессия A (Jules) | 🔄 В разработке | `feat/caddy-tls-production-config` |
-| **Playwright Headless E2E Tests** | Сессия B (Рекомендуется) | ⏳ Ожидает | Добавление E2E на фронтенд React |
+| **Caddy / Reverse Proxy Config & TLS** | Сессия A (Jules) | ✅ Завершено | `Caddyfile`, PR #29 |
+| **Playwright Headless E2E Tests (Локально и Runner)** | Сессия A (Jules) | ✅ Завершено | `tests/e2e/`, `playwright.config.ts`, PR #38 |
+| **Интеграция Playwright E2E в CI (GitHub Actions)** | Любая свободна | ⏳ Открыта | Добавление шага `npm run test:e2e` в `.github/workflows/ci.yml` |
+| **Мульти-агентные переговоры в комнатах (Real Negotiation Protocol)** | Любая свободна | ⏳ Открыта | Перевод `negotiate_agreement` из демо-режима в реальные сделки |
+| **Подсистема Webhooks & Async Event Notifications** | Любая свободна | ⏳ Открыта | Уведомления внешним агентам при событиях комнат |
 
 ---
 
