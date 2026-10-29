@@ -408,9 +408,6 @@ export async function runAutonomousNegotiation(
       listingId: bestMatch.id,
       listingTitle: bestMatch.content.title,
       participants: Array.from(new Set([principalId, bestMatch.owner])),
-      status: 'active',
-      createdAt: now,
-      updatedAt: now,
     });
 
     try {
