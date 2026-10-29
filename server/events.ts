@@ -1,4 +1,4 @@
-import { saveRoomEventInDb } from './db';
+import { addRoomEventToDb } from './db.js';
 
 export interface RoomEvent {
   id: string;
@@ -31,26 +31,15 @@ class RoomEventBus {
   }
 
   broadcast(roomId: string, type: RoomEvent['type'], data: any, eventId?: string): RoomEvent {
+    const persisted = addRoomEventToDb(roomId, type, data, eventId);
+
     const event: RoomEvent = {
-      id: eventId || `evt-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      id: persisted.id,
       type,
       roomId,
       data,
-      timestamp: Date.now(),
+      timestamp: persisted.timestamp,
     };
-
-    // Persist event in SQLite for replay on reconnection
-    try {
-      saveRoomEventInDb({
-        id: event.id,
-        roomId,
-        eventType: type,
-        payload: data,
-        createdAt: event.timestamp,
-      });
-    } catch {
-      // Non-blocking fallback if persistence fails
-    }
 
     const subs = this.listeners.get(roomId);
     if (subs) {

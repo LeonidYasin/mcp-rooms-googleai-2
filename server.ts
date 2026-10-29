@@ -4,12 +4,12 @@ import express from 'express';
 import { Type, FunctionDeclaration } from '@google/genai';
 import {
   initDatabase,
+  getRoomEventsSinceInDb,
   getListingsFromDb,
   getListingByIdFromDb,
   createListingInDb,
   publishListingInDb,
   withdrawListingInDb,
-  updateListingInDb,
   getRoomsFromDb,
   getRoomByIdFromDb,
   addMessageToRoomInDb,
@@ -34,7 +34,6 @@ import {
   securityHeaders,
 } from './server/http-guard';
 import { configuredModel, llmStatus, recordLlmFailure, resolveLlmClient } from './server/llm';
-import { logger } from './server/logger';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -246,53 +245,28 @@ app.get('/api/embedding/status', (_req, res) => {
 // Configuration of the chat model, not a live probe: it answers whether the
 // next /api/chat call would attempt a model call, and why not if it would not.
 // There is no invented default model id — see GEMINI_MODEL in .env.example.
-
-// Standard Kubernetes / Production Health Probes
-app.get('/healthz', (_req, res) => {
-  res.status(200).json({ status: 'ok', uptime: Math.floor(process.uptime()), timestamp: Date.now() });
-});
-
-app.get('/readyz', (_req, res) => {
-  try {
-    getListingsFromDb({});
-    res.status(200).json({ status: 'ready', database: 'connected', timestamp: Date.now() });
-  } catch (err: any) {
-    res.status(503).json({ status: 'not_ready', database: 'disconnected', error: err.message });
-  }
-});
-
-// Production System Health & Metrics Endpoint
-app.get('/api/health', (req, res) => {
-  const memoryUsage = process.memoryUsage();
-  const uptimeSeconds = Math.floor(process.uptime());
-
-  let dbStatus = 'ok';
-  try {
-    const listCount = getListingsFromDb({}).length;
-  } catch {
-    dbStatus = 'error';
-  }
-
-  res.json({
-    status: dbStatus === 'ok' ? 'healthy' : 'degraded',
-    version: '0.1.0',
-    uptime_seconds: uptimeSeconds,
-    database: {
-      status: dbStatus,
-      path: process.env.DATABASE_PATH || './data/mcp_rooms.db',
-    },
-    memory_mb: {
-      rss: Math.round(memoryUsage.rss / 1024 / 1024),
-      heapTotal: Math.round(memoryUsage.heapTotal / 1024 / 1024),
-      heapUsed: Math.round(memoryUsage.heapUsed / 1024 / 1024),
-    },
-    node_version: process.version,
-    timestamp: Date.now(),
-  });
-});
-
 app.get('/api/llm/status', (_req, res) => {
   res.json(llmStatus());
+});
+
+app.get('/api/health', (_req, res) => {
+  const memory = process.memoryUsage();
+  const dbPath = process.env.DATABASE_PATH || path.resolve(process.cwd(), 'data', 'mcp_rooms.db');
+
+  res.json({
+    status: 'ok',
+    uptime: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+    database: {
+      status: 'connected',
+      path: dbPath,
+    },
+    memory: {
+      rss: memory.rss,
+      heapUsed: memory.heapUsed,
+      heapTotal: memory.heapTotal,
+    },
+  });
 });
 
 app.post('/api/match', rateLimit('match', 'RATE_LIMIT_MATCH_PER_MINUTE', 60), async (req, res) => {
@@ -511,42 +485,6 @@ app.post('/api/listings/:id/publish', requireAuth, (req, res) => {
   }
 });
 
-app.put('/api/listings/:id', requireAuth, rateLimit('listings', 'RATE_LIMIT_LISTINGS_PER_MINUTE', 30), (req, res) => {
-  try {
-    const listingId = String(req.params.id);
-    const principalId = req.principal!.principalId;
-    const { title, description, price_rubles, locality } = req.body || {};
-
-    if (title !== undefined && (typeof title !== 'string' || title.trim().length < 3 || title.trim().length > 200)) {
-      res.status(422).json({ error: 'invalid_title', message: 'title must be between 3 and 200 characters' });
-      return;
-    }
-    if (description !== undefined && (typeof description !== 'string' || description.trim().length < 3 || description.trim().length > 5000)) {
-      res.status(422).json({ error: 'invalid_description', message: 'description must be between 3 and 5000 characters' });
-      return;
-    }
-
-    const result = updateListingInDb(listingId, principalId, { title, description, price_rubles, locality });
-    if (!result.success) {
-      if (result.reason === 'not_found') {
-        res.status(404).json({ error: 'not_found', message: 'Listing not found' });
-        return;
-      }
-      if (result.reason === 'forbidden') {
-        res.status(403).json({ error: 'forbidden', message: 'Не являетесь владельцем объявления' });
-        return;
-      }
-      res.status(400).json({ error: result.reason });
-      return;
-    }
-
-    addAuditLog('listing.update', principalId, listingId, { title, locality });
-    res.json(toPublicListing(result.listing));
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 app.post('/api/listings/:id/withdraw', requireAuth, (req, res) => {
   try {
     const listingId = String(req.params.id);
@@ -695,6 +633,16 @@ app.get('/api/rooms/:id/stream', optionalAuth, (req, res) => {
   res.write(`id: init-${Date.now()}\n`);
   res.write(`event: init\n`);
   res.write(`data: ${JSON.stringify(initialPayload)}\n\n`);
+
+  // TASK-01: Replay missed persistent events from SQLite room_events
+  if (lastEventId) {
+    const missedEvents = getRoomEventsSinceInDb(roomId, lastEventId);
+    for (const ev of missedEvents) {
+      res.write(`id: ${ev.id}\n`);
+      res.write(`event: ${ev.eventType}\n`);
+      res.write(`data: ${JSON.stringify(ev.payload)}\n\n`);
+    }
+  }
 
   // Subscribe to live room event bus
   const unsubscribe = roomEventBus.subscribe(roomId, (event) => {
@@ -1137,7 +1085,7 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
       executedTools: [],
     });
   } catch (chatErr: any) {
-    logger.error('Unhandled error in /api/chat', { error: chatErr?.message || String(chatErr), stack: chatErr?.stack });
+    console.error('Unhandled error in /api/chat:', chatErr);
     res.status(500).json({
       error: chatErr?.message || 'Внутренняя ошибка обработки чата',
       text: 'Извините, произошла техническая ошибка при обработке запроса. База данных SQLite сохранена и доступна.',
@@ -1170,7 +1118,7 @@ async function start() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    logger.info('MCP Rooms server running', { port: PORT, env: process.env.NODE_ENV || 'development' });
+    console.log(`MCP Rooms server with SQLite & JSON-RPC running on http://0.0.0.0:${PORT}`);
   });
 }
 

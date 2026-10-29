@@ -3,22 +3,13 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './tests',
   testMatch: '**/*.spec.ts',
-  timeout: 30000,
-  fullyParallel: true,
-  forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  fullyParallel: false,
+  retries: 0,
+  workers: 1,
   reporter: 'list',
   use: {
     baseURL: 'http://127.0.0.1:3000',
     trace: 'on-first-retry',
-    headless: true,
-  },
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://127.0.0.1:3000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120000,
   },
   projects: [
     {
@@ -26,4 +17,10 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
+  webServer: {
+    command: 'NODE_ENV=production npm run build && node -e "const { app } = await import(\'./server.ts\'); app.listen(3000);"',
+    url: 'http://127.0.0.1:3000/api/health',
+    reuseExistingServer: !process.env.CI,
+    timeout: 30000,
+  },
 });

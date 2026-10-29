@@ -1,4 +1,4 @@
-import { getListingsFromDb, getListingByIdFromDb, addMessageToRoomInDb, getRoomByIdFromDb, createRoomInDb } from './db';
+import { getListingsFromDb, getListingByIdFromDb, addMessageToRoomInDb, getRoomByIdFromDb } from './db';
 import { matchListingAsymmetric } from './embeddings';
 
 /**
@@ -8,8 +8,6 @@ import { matchListingAsymmetric } from './embeddings';
 export interface NegotiationOptions {
   /** Principal on whose behalf the demo or action runs. Used for display / ownership checks. */
   principalId?: string;
-  /** Force creation of real room in SQLite if true */
-  createRealRoom?: boolean;
 }
 
 export interface NegotiationStep {
@@ -42,12 +40,12 @@ export interface NegotiationDemoTerms {
 
 export interface NegotiationResult {
   negotiationId: string;
-  status: 'demo_preview' | 'no_match' | 'active_room_negotiation';
-  /** The whole result is a demo or active negotiation. */
-  demo: boolean;
+  status: 'demo_preview' | 'no_match';
+  /** The whole result is a demo: nothing was sent to the listing author. */
+  demo: true;
   targetListing: any | null;
-  /** Created or matched room id. */
-  roomId: string | null;
+  /** Demo runs never create a room, so there is no room to open. */
+  roomId: null;
   roomTitle: string;
   steps: NegotiationStep[];
   dialogue: NegotiationDialogueTurn[];

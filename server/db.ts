@@ -1,7 +1,6 @@
 import DatabaseModule from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
-import { logger } from './logger';
 
 const Database = (DatabaseModule as any).default || DatabaseModule;
 
@@ -156,6 +155,17 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
     CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON audit_logs(actor_id);
     CREATE INDEX IF NOT EXISTS idx_audit_logs_event ON audit_logs(event_type);
+
+    CREATE TABLE IF NOT EXISTS room_events (
+      id TEXT PRIMARY KEY,
+      room_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      timestamp INTEGER NOT NULL,
+      seq INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_room_events_room_ts ON room_events(room_id, timestamp, seq);
 
   `);
 
@@ -337,8 +347,8 @@ function ensureNewCategoriesSeeded() {
         insertListing.run(item);
       }
     }
-  } catch (err: any) {
-    logger.error('Error ensuring new categories seeded', { error: err?.message || String(err) });
+  } catch (err) {
+    console.error('Error ensuring new categories seeded:', err);
   }
 }
 
@@ -816,6 +826,26 @@ export function createListingInDb(listing: any) {
   return getListingByIdFromDb(listing.id);
 }
 
+export function updateListingInDb(id: string, updates: any, owner: string) {
+  const existing = getListingByIdFromDb(id);
+  if (!existing) return null;
+  if (existing.owner !== owner) return null;
+
+  const now = Date.now();
+  const title = updates.title || updates.content?.title || existing.content.title;
+  const description = updates.description || updates.content?.description || existing.content.description;
+  const category = updates.category || updates.content?.category || existing.content.category;
+  const locality = updates.locality || updates.content?.locality || existing.content.locality;
+
+  db.prepare(`
+    UPDATE listings
+    SET title = ?, description = ?, category = ?, locality = ?, revision = revision + 1, updated_at = ?
+    WHERE id = ? AND owner = ?
+  `).run(title, description, category, locality, now, id, owner);
+
+  return getListingByIdFromDb(id);
+}
+
 export function publishListingInDb(id: string, owner: string, expectedRevision: number) {
   const now = Date.now();
   const res = db.prepare(`
@@ -831,27 +861,6 @@ export function publishListingInDb(id: string, owner: string, expectedRevision: 
     if (existing.revision !== expectedRevision) return { success: false, reason: 'revision_mismatch', currentRevision: existing.revision };
     return { success: false, reason: 'unknown' };
   }
-
-  return { success: true, listing: getListingByIdFromDb(id) };
-}
-
-export function updateListingInDb(id: string, owner: string, updates: { title?: string; description?: string; price_rubles?: number; locality?: string }) {
-  const existing = getListingByIdFromDb(id);
-  if (!existing) return { success: false, reason: 'not_found' };
-  if (existing.owner !== owner) return { success: false, reason: 'forbidden' };
-
-  const now = Date.now();
-  const title = updates.title !== undefined ? updates.title.trim() : existing.content.title;
-  const description = updates.description !== undefined ? updates.description.trim() : existing.content.description;
-  const locality = updates.locality !== undefined ? updates.locality.trim() : existing.content.locality;
-  const priceRubles = updates.price_rubles !== undefined ? Number(updates.price_rubles) : (existing.content.price_minor ? existing.content.price_minor / 100 : 0);
-  const priceMinor = priceRubles > 0 ? Math.floor(priceRubles * 100) : null;
-
-  db.prepare(`
-    UPDATE listings
-    SET title = ?, description = ?, locality = ?, price_minor = ?, revision = revision + 1, updated_at = ?
-    WHERE id = ? AND owner = ?
-  `).run(title, description, locality, priceMinor, now, id, owner);
 
   return { success: true, listing: getListingByIdFromDb(id) };
 }
@@ -966,10 +975,9 @@ export type MessageInsertFailure = 'room_not_found' | 'duplicate_message_id';
  * returns null and must be surfaced as a real error, never swallowed.
  */
 export function classifyMessageInsertError(err: unknown): MessageInsertFailure | null {
-  const code = (err as { code?: string; message?: string } | null)?.code;
-  const message = (err as { message?: string } | null)?.message;
-  if (code === 'SQLITE_CONSTRAINT_FOREIGNKEY' || (message && message.includes('FOREIGN KEY constraint failed'))) return 'room_not_found';
-  if (code === 'SQLITE_CONSTRAINT_PRIMARYKEY' || code === 'SQLITE_CONSTRAINT_UNIQUE' || (message && message.includes('UNIQUE constraint failed'))) {
+  const code = (err as { code?: string } | null)?.code;
+  if (code === 'SQLITE_CONSTRAINT_FOREIGNKEY') return 'room_not_found';
+  if (code === 'SQLITE_CONSTRAINT_PRIMARYKEY' || code === 'SQLITE_CONSTRAINT_UNIQUE') {
     return 'duplicate_message_id';
   }
   return null;
@@ -1433,73 +1441,6 @@ export function clearRateLimitHits() {
 }
 
 
-export interface RoomEventRecord {
-  id: string;
-  roomId: string;
-  eventType: string;
-  payload: any;
-  createdAt: number;
-}
-
-let eventSeq = 0;
-
-export function saveRoomEventInDb(event: {
-  id?: string;
-  roomId: string;
-  eventType: string;
-  payload: any;
-  createdAt?: number;
-}): RoomEventRecord {
-  const now = event.createdAt || Date.now();
-  eventSeq = (eventSeq + 1) % 1000;
-  const seqStr = String(eventSeq).padStart(3, '0');
-  const eventId = event.id || `evt-${now}-${seqStr}`;
-
-  db.prepare(`
-    INSERT OR REPLACE INTO room_events (id, room_id, event_type, payload_json, created_at)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(
-    eventId,
-    event.roomId,
-    event.eventType,
-    JSON.stringify(event.payload),
-    now
-  );
-
-  return {
-    id: eventId,
-    roomId: event.roomId,
-    eventType: event.eventType,
-    payload: event.payload,
-    createdAt: now,
-  };
-}
-
-export function getRoomEventsAfterInDb(roomId: string, lastEventId: string): RoomEventRecord[] {
-  let cutoffTimestamp = 0;
-  if (lastEventId) {
-    const timeMatches = lastEventId.match(/\d+/g);
-    if (timeMatches && timeMatches.length > 0) {
-      const tsMatch = timeMatches.find((m) => Number(m) >= 1000) || timeMatches[timeMatches.length - 1];
-      cutoffTimestamp = Number(tsMatch);
-    }
-  }
-
-  const rows = db.prepare(`
-    SELECT * FROM room_events
-    WHERE room_id = ? AND created_at > ?
-    ORDER BY created_at ASC
-  `).all(roomId, cutoffTimestamp) as any[];
-
-  return rows.map((r) => ({
-    id: r.id,
-    roomId: r.room_id,
-    eventType: r.event_type,
-    payload: JSON.parse(r.payload_json || '{}'),
-    createdAt: r.created_at,
-  }));
-}
-
 export interface UploadRecord {
   id: string;
   filename: string;
@@ -1539,4 +1480,77 @@ export function getUploadByIdFromDb(id: string): UploadRecord | null {
     owner: row.owner,
     createdAt: row.created_at,
   };
+}
+
+let roomEventSeq = 0;
+
+export interface PersistentRoomEvent {
+  id: string;
+  roomId: string;
+  eventType: string;
+  payload: any;
+  timestamp: number;
+}
+
+export function addRoomEventToDb(roomId: string, eventType: string, payload: any, eventId?: string): PersistentRoomEvent {
+  const now = Date.now();
+  roomEventSeq += 1;
+  const id = eventId || `ev-${now}-${roomEventSeq}`;
+  const payloadJson = JSON.stringify(payload || {});
+
+  db.prepare(`
+    INSERT OR REPLACE INTO room_events (id, room_id, event_type, payload_json, timestamp, seq)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(id, roomId, eventType, payloadJson, now, roomEventSeq);
+
+  return { id, roomId, eventType, payload, timestamp: now };
+}
+
+export function getRoomEventsSinceInDb(roomId: string, lastEventId?: string): PersistentRoomEvent[] {
+  if (!lastEventId) {
+    const rows = db.prepare(`SELECT * FROM room_events WHERE room_id = ? ORDER BY timestamp ASC, seq ASC LIMIT 100`).all(roomId) as any[];
+    return rows.map((r) => ({
+      id: r.id,
+      roomId: r.room_id,
+      eventType: r.event_type,
+      payload: JSON.parse(r.payload_json),
+      timestamp: r.timestamp,
+    }));
+  }
+
+  const lastRow = db.prepare(`SELECT timestamp, seq FROM room_events WHERE id = ?`).get(lastEventId) as { timestamp: number; seq: number } | undefined;
+
+  if (lastRow) {
+    const rows = db.prepare(`
+      SELECT * FROM room_events 
+      WHERE room_id = ? AND (timestamp > ? OR (timestamp = ? AND seq > ?))
+      ORDER BY timestamp ASC, seq ASC LIMIT 100
+    `).all(roomId, lastRow.timestamp, lastRow.timestamp, lastRow.seq) as any[];
+
+    return rows.map((r) => ({
+      id: r.id,
+      roomId: r.room_id,
+      eventType: r.event_type,
+      payload: JSON.parse(r.payload_json),
+      timestamp: r.timestamp,
+    }));
+  }
+
+  const tsMatch = lastEventId.match(/(\d+)(?:-(\d+))?/);
+  const ts = tsMatch ? Number(tsMatch[1]) : 0;
+  const seq = tsMatch && tsMatch[2] ? Number(tsMatch[2]) : 0;
+
+  const rows = db.prepare(`
+    SELECT * FROM room_events 
+    WHERE room_id = ? AND (timestamp > ? OR (timestamp = ? AND seq > ?)) 
+    ORDER BY timestamp ASC, seq ASC LIMIT 100
+  `).all(roomId, ts, ts, seq) as any[];
+
+  return rows.map((r) => ({
+    id: r.id,
+    roomId: r.room_id,
+    eventType: r.event_type,
+    payload: JSON.parse(r.payload_json),
+    timestamp: r.timestamp,
+  }));
 }
