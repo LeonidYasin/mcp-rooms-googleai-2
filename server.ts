@@ -4,10 +4,12 @@ import express from 'express';
 import { Type, FunctionDeclaration } from '@google/genai';
 import {
   initDatabase,
+  db,
   getRoomEventsSinceInDb,
   getListingsFromDb,
   getListingByIdFromDb,
   createListingInDb,
+  updateListingInDb,
   publishListingInDb,
   withdrawListingInDb,
   getRoomsFromDb,
@@ -242,11 +244,60 @@ app.get('/api/embedding/status', (_req, res) => {
   }
 });
 
+app.put('/api/listings/:id', requireAuth, (req, res) => {
+  try {
+    const listingId = String(req.params.id);
+    const listing = getListingByIdFromDb(listingId);
+    if (!listing) {
+      res.status(404).json({ error: 'not_found', message: 'Listing not found' });
+      return;
+    }
+    if (listing.owner !== req.principal!.principalId) {
+      res.status(403).json({ error: 'forbidden', message: 'Не являетесь владельцем объявления' });
+      return;
+    }
+
+    const updated = updateListingInDb(listingId, req.body || {}, req.principal!.principalId);
+    if (!updated) {
+      res.status(400).json({ error: 'update_failed' });
+      return;
+    }
+
+    res.json(toPublicListing(updated));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Configuration of the chat model, not a live probe: it answers whether the
 // next /api/chat call would attempt a model call, and why not if it would not.
 // There is no invented default model id — see GEMINI_MODEL in .env.example.
 app.get('/api/llm/status', (_req, res) => {
   res.json(llmStatus());
+});
+
+app.get('/healthz', (_req, res) => {
+  res.json({
+    status: 'ok',
+    uptime: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get('/readyz', (_req, res) => {
+  try {
+    db.prepare('SELECT 1').get();
+    res.json({
+      status: 'ready',
+      database: 'connected',
+    });
+  } catch (err: any) {
+    res.status(503).json({
+      status: 'not_ready',
+      database: 'disconnected',
+      error: err?.message,
+    });
+  }
 });
 
 app.get('/api/health', (_req, res) => {

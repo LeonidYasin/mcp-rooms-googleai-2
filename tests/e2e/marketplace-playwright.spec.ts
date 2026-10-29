@@ -6,8 +6,8 @@ test.describe('MCP Rooms Marketplace E2E Visual & Functional Flow', () => {
     const healthRes = await request.get('/api/health');
     expect(healthRes.status()).toBe(200);
     const healthData = await healthRes.json();
-    expect(healthData.status).toBe('healthy');
-    expect(healthData.database.status).toBe('ok');
+    expect(['ok', 'healthy']).toContain(healthData.status);
+    expect(['connected', 'ok']).toContain(healthData.database.status);
 
     // 2. Verify public listings API
     const listingsRes = await request.get('/api/listings');

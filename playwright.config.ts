@@ -18,7 +18,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'NODE_ENV=production npm run build && node -e "const { app } = await import(\'./server.ts\'); app.listen(3000);"',
+    command: 'NODE_ENV=production DEMO_SEED=1 npm run build && DEMO_SEED=1 npx tsx server.ts',
     url: 'http://127.0.0.1:3000/api/health',
     reuseExistingServer: !process.env.CI,
     timeout: 30000,
