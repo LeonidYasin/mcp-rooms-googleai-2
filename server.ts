@@ -24,7 +24,7 @@ import { handleMcpJsonRpcRequest, executeMcpToolCall, MCP_TOOLS_MANIFEST } from 
 import { runAutonomousNegotiation } from './server/negotiator';
 import { getEmbeddingProviderStatus, matchListingAsymmetric } from './server/embeddings';
 import { roomEventBus } from './server/events';
-import { isRoomParticipant, optionalAuth, requireAuth } from './server/auth';
+import { isRoomParticipant, optionalAuth, requireAuth, issueSseTicket, consumeSseTicket } from './server/auth';
 import {
   JSON_BODY_LIMIT,
   corsPolicy,
@@ -519,14 +519,45 @@ app.get('/api/rooms/:id', requireAuth, (req, res) => {
 // -------------------------------------------------------------
 // Server-Sent Events (SSE) Endpoint for Real-Time Room Streaming
 // -------------------------------------------------------------
-app.get('/api/rooms/:id/stream', requireAuth, (req, res) => {
+
+// Ticket generation endpoint for secure SSE connections without exposing Bearer tokens in URLs
+app.post('/api/rooms/:id/ticket', requireAuth, (req, res) => {
   const roomId = String(req.params.id);
+  const room = getRoomByIdFromDb(roomId);
+  if (!room) {
+    res.status(404).json({ error: 'Room not found' });
+    return;
+  }
+  if (!isRoomParticipant(room, req.principal!.principalId)) {
+    res.status(403).json({ error: 'forbidden', message: 'Вы не участник этой комнаты' });
+    return;
+  }
+
+  const ticket = issueSseTicket(req.principal!, roomId);
+  res.status(201).json({ success: true, ticket, expires_in_seconds: 30 });
+});
+
+app.get('/api/rooms/:id/stream', optionalAuth, (req, res) => {
+  const roomId = String(req.params.id);
+  let streamPrincipal = req.principal;
+  const ticketParam = typeof req.query?.ticket === 'string' ? req.query.ticket : undefined;
+  if (ticketParam) {
+    const ticketPrincipal = consumeSseTicket(ticketParam, roomId);
+    if (ticketPrincipal) {
+      streamPrincipal = ticketPrincipal;
+    }
+  }
+
+  if (!streamPrincipal) {
+    res.status(401).json({ error: 'unauthorized', message: 'Необходим действующий ticket или Bearer токен' });
+    return;
+  }
   const room = getRoomByIdFromDb(roomId);
   if (!room) {
     res.status(404).json({ error: `Комната ${roomId} не найдена` });
     return;
   }
-  if (!isRoomParticipant(room, req.principal!.principalId)) {
+  if (!isRoomParticipant(room, streamPrincipal.principalId)) {
     res.status(403).json({ error: 'forbidden', message: 'Вы не участник этой комнаты' });
     return;
   }
