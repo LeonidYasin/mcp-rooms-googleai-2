@@ -154,8 +154,19 @@ CREATE TABLE IF NOT EXISTS audit_logs (
       created_at INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS webhooks (
+      id TEXT PRIMARY KEY,
+      url TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      owner TEXT NOT NULL,
+      secret TEXT,
+      created_at INTEGER NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON audit_logs(actor_id);
     CREATE INDEX IF NOT EXISTS idx_audit_logs_event ON audit_logs(event_type);
+    CREATE INDEX IF NOT EXISTS idx_webhooks_owner ON webhooks(owner);
+    CREATE INDEX IF NOT EXISTS idx_webhooks_event_type ON webhooks(event_type);
 
   `);
 
@@ -1539,4 +1550,93 @@ export function getUploadByIdFromDb(id: string): UploadRecord | null {
     owner: row.owner,
     createdAt: row.created_at,
   };
+}
+
+export interface WebhookRecord {
+  id: string;
+  url: string;
+  eventType: string; // e.g. 'room.message', 'room.offer', '*'
+  owner: string;
+  secret?: string;
+  createdAt: number;
+}
+
+export function createWebhookInDb(hook: WebhookRecord): WebhookRecord {
+  db.prepare(`
+    INSERT INTO webhooks (id, url, event_type, owner, secret, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
+    hook.id,
+    hook.url,
+    hook.eventType,
+    hook.owner,
+    hook.secret || null,
+    hook.createdAt
+  );
+  return hook;
+}
+
+export function getWebhooksFromDb(owner?: string): WebhookRecord[] {
+  const rows = owner
+    ? db.prepare('SELECT * FROM webhooks WHERE owner = ? ORDER BY created_at DESC').all(owner) as any[]
+    : db.prepare('SELECT * FROM webhooks ORDER BY created_at DESC').all() as any[];
+
+  return rows.map((r) => ({
+    id: r.id,
+    url: r.url,
+    eventType: r.event_type,
+    owner: r.owner,
+    secret: r.secret || undefined,
+    createdAt: r.created_at,
+  }));
+}
+
+export function getWebhookByIdFromDb(id: string): WebhookRecord | null {
+  const row = db.prepare('SELECT * FROM webhooks WHERE id = ?').get(id) as any;
+  if (!row) return null;
+  return {
+    id: row.id,
+    url: row.url,
+    eventType: row.event_type,
+    owner: row.owner,
+    secret: row.secret || undefined,
+    createdAt: row.created_at,
+  };
+}
+
+export function deleteWebhookFromDb(id: string, owner: string): boolean {
+  const info = db.prepare('DELETE FROM webhooks WHERE id = ? AND owner = ?').run(id, owner);
+  return info.changes > 0;
+}
+
+export async function dispatchWebhooksForEvent(eventType: string, payload: Record<string, any>) {
+  const rows = db.prepare(
+    'SELECT * FROM webhooks WHERE event_type = ? OR event_type = "*"'
+  ).all(eventType) as any[];
+
+  if (rows.length === 0) return;
+
+  const body = JSON.stringify({
+    event: eventType,
+    timestamp: Date.now(),
+    data: payload,
+  });
+
+  const promises = rows.map(async (row) => {
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (row.secret) {
+        headers['X-Webhook-Secret'] = row.secret;
+      }
+      await fetch(row.url, {
+        method: 'POST',
+        headers,
+        body,
+      });
+    } catch (err) {
+      // Async dispatch swallows errors to not block main thread
+    }
+  });
+
+  await Promise.allSettled(promises);
 }
