@@ -1,40 +1,43 @@
 # Координация сессий и распределение задач для AI-Агентов (Jules / Gemini)
 
-Документ предназначен для координации совместной параллельной работы нескольких сессий AI-агентов над проектом **MCP Rooms Marketplace (`LeonidYasin/mcp-rooms-googleai-2`)**.
+Документ предназначен для координации совместной параллельной работы нескольких сессий AI-агентов (и людей-разработчиков) над проектом **MCP Rooms Marketplace (`LeonidYasin/mcp-rooms-googleai-2`)**.
 
 ---
 
-## 🚦 Текущий статус и разделение зон ответственности
+## 📊 Матрица статуса и зон ответственности
 
-| Задача / Раздел | Ответственная сессия | Статус | Коммиты / PR |
-| :--- | :--- | :--- | :--- |
-| **Управление PR/Issues через CLI** | Сессия A (Jules) | ✅ Завершено | `scripts/github_mcp_cli.py`, `docs/mcp_cli_instructions.md` |
-| **Транспорт MCP JSON-RPC & SSE** | Сессия B | ✅ Завершено (PR #7) | PR #7 merged in `main` |
-| **Жизненный цикл объявлений (Draft -> Preview -> Publish)** | Сессия B | ✅ Завершено (PR #7) | PR #7 merged in `main` |
-| **Реактивный мульти-агентный чат в комнатах** | Сессия A (Jules) | ✅ Завершено (PR #10) | PR #10 merged in `main` (`server/negotiator.ts`) |
-| **RBAC / Scope-based Access Control для API-ключей** | Сессия A (Jules) | ✅ Завершено (PR #11) | PR #11 merged in `main` (`server/auth.ts`) |
-| **Audit Logs (Трассировка действий агентов и прав)** | Сессия A (Jules) | ✅ Завершено (PR #12) | PR #12 merged in `main` (`server/db.ts`) |
-| **Персистентный Rate Limiting & Trust Proxy** | Сессия A (Jules) | ✅ Завершено (PR #14) | PR #14 merged in `main` (`server/http-guard.ts`) |
-| **Персистентное хранилище изображений (`/uploads`)** | Сессия A (Jules) | ✅ Завершено (PR #16) | PR #16 merged in `main` |
-| **Технический аудит Prod-Readiness и фикс типов** | Сессия A (Jules) | ✅ Завершено | `docs/audit/2026-10-29-status-audit.md` |
+| Задача / Раздел | Ветка | Затронутые файлы / Модули | Ответственная сессия | Статус | Обновлено (UTC) | Коммиты / PR |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Управление PR/Issues через CLI** | `feat/mcp-cli` | `scripts/github_mcp_cli.py`, `docs/mcp_cli_instructions.md` | Сессия A (Jules) | ✅ Завершено | 2026-10-28 | `scripts/github_mcp_cli.py` |
+| **Транспорт MCP JSON-RPC & SSE** | `feat/mcp-transport` | `server/mcp.ts`, `server/sse.ts` | Сессия B | ✅ Завершено | 2026-10-28 | PR #7 merged in `main` |
+| **Жизненный цикл объявлений (Draft -> Preview -> Publish)** | `feat/listing-lifecycle` | `src/components/`, `server/listings.ts` | Сессия B | ✅ Завершено | 2026-10-28 | PR #7 merged in `main` |
+| **Реактивный мульти-агентный чат в комнатах** | `feat/reactive-chat` | `server/negotiator.ts`, `src/components/Chat.tsx` | Сессия A (Jules) | ✅ Завершено | 2026-10-28 | PR #10 merged in `main` |
+| **RBAC / Scope-based Access Control для API-ключей** | `feat/rbac-scopes` | `server/auth.ts` | Сессия A (Jules) | ✅ Завершено | 2026-10-28 | PR #11 merged in `main` |
+| **Audit Logs (Трассировка действий агентов и прав)** | `feat/audit-logs` | `server/db.ts`, `server/audit.ts` | Сессия A (Jules) | ✅ Завершено | 2026-10-28 | PR #12 merged in `main` |
+| **Персистентный Rate Limiting & Trust Proxy** | `feat/persistent-rate-limiter` | `server/rate_limiter.ts`, `server/index.ts` | Сессия A (Jules) | ✅ Завершено | 2026-10-29 | PR #14 merged in `main` |
+| **Персистентное хранилище изображений (`/uploads`)** | `feat/image-media-storage` | `server.ts`, `server/db.ts`, `/uploads` | Сессия A (Jules) | ✅ Завершено | 2026-10-29 | PR #16 merged in `main` |
+| **Технический аудит Prod-Readiness и фикс типов** | `docs/audit-and-roadmap-update-2026-10-29` | `docs/audit/2026-10-29-status-audit.md`, `server.ts`, `server/db.ts` | Сессия A (Jules) | ✅ Завершено | 2026-10-29 | PR #20 / PR #21 merged |
 
 ---
 
-## 🤝 Правила совместной работы
+## 🚀 Протокол взятия задачи в работу (Task Claiming Protocol)
 
-1. **Создание веток:**
-   - Всегда создавайте новую отдельную ветку для задачи: `feat/<название-задачи>` или `fix/<описание>`.
-   - Именуйте ветки явно, чтобы не затирать работу соседней сессии.
+Перед началом выполнения новой задачи сессия **обязана**:
+1. **Проверить пересечения по файлам (File Impact Analysis):**
+   - Убедиться, что планируемые к изменению файлы не находятся в процессе редактирования другой активной сессией (`🔄 В разработке`).
+2. **Захватить задачу (Claim Task):**
+   - Открыть `docs/session_coordination.md`.
+   - Изменить статус с `⏳ Бэклог` на `🔄 В разработке`.
+   - Указать имя сессии, название создаваемой ветки, затронутые файлы и текущее время UTC.
+   - Закоммитить и слить/отправить изменение в координационную документацию.
+3. **Правило TTL неактивности (Stale Task Timeout = 2 часа):**
+   - Если задача находится в статусе `🔄 В разработке` без обновлений более **2 часов**, она считается брошенной (Stale Task).
+   - Другая сессия имеет право сбросить статус на `⏳ Бэклог` или перехватить задачу, оставив запись в журнале передачи контекста.
 
-2. **Запуск тестов перед PR:**
-   - Обязательно проверяйте прохождение всех тестов через `npm test` (в проекте используются `vitest`).
+---
 
-3. **Создание и слияние PR:**
-   - Используйте инструмент `scripts/github_mcp_cli.py` для создания PR:
-     ```bash
-     GITHUB_TOKEN="$TOKEN" python3 scripts/github_mcp_cli.py --repo LeonidYasin/mcp-rooms-googleai-2 prs create --title "..." --head <branch> --base main --body "..."
-     ```
-   - Если тесты CI проходят, PR можно сливать командой `prs merge --number <PR_NUM>`.
+## 📝 Журнал передачи контекста и блокеров (Handover & Blockers Log)
 
-4. **Обновление этого документа (`docs/session_coordination.md`):**
-   - В завершение работы по каждой задаче отмечайте статус `✅ Завершено` в таблице выше, чтобы параллельная сессия всегда видела актуальный прогресс!
+* **2026-10-29 07:00 (Сессия A / Jules):**
+  - **Статус:** Проведён повторный аудит готовности к продакшену (~88-90% RC1).
+  - **Заметки:** Добавлен отчёт `docs/audit/2026-10-29-status-audit.md`. Устранены ошибки типов TypeScript при сборке. Разрешены гитовые конфликты координации.
