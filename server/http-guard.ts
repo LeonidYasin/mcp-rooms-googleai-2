@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { checkAndIncrementRateLimitInDb, db } from './db';
 
 /**
  * F-13: the HTTP edge had a 10 MB JSON body limit, no security headers, no
@@ -101,49 +102,50 @@ function configuredLimit(envName: string, fallback: number): number {
   return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : fallback;
 }
 
-function sweep(now: number) {
-  for (const [key, bucket] of buckets) {
-    if (bucket.resetAt <= now) buckets.delete(key);
+function resolveClientIp(req: Request): string {
+  if (process.env.TRUST_PROXY === '1' || process.env.TRUST_PROXY === 'true') {
+    const xForwardedFor = req.headers['x-forwarded-for'];
+    if (typeof xForwardedFor === 'string' && xForwardedFor.trim()) {
+      return xForwardedFor.split(',')[0].trim();
+    }
   }
+  return req.ip || req.socket?.remoteAddress || 'unknown';
 }
 
 /**
- * Fixed-window limiter keyed by the authenticated principal, falling back to
- * the socket address. In-process: a second instance or a restart has its own
- * counters.
+ * Persistent SQLite sliding/fixed-window limiter keyed by the authenticated
+ * principal, falling back to the resolved IP address.
  */
 export function rateLimit(name: string, envName: string, fallbackPerMinute: number) {
   return (req: Request, res: Response, next: NextFunction) => {
     const max = configuredLimit(envName, fallbackPerMinute);
-    const identity = req.principal?.principalId || req.ip || 'unknown';
+    const identity = req.principal?.principalId || resolveClientIp(req);
     const key = `${name}:${identity}`;
     const now = Date.now();
 
-    let bucket = buckets.get(key);
-    if (!bucket || bucket.resetAt <= now) {
-      bucket = { count: 0, resetAt: now + WINDOW_MS };
-      buckets.set(key, bucket);
-    }
-    bucket.count += 1;
+    const result = checkAndIncrementRateLimitInDb(key, max, WINDOW_MS, now);
 
     res.setHeader('X-RateLimit-Limit', String(max));
-    if (bucket.count > max) {
-      const retryAfter = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
+    if (!result.allowed) {
+      const retryAfter = Math.max(1, Math.ceil((result.resetAt - now) / 1000));
       res.setHeader('X-RateLimit-Remaining', '0');
       res.setHeader('Retry-After', String(retryAfter));
       res.status(429).json({ error: 'rate_limited', retryAfterSeconds: retryAfter });
       return;
     }
 
-    res.setHeader('X-RateLimit-Remaining', String(max - bucket.count));
-    if (buckets.size > MAX_BUCKETS) sweep(now);
+    res.setHeader('X-RateLimit-Remaining', String(Math.max(0, max - result.count)));
     next();
   };
 }
 
-/** Test helper: drops all counters. */
+/** Test helper: drops all rate_limits rows. */
 export function resetRateLimits() {
-  buckets.clear();
+  try {
+    db.prepare('DELETE FROM rate_limits').run();
+  } catch {
+    buckets.clear();
+  }
 }
 
 export function httpErrorHandler(err: any, _req: Request, res: Response, next: NextFunction) {

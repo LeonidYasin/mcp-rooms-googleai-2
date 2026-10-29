@@ -125,6 +125,21 @@ export function initDatabase() {
       updated_at INTEGER NOT NULL,
       FOREIGN KEY(room_id) REFERENCES rooms(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS rate_limits (
+      key TEXT PRIMARY KEY,
+      count INTEGER NOT NULL DEFAULT 1,
+      reset_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS uploads (
+      id TEXT PRIMARY KEY,
+      filename TEXT NOT NULL UNIQUE,
+      owner TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS audit_logs (
       id TEXT PRIMARY KEY,
       event_type TEXT NOT NULL,
@@ -148,6 +163,12 @@ export function initDatabase() {
     }
     if (!colNames.includes('embedding_json')) {
       db.exec(`ALTER TABLE listings ADD COLUMN embedding_json TEXT;`);
+    }
+
+    const apiKeyColumns = db.prepare(`PRAGMA table_info(api_keys)`).all() as any[];
+    const apiKeyColNames = apiKeyColumns.map((c) => c.name);
+    if (!apiKeyColNames.includes('scopes')) {
+      db.exec(`ALTER TABLE api_keys ADD COLUMN scopes TEXT DEFAULT '*';`);
     }
   } catch {
     // Column already exists or table freshly initialized
@@ -1200,6 +1221,7 @@ export interface ApiKeyRecord {
   createdAt: number;
   lastUsedAt: number | null;
   revokedAt: number | null;
+  scopes: string;
 }
 
 function mapApiKeyRow(row: any): ApiKeyRecord {
@@ -1210,6 +1232,7 @@ function mapApiKeyRow(row: any): ApiKeyRecord {
     createdAt: row.created_at,
     lastUsedAt: row.last_used_at ?? null,
     revokedAt: row.revoked_at ?? null,
+    scopes: row.scopes || '*',
   };
 }
 
@@ -1219,12 +1242,132 @@ export function createApiKeyInDb(record: {
   name: string;
   digest: string;
   createdAt: number;
+  scopes?: string;
 }) {
   db.prepare(
-    `INSERT INTO api_keys (id, principal_id, name, digest, created_at)
-     VALUES (?, ?, ?, ?, ?)`
-  ).run(record.id, record.principalId, record.name, record.digest, record.createdAt);
+    `INSERT INTO api_keys (id, principal_id, name, digest, created_at, scopes)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(record.id, record.principalId, record.name, record.digest, record.createdAt, record.scopes || '*');
   return getApiKeyByIdInDb(record.id)!;
+}
+
+export function checkAndIncrementRateLimitInDb(
+  key: string,
+  maxLimit: number,
+  windowMs: number,
+  now: number = Date.now()
+): { allowed: boolean; count: number; max: number; resetAt: number } {
+  const transaction = db.transaction(() => {
+    const existing = db.prepare('SELECT count, reset_at FROM rate_limits WHERE key = ?').get(key) as
+      | { count: number; reset_at: number }
+      | undefined;
+
+    if (!existing || existing.reset_at <= now) {
+      const resetAt = now + windowMs;
+      db.prepare(
+        `INSERT INTO rate_limits (key, count, reset_at)
+         VALUES (?, 1, ?)
+         ON CONFLICT(key) DO UPDATE SET count = 1, reset_at = excluded.reset_at`
+      ).run(key, resetAt);
+      return { allowed: true, count: 1, max: maxLimit, resetAt };
+    }
+
+    const newCount = existing.count + 1;
+    db.prepare('UPDATE rate_limits SET count = ? WHERE key = ?').run(newCount, key);
+
+    return {
+      allowed: newCount <= maxLimit,
+      count: newCount,
+      max: maxLimit,
+      resetAt: existing.reset_at,
+    };
+  });
+
+  return transaction();
+}
+
+export function sweepRateLimitsInDb(now: number = Date.now()) {
+  db.prepare('DELETE FROM rate_limits WHERE reset_at <= ?').run(now);
+}
+
+export function saveUploadRecordInDb(upload: {
+  id: string;
+  filename: string;
+  owner: string;
+  mimeType: string;
+  sizeBytes: number;
+}) {
+  const now = Date.now();
+  db.prepare(`
+    INSERT INTO uploads (id, filename, owner, mime_type, size_bytes, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(upload.id, upload.filename, upload.owner, upload.mimeType, upload.sizeBytes, now);
+}
+
+export function getUploadByFilenameFromDb(filename: string) {
+  const r = db.prepare('SELECT * FROM uploads WHERE filename = ?').get(filename) as any;
+  if (!r) return null;
+  return {
+    id: r.id,
+    filename: r.filename,
+    owner: r.owner,
+    mimeType: r.mime_type,
+    sizeBytes: r.size_bytes,
+    createdAt: r.created_at,
+  };
+}
+
+export function validateImageMagicBytes(buffer: Buffer): 'image/jpeg' | 'image/png' | null {
+  if (buffer.length < 4) return null;
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
+    return 'image/png';
+  }
+  return null;
+}
+
+export function saveImageFileToDisk(buffer: Buffer, owner: string): {
+  id: string;
+  filename: string;
+  url: string;
+  mimeType: string;
+  sizeBytes: number;
+} {
+  const mimeType = validateImageMagicBytes(buffer);
+  if (!mimeType) {
+    throw new Error('invalid_image_format: Допустимы только изображения JPEG и PNG');
+  }
+
+  const defaultDataDir = path.resolve(process.cwd(), 'data');
+  const uploadsDir = path.join(defaultDataDir, 'uploads');
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+
+  const ext = mimeType === 'image/jpeg' ? 'jpg' : 'png';
+  const id = `media-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+  const filename = `${id}.${ext}`;
+  const filePath = path.join(uploadsDir, filename);
+
+  fs.writeFileSync(filePath, buffer);
+
+  saveUploadRecordInDb({
+    id,
+    filename,
+    owner,
+    mimeType,
+    sizeBytes: buffer.length,
+  });
+
+  return {
+    id,
+    filename,
+    url: `/uploads/${filename}`,
+    mimeType,
+    sizeBytes: buffer.length,
+  };
 }
 
 export function getApiKeyByIdInDb(id: string): ApiKeyRecord | null {
@@ -1250,7 +1393,7 @@ export function touchApiKeyInDb(id: string, at: number, minIntervalMs = 60_000) 
   ).run(at, id, at - minIntervalMs);
 }
 
-export function revokeApiKeyInDb(id: string, at: number): boolean {
+export function revokeApiKeyInDb(id: string, at: number = Date.now()): boolean {
   const result = db.prepare('UPDATE api_keys SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL').run(at, id);
   return result.changes > 0;
 }

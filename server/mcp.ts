@@ -314,6 +314,9 @@ export async function executeMcpToolCall(
       };
 
       const created = createListingInDb(newListing);
+      if (!created) {
+        return { error: 'create_listing_failed', message: 'Не удалось сохранить черновик' };
+      }
       addAuditLog('listing.create', ctx.principalId, created.id, { title: created.content.title });
       return {
         success: true,

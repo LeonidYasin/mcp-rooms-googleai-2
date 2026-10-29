@@ -1,5 +1,7 @@
 import express from 'express';
 import { Type, FunctionDeclaration } from '@google/genai';
+import path from 'path';
+import fs from 'fs';
 import {
   initDatabase,
   getListingsFromDb,
@@ -15,6 +17,8 @@ import {
   getProfileByIdFromDb,
   toPublicListing,
   classifyMessageInsertError,
+  saveImageFileToDisk,
+  getUploadByFilenameFromDb,
 } from './server/db';
 import { handleMcpJsonRpcRequest, executeMcpToolCall, MCP_TOOLS_MANIFEST } from './server/mcp';
 import { runAutonomousNegotiation } from './server/negotiator';
@@ -178,6 +182,61 @@ app.post('/mcp', optionalAuth, rateLimit('mcp', 'RATE_LIMIT_MCP_PER_MINUTE', 240
 // -------------------------------------------------------------
 // 2. Real REST API Endpoints with SQLite Persistence
 // -------------------------------------------------------------
+// Serve uploaded images safely with strict content type headers
+app.get('/uploads/:filename', (req, res) => {
+  const filename = path.basename(req.params.filename);
+  const defaultDataDir = path.resolve(process.cwd(), 'data');
+  const filePath = path.join(defaultDataDir, 'uploads', filename);
+
+  if (!fs.existsSync(filePath)) {
+    res.status(404).json({ error: 'not_found', message: 'Image not found' });
+    return;
+  }
+
+  const uploadRecord = getUploadByFilenameFromDb(filename);
+  const contentType = uploadRecord?.mimeType || (filename.endsWith('.png') ? 'image/png' : 'image/jpeg');
+
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  res.sendFile(filePath);
+});
+
+// Binary or Base64 Image Upload Endpoint
+app.post(
+  '/api/upload',
+  requireAuth,
+  rateLimit('upload', 'RATE_LIMIT_UPLOAD_PER_MINUTE', 20),
+  express.raw({ type: ['image/jpeg', 'image/png', 'application/octet-stream'], limit: '5mb' }),
+  (req, res) => {
+    try {
+      let buffer: Buffer;
+
+      if (Buffer.isBuffer(req.body) && req.body.length > 0) {
+        buffer = req.body;
+      } else if (req.body && typeof req.body.base64 === 'string') {
+        buffer = Buffer.from(req.body.base64, 'base64');
+      } else {
+        res.status(400).json({ error: 'invalid_body', message: 'Бинарное изображение или base64 обязательны' });
+        return;
+      }
+
+      if (buffer.length > 5 * 1024 * 1024) {
+        res.status(413).json({ error: 'payload_too_large', message: 'Максимальный размер изображения 5 МБ' });
+        return;
+      }
+
+      const result = saveImageFileToDisk(buffer, req.principal!.principalId);
+      res.status(201).json(result);
+    } catch (err: any) {
+      if (err?.message?.startsWith('invalid_image_format')) {
+        res.status(422).json({ error: 'invalid_image_format', message: 'Допустимы только файлы JPEG и PNG' });
+        return;
+      }
+      res.status(500).json({ error: err?.message || 'Upload error' });
+    }
+  }
+);
+
 app.get('/api/embedding/status', (_req, res) => {
   try {
     const status = getEmbeddingProviderStatus();
