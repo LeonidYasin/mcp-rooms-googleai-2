@@ -18,6 +18,7 @@
 | **Персистентное хранилище изображений (`/uploads`)** | Сессия A (Jules) | ✅ Завершено (PR #16) | PR #16 merged in `server.ts`) |
 | **Ticket-based SSE Auth & Stream Security** | Сессия A (Jules) | ✅ Завершено (PR #25) | PR #25 merged in `main` (`server/auth.ts`) |
 | **Поддержка Last-Event-ID в SSE** | Сессия C (Jules) | ✅ Завершено (PR #28) | PR #28 merged in `main` (`tests/sse_replay.test.ts`, `server.ts`) |
+| **Персистентный Event Store в SQLite для SSE (room_events)** | Core Agent (Jules) | ✅ Завершено (PR #18) | PR #18 updated (`server/db.ts`, `server.ts`, `tests/sse_replay.test.ts`) |
 | **Строгая проверка прав владения (Ownership Checks)** | Сессия C (Jules) | ✅ Завершено (PR #39) | PR #39 merged in `main` (`PUT /api/listings/:id`, `tests/ownership_checks.test.ts`) |
 | **Healthchecks & Readiness Probes (/healthz & /readyz)** | Сессия C (Jules) | ✅ Завершено (PR #41) | PR #41 merged in `main` (`server.ts`, `tests/healthchecks.test.ts`) |
 | **Структурированное логирование (JSON Logs)** | Сессия C (Jules) | ✅ Завершено (PR #43) | PR #43 merged in `main` (`server/logger.ts`, `tests/logger.test.ts`) |

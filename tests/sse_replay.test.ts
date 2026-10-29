@@ -38,12 +38,8 @@ describe('SSE Last-Event-ID & Replay Support', () => {
 
     createRoomInDb({
       id: roomId,
-      listingId: null,
       listingTitle: 'SSE Test Listing',
       participants: ['user:alice', 'user:bob'],
-      status: 'active',
-      createdAt: now,
-      updatedAt: now,
     });
 
     const msg1 = {
@@ -75,7 +71,7 @@ describe('SSE Last-Event-ID & Replay Support', () => {
     addMessageToRoomInDb(msg2);
     addMessageToRoomInDb(msg3);
 
-    const principal = { principalId: 'user:alice', scopes: ['*'] };
+    const principal = { principalId: 'user:alice', keyId: 'key-alice', scopes: ['*' as const] };
     const ticket = issueSseTicket(principal, roomId);
 
     const responseText = await new Promise<string>((resolve, reject) => {
