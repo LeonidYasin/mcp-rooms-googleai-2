@@ -27,9 +27,8 @@ Known boundaries, which must stay visible in docs and UI:
 
 ## Non-negotiable owner constraints
 
-- Do **not** merge `main`, publish releases/tags, deploy, restart/reconfigure a VPS
-  or reverse proxy, migrate a live database, or issue real credentials without
-  separate explicit owner approval.
+- **Agent Auto-Merge Rule:** Agents conduct their own code review of PRs they open to check for errors and flaws. When all automated tests (`npm test`, `npm run lint`, CI) pass and the agent has no doubts regarding readiness and safety, the agent merges the PR into `main` directly.
+- Do **not** publish releases/tags, deploy, restart/reconfigure a VPS or reverse proxy, migrate a live database, or issue real credentials without separate explicit owner approval.
 - Run application code, tests, builds, and browser QA **only in GitHub Actions**.
   Local work is limited to reading files, editing, and static inspection.
 - Never commit a real `.env`, API key, database, uploaded photo, private log, or
@@ -49,4 +48,4 @@ Known boundaries, which must stay visible in docs and UI:
 - CI (`typecheck`, `vitest`, build, production smoke) is green on the **exact SHA**
   you report. Link the run; do not claim more than the run proves.
 - Green CI ≠ live TEST ≠ production. No live deployment is implied.
-- **PR Status Commenting & Auto-Merge:** Upon finishing work on a branch or PR, the agent conducts its own code review to inspect for bugs, flaws, and edge cases. If all automated checks (`npm test`, `npm run lint`, CI) pass and there are no suspected issues or risks, the agent merges the PR into `main` directly.
+- **PR Self-Review & Direct Merge Protocol:** Upon finishing work on a branch or PR, the agent conducts its own code review to inspect for bugs, flaws, and edge cases. If all automated checks (`npm test`, `npm run lint`, CI) pass and the agent has no doubts about readiness and safety, the agent merges the PR into `main` directly.

@@ -131,9 +131,9 @@ GITHUB_TOKEN="your_github_token" python3 scripts/github_mcp_cli.py --repo Leonid
    - В описании PR ссылайтесь на созданное Issue: `Closes #IssueID` или `Fixes #IssueID`.
    - Внесите имя ветки и статус `🔄 В разработке (PR #X)` в `docs/session_coordination.md`.
 
-3. **Самостоятельное Ревью и Авто-Мерж:**
+3. **Самостоятельное Ревью и Прямой Мерж:**
    - Агенты сами проводят комплексное ревью созданного PR на ошибки, недочеты и краевые случаи.
-   - Если все тесты/CI зеленые и вопросов к коду нет, агент выполняет слияние PR в `main` самостоятельно:
+   - Если все тесты/CI зеленые и у агента нет сомнений в готовности и безопасности изменений, агент выполняет слияние PR в `main` самостоятельно:
      ```bash
      GITHUB_TOKEN="$TOKEN" python3 scripts/github_mcp_cli.py --repo LeonidYasin/mcp-rooms-googleai-2 prs merge --number <PR_NUM>
      ```

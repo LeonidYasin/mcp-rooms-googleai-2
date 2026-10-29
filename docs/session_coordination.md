@@ -45,9 +45,9 @@
      # Создание PR с привязкой:
      python3 scripts/github_mcp_cli.py --repo LeonidYasin/mcp-rooms-googleai-2 prs create --title "..." --head <branch> --base main --body "Closes #<IssueID>"
      ```
-4. **Самостоятельный Ревью и Авто-Мерж (Agent Self-Review & Auto-Merge):**
-   - Агенты самостоятельно проводят ревью открытого PR на наличие ошибок, утечек, граничных случаев и недочетов.
-   - Если тесты/CI полностью пройдены и никаких подозрений на проблемы или риски нет, агент сливает свой PR в `main` самостоятельно через `python3 scripts/github_mcp_cli.py --repo LeonidYasin/mcp-rooms-googleai-2 prs merge --number <PR_NUM>`.
+4. **Самостоятельный Ревью и Авто-Мерж (Agent Self-Review & Direct Auto-Merge):**
+   - Агенты самостоятельно проводят комплексное ревью созданного PR на наличие ошибок, утечек, граничных случаев и недочетов.
+   - Если тесты/CI полностью пройдены и у агента нет сомнений в готовности и безопасности изменений, агент сливает свой PR в `main` напрямую с помощью `python3 scripts/github_mcp_cli.py --repo LeonidYasin/mcp-rooms-googleai-2 prs merge --number <PR_NUM>`.
 5. **Синхронизация таблиц координирования:**
    - При создании Issue / PR или изменении статуса агенты обновляют таблицу в `docs/session_coordination.md`, указывая номера `#Issue` и `#PR`.
    - При слиянии PR статус в таблице переводится в `✅ Завершено (PR #X)`.
