@@ -1,0 +1,42 @@
+name: Continuous Deployment (VPS Auto-Deploy)
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    name: Deploy to Production VPS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to VPS over SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          passphrase: ${{ secrets.VPS_PASSPHRASE }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            set -e
+            echo "🚀 Starting automated deployment..."
+
+            # Navigate to project root on VPS
+            cd /opt/mcp-rooms || (sudo mkdir -p /opt/mcp-rooms && sudo chown -R $USER:$USER /opt/mcp-rooms && cd /opt/mcp-rooms && git clone https://github.com/LeonidYasin/mcp-rooms-googleai-2.git .)
+
+            # Fetch and reset to latest main commit
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Ensure persistent directories and permissions
+            mkdir -p ./data ./uploads/thumbnails
+            sudo chown -R 1000:1000 ./data ./uploads || true
+
+            # Restart production Docker stack
+            docker compose -f docker-compose.prod.yml up -d --build
+
+            echo "✅ Deployment completed successfully!"
