@@ -95,13 +95,18 @@ describe('MCP Spec Protocol & SSE Replay/Limits (PR-4 & PR-8)', () => {
     const reader = res.body?.getReader();
     expect(reader).toBeDefined();
 
-    const { value } = await reader!.read();
-    const chunk = new TextDecoder().decode(value);
+    let fullText = '';
+    while (true) {
+      const { value, done } = await reader!.read();
+      if (done) break;
+      fullText += new TextDecoder().decode(value);
+      if (fullText.includes('Round 3 Event')) break;
+    }
     controller.abort();
 
-    expect(chunk).toContain('Round 2 Event');
-    expect(chunk).toContain('Round 3 Event');
-    expect(chunk).not.toContain('Round 1 Event');
+    expect(fullText).toContain('Round 2 Event');
+    expect(fullText).toContain('Round 3 Event');
+    expect(fullText).not.toContain('Round 1 Event');
   });
 
   it('replays room messages based on Last-Event-ID header', async () => {
@@ -130,13 +135,18 @@ describe('MCP Spec Protocol & SSE Replay/Limits (PR-4 & PR-8)', () => {
     const reader = res.body?.getReader();
     expect(reader).toBeDefined();
 
-    const { value } = await reader!.read();
-    const chunk = new TextDecoder().decode(value);
+    let fullText = '';
+    while (true) {
+      const { value, done } = await reader!.read();
+      if (done) break;
+      fullText += new TextDecoder().decode(value);
+      if (fullText.includes('Msg 3')) break;
+    }
     controller.abort();
 
-    expect(chunk).toContain('Msg 2');
-    expect(chunk).toContain('Msg 3');
-    expect(chunk).not.toContain('Msg 1');
+    expect(fullText).toContain('Msg 2');
+    expect(fullText).toContain('Msg 3');
+    expect(fullText).not.toContain('Msg 1');
   });
 
   it('enforces 429 subscriber limit when subscriber count hits maximum', async () => {
