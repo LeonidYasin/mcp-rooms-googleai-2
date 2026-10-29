@@ -826,6 +826,26 @@ export function createListingInDb(listing: any) {
   return getListingByIdFromDb(listing.id);
 }
 
+export function updateListingInDb(id: string, updates: any, owner: string) {
+  const existing = getListingByIdFromDb(id);
+  if (!existing) return null;
+  if (existing.owner !== owner) return null;
+
+  const now = Date.now();
+  const title = updates.title || updates.content?.title || existing.content.title;
+  const description = updates.description || updates.content?.description || existing.content.description;
+  const category = updates.category || updates.content?.category || existing.content.category;
+  const locality = updates.locality || updates.content?.locality || existing.content.locality;
+
+  db.prepare(`
+    UPDATE listings
+    SET title = ?, description = ?, category = ?, locality = ?, revision = revision + 1, updated_at = ?
+    WHERE id = ? AND owner = ?
+  `).run(title, description, category, locality, now, id, owner);
+
+  return getListingByIdFromDb(id);
+}
+
 export function publishListingInDb(id: string, owner: string, expectedRevision: number) {
   const now = Date.now();
   const res = db.prepare(`
