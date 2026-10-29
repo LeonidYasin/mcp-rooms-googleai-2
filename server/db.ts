@@ -132,6 +132,17 @@ export function initDatabase() {
       reset_at INTEGER NOT NULL
     );
 
+
+    CREATE TABLE IF NOT EXISTS uploads (
+      id TEXT PRIMARY KEY,
+      filename TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      url TEXT NOT NULL,
+      owner TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
 CREATE TABLE IF NOT EXISTS audit_logs (
       id TEXT PRIMARY KEY,
       event_type TEXT NOT NULL,
@@ -1381,4 +1392,46 @@ export function checkAndConsumeRateLimit(key: string, limit: number, windowMs: n
 
 export function clearRateLimitHits() {
   db.prepare('DELETE FROM rate_limit_hits').run();
+}
+
+
+export interface UploadRecord {
+  id: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  url: string;
+  owner: string;
+  createdAt: number;
+}
+
+export function saveUploadInDb(upload: UploadRecord): UploadRecord {
+  db.prepare(`
+    INSERT INTO uploads (id, filename, mime_type, size, url, owner, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    upload.id,
+    upload.filename,
+    upload.mimeType,
+    upload.size,
+    upload.url,
+    upload.owner,
+    upload.createdAt
+  );
+
+  return upload;
+}
+
+export function getUploadByIdFromDb(id: string): UploadRecord | null {
+  const row = db.prepare('SELECT * FROM uploads WHERE id = ?').get(id) as any;
+  if (!row) return null;
+  return {
+    id: row.id,
+    filename: row.filename,
+    mimeType: row.mime_type,
+    size: row.size,
+    url: row.url,
+    owner: row.owner,
+    createdAt: row.created_at,
+  };
 }
