@@ -2,6 +2,8 @@ import {
   getListingsFromDb,
   getListingByIdFromDb,
   createListingInDb,
+  publishListingInDb,
+  withdrawListingInDb,
   getRoomsFromDb,
   getRoomByIdFromDb,
   createRoomInDb,
@@ -76,7 +78,7 @@ export const MCP_TOOLS_MANIFEST = [
   {
     name: 'create_listing',
     description:
-      'Создаёт и сохраняет новое объявление или черновик в постоянную базу данных SQLite на площадке MCP Rooms.',
+      'Создаёт и сохраняет новое объявление в статусе черновика (draft) в базе данных SQLite.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -94,6 +96,41 @@ export const MCP_TOOLS_MANIFEST = [
         condition: { type: 'string', description: 'Состояние / формат' },
       },
       required: ['title', 'description', 'category', 'kind', 'locality'],
+    },
+  },
+  {
+    name: 'preview_listing',
+    description: 'Генерирует предпросмотр черновика и токен согласия (consent token) для последующей публикации.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        listing_id: { type: 'string', description: 'Идентификатор черновика объявления' },
+      },
+      required: ['listing_id'],
+    },
+  },
+  {
+    name: 'publish_listing',
+    description: 'Публикует черновик объявления в каталог с явным токеном согласия и проверкой CAS-ревизии.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        listing_id: { type: 'string', description: 'Идентификатор черновика' },
+        consent_token: { type: 'string', description: 'Токен согласия из preview_listing' },
+        revision: { type: 'number', description: 'Ожидаемая ревизия (CAS)' },
+      },
+      required: ['listing_id', 'consent_token', 'revision'],
+    },
+  },
+  {
+    name: 'withdraw_listing',
+    description: 'Определяет отзыв (архивацию) опубликованного объявления автором.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        listing_id: { type: 'string', description: 'Идентификатор объявления' },
+      },
+      required: ['listing_id'],
     },
   },
   {
@@ -166,6 +203,9 @@ export async function executeMcpToolCall(
 ): Promise<any> {
   switch (name) {
     case 'match_listings': {
+      if (!args?.query || typeof args.query !== 'string' || !args.query.trim()) {
+        return { error: 'invalid_params', message: 'Параметр query обязателен и должен быть непустой строкой' };
+      }
       const candidates = getListingsFromDb({
         category: args.category,
         locality: args.locality,
@@ -200,6 +240,9 @@ export async function executeMcpToolCall(
     }
 
     case 'get_profile': {
+      if (!args?.profile_id || typeof args.profile_id !== 'string') {
+        return { error: 'invalid_params', message: 'Параметр profile_id обязателен' };
+      }
       const profile = getProfileByIdFromDb(args.profile_id);
       if (!profile) {
         return { error: `Профиль ${args.profile_id} не найден` };
@@ -259,8 +302,8 @@ export async function executeMcpToolCall(
           currency: 'RUB',
           condition: args.condition || 'Указано в описании',
         },
-        status: 'active',
-        visibility: 'public',
+        status: 'draft',
+        visibility: 'private',
         revision: 1,
         created_at: Date.now(),
         updated_at: Date.now(),
@@ -272,8 +315,53 @@ export async function executeMcpToolCall(
       const created = createListingInDb(newListing);
       return {
         success: true,
-        message: 'Объявление успешно сохранено в SQLite и опубликовано',
+        message: 'Черновик объявления успешно сохранён в SQLite',
         created_listing: created,
+      };
+    }
+
+    case 'preview_listing': {
+      if (!ctx.principalId) return AUTH_REQUIRED;
+      const listing = getListingByIdFromDb(args.listing_id);
+      if (!listing) return { error: `Объявление ${args.listing_id} не найдено` };
+      if (listing.owner !== ctx.principalId) return { error: 'forbidden', message: 'Не являетесь владельцем объявления' };
+
+      const consentToken = `consent-${listing.id}-r${listing.revision}-${Date.now()}`;
+      return {
+        success: true,
+        listing_id: listing.id,
+        revision: listing.revision,
+        status: listing.status,
+        consent_token: consentToken,
+        preview: toPublicListing(listing),
+      };
+    }
+
+    case 'publish_listing': {
+      if (!ctx.principalId) return AUTH_REQUIRED;
+      if (!args.consent_token) return { error: 'consent_required', message: 'consent_token обязателен' };
+      const revision = Number(args.revision);
+      if (!Number.isInteger(revision) || revision < 1) return { error: 'invalid_revision' };
+
+      const result = publishListingInDb(args.listing_id, ctx.principalId, revision);
+      if (!result.success) return { error: result.reason, current_revision: result.currentRevision };
+
+      return {
+        success: true,
+        message: 'Объявление успешно опубликовано',
+        published_listing: toPublicListing(result.listing),
+      };
+    }
+
+    case 'withdraw_listing': {
+      if (!ctx.principalId) return AUTH_REQUIRED;
+      const result = withdrawListingInDb(args.listing_id, ctx.principalId);
+      if (!result.success) return { error: result.reason };
+
+      return {
+        success: true,
+        message: 'Объявление успешно отозвано (переведено в архив)',
+        status: 'archived',
       };
     }
 
@@ -431,6 +519,43 @@ export async function handleMcpJsonRpcRequest(
 
   try {
     switch (method) {
+      case 'initialize': {
+        const clientVersion = params?.protocolVersion || '2024-11-05';
+        const sessionId = `mcp-sess-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: {
+            protocolVersion: '2024-11-05',
+            capabilities: {
+              tools: {},
+              resources: {},
+            },
+            serverInfo: {
+              name: 'mcp-rooms',
+              version: '0.1.0',
+            },
+            sessionId,
+          },
+        };
+      }
+
+      case 'notifications/initialized': {
+        return {
+          jsonrpc: '2.0',
+          id: id ?? null,
+          result: { initialized: true },
+        };
+      }
+
+      case 'ping': {
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: {},
+        };
+      }
+
       case 'tools/list':
         return {
           jsonrpc: '2.0',

@@ -5,6 +5,8 @@ import {
   getListingsFromDb,
   getListingByIdFromDb,
   createListingInDb,
+  publishListingInDb,
+  withdrawListingInDb,
   getRoomsFromDb,
   getRoomByIdFromDb,
   addMessageToRoomInDb,
@@ -317,8 +319,8 @@ function normalizeListingInput(
         currency: 'RUB',
         condition: text(body.condition) || 'Указано в описании',
       },
-      status: 'active',
-      visibility: 'public',
+      status: 'draft',
+      visibility: 'private',
       revision: 1,
       created_at: now,
       updated_at: now,
@@ -339,6 +341,93 @@ app.post('/api/listings', requireAuth, rateLimit('listings', 'RATE_LIMIT_LISTING
   try {
     const created = createListingInDb(normalized.listing);
     res.status(201).json(created);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/listings/:id/preview', requireAuth, (req, res) => {
+  try {
+    const listingId = String(req.params.id);
+    const listing = getListingByIdFromDb(listingId);
+    if (!listing) {
+      res.status(404).json({ error: 'not_found', message: 'Listing not found' });
+      return;
+    }
+    if (listing.owner !== req.principal!.principalId) {
+      res.status(403).json({ error: 'forbidden', message: 'Не являетесь владельцем объявления' });
+      return;
+    }
+
+    const consentToken = `consent-${listing.id}-r${listing.revision}-${Date.now()}`;
+    res.json({
+      listing_id: listing.id,
+      revision: listing.revision,
+      status: listing.status,
+      consent_token: consentToken,
+      preview: toPublicListing(listing),
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/listings/:id/publish', requireAuth, (req, res) => {
+  try {
+    const listingId = String(req.params.id);
+    const { consent_token, revision } = req.body || {};
+    if (!consent_token || typeof consent_token !== 'string') {
+      res.status(422).json({ error: 'consent_required', message: 'consent_token is required' });
+      return;
+    }
+    const expectedRevision = Number(revision);
+    if (!Number.isInteger(expectedRevision) || expectedRevision < 1) {
+      res.status(422).json({ error: 'invalid_revision', message: 'revision must be a positive integer' });
+      return;
+    }
+
+    const result = publishListingInDb(listingId, req.principal!.principalId, expectedRevision);
+    if (!result.success) {
+      if (result.reason === 'not_found') {
+        res.status(404).json({ error: 'not_found', message: 'Listing not found' });
+        return;
+      }
+      if (result.reason === 'forbidden') {
+        res.status(403).json({ error: 'forbidden', message: 'Не являетесь владельцем объявления' });
+        return;
+      }
+      if (result.reason === 'revision_mismatch') {
+        res.status(409).json({ error: 'revision_mismatch', current_revision: result.currentRevision });
+        return;
+      }
+      res.status(400).json({ error: result.reason });
+      return;
+    }
+
+    res.json(toPublicListing(result.listing));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/listings/:id/withdraw', requireAuth, (req, res) => {
+  try {
+    const listingId = String(req.params.id);
+    const result = withdrawListingInDb(listingId, req.principal!.principalId);
+    if (!result.success) {
+      if (result.reason === 'not_found') {
+        res.status(404).json({ error: 'not_found', message: 'Listing not found' });
+        return;
+      }
+      if (result.reason === 'forbidden') {
+        res.status(403).json({ error: 'forbidden', message: 'Не являетесь владельцем объявления' });
+        return;
+      }
+      res.status(400).json({ error: result.reason });
+      return;
+    }
+
+    res.json({ success: true, status: 'archived', listing_id: listingId });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -388,6 +477,13 @@ app.get('/api/rooms/:id/stream', requireAuth, (req, res) => {
     return;
   }
 
+  // PR-8: Enforce max 50 concurrent SSE subscribers per room
+  const MAX_ROOM_SUBSCRIBERS = 50;
+  if (roomEventBus.getSubscriberCount(roomId) >= MAX_ROOM_SUBSCRIBERS) {
+    res.status(429).json({ error: 'too_many_subscribers', message: 'Превышен лимит подключений к комнате (макс. 50)' });
+    return;
+  }
+
   // Set SSE Headers
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -396,20 +492,32 @@ app.get('/api/rooms/:id/stream', requireAuth, (req, res) => {
     'X-Accel-Buffering': 'no',
   });
 
-  // Client lastEventId for reconnection support
-  const lastEventId = (req.headers['last-event-id'] as string) || '';
+  // Client lastEventId for reconnection and replay support
+  const lastEventId = (req.headers['last-event-id'] as string) || (req.query.lastEventId as string) || '';
 
   // Current negotiation if exists
   const negs = getNegotiationsFromDb();
   const roomNeg = negs.find((n) => n.roomId === roomId) || null;
 
-  // Send initial snapshot with all SQLite messages
+  // PR-8: Replay missing messages if lastEventId was provided
+  let filteredMessages = room.messages;
+  if (lastEventId) {
+    const lastTimeMatch = lastEventId.match(/(\d+)$/);
+    if (lastTimeMatch) {
+      const lastTimestamp = Number(lastTimeMatch[1]);
+      if (Number.isFinite(lastTimestamp)) {
+        filteredMessages = room.messages.filter((m: any) => m.timestamp > lastTimestamp);
+      }
+    }
+  }
+
+  // Send initial snapshot with SQLite messages (replayed or full)
   const initialPayload = {
     roomId: room.id,
     listingTitle: room.listingTitle,
     participants: room.participants,
     status: room.status,
-    messages: room.messages, // All messages loaded directly from SQLite
+    messages: filteredMessages,
     negotiation: roomNeg,
     serverTime: Date.now(),
     lastEventId,
