@@ -42,7 +42,7 @@
 | :--- | :--- | :--- | :--- |
 | **Модуль 1** | Ticket-based SSE Auth | Сессия A (Jules) | ✅ Завершено (PR #25) |
 | **Модуль 2** | Playwright Headless E2E Suite | Сессия A (Jules) | ✅ Завершено (`tests/e2e/`, `playwright.config.ts`) |
-| **Модуль 2.1**| Playwright E2E Integration in CI | Любая свободна | ⏳ Открыта |
+| **Модуль 2.1**| Playwright E2E Integration in CI | Сессия A (Jules) | 🔄 В разработке (Issue #55) |
 | **Модуль 3** | Caddy/Nginx TLS & Runbook | Сессия A (Jules) | ✅ Завершено (PR #29) |
-| **Модуль 4** | Real Multi-Agent Room Negotiations | Любая свободна | ⏳ Открыта |
-| **Модуль 5** | Webhooks & Agent Event Delivery | Любая свободна | ⏳ Открыта |
+| **Модуль 4** | Real Multi-Agent Room Negotiations | Любая свободна | ⏳ Открыта (Issue #56) |
+| **Модуль 5** | Webhooks & Agent Event Delivery | Любая свободна | ⏳ Открыта (Issue #57) |
