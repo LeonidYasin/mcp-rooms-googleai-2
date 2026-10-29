@@ -15,7 +15,10 @@
 | **RBAC / Scope-based Access Control для API-ключей** | Сессия A (Jules) | ✅ Завершено (PR #11) | PR #11 merged in `main` (`server/auth.ts`) |
 | **Audit Logs (Трассировка действий агентов и прав)** | Сессия A (Jules) | ✅ Завершено (PR #12) | PR #12 merged in `main` (`server/db.ts`) |
 | **Персистентный Rate Limiting & Trust Proxy** | Сессия A (Jules) | ✅ Завершено (PR #14) | PR #14 merged in `main` (`server/http-guard.ts`) |
-| **Персистентное хранилище изображений (`/uploads`)** | Сессия A (Jules) | 🔄 В разработке | `feat/image-media-storage` |
+| **Персистентное хранилище изображений (`/uploads`)** | Сессия A (Jules) | ✅ Завершено (PR #16) | PR #16 merged in `main` (`server.ts`) |
+| **Ticket-based SSE Auth & Stream Security** | Сессия A (Jules) | ✅ Завершено (PR #24) | PR #24 merged in `main` (`docs/final_production_roadmap.md`) |
+| **Playwright Headless E2E Tests** | Сессия B (Рекомендуется) | ⏳ Ожидает | Добавление E2E на фронтенд React |
+| **Caddy / Reverse Proxy Config & TLS** | Сессия C (Рекомендуется) | ⏳ Ожидает | Файл `Caddyfile` и финальный Runbook |
 
 ---
 
@@ -31,7 +34,7 @@
 3. **Создание и слияние PR:**
    - Используйте инструмент `scripts/github_mcp_cli.py` для создания PR:
      ```bash
-     GITHUB_TOKEN="$TOKEN" python3 scripts/github_mcp_cli.py --repo LeonidYasin/mcp-rooms-googleai-2 prs create --title "..." --head <branch> --base main --body "..."
+     GITHUB_TOKEN="" python3 scripts/github_mcp_cli.py --repo LeonidYasin/mcp-rooms-googleai-2 prs create --title "..." --head <branch> --base main --body "..."
      ```
    - Если тесты CI проходят, PR можно сливать командой `prs merge --number <PR_NUM>`.
 
