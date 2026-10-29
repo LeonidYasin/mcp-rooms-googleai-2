@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { checkAndConsumeRateLimit, clearRateLimitHits } from './db';
 
 /**
  * F-13: the HTTP edge had a 10 MB JSON body limit, no security headers, no
@@ -115,28 +116,20 @@ function sweep(now: number) {
 export function rateLimit(name: string, envName: string, fallbackPerMinute: number) {
   return (req: Request, res: Response, next: NextFunction) => {
     const max = configuredLimit(envName, fallbackPerMinute);
-    const identity = req.principal?.principalId || req.ip || 'unknown';
+    const identity = req.principal?.principalId || req.ip || req.socket?.remoteAddress || 'unknown';
     const key = `${name}:${identity}`;
-    const now = Date.now();
 
-    let bucket = buckets.get(key);
-    if (!bucket || bucket.resetAt <= now) {
-      bucket = { count: 0, resetAt: now + WINDOW_MS };
-      buckets.set(key, bucket);
-    }
-    bucket.count += 1;
+    const status = checkAndConsumeRateLimit(key, max, WINDOW_MS);
 
-    res.setHeader('X-RateLimit-Limit', String(max));
-    if (bucket.count > max) {
-      const retryAfter = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
-      res.setHeader('X-RateLimit-Remaining', '0');
-      res.setHeader('Retry-After', String(retryAfter));
-      res.status(429).json({ error: 'rate_limited', retryAfterSeconds: retryAfter });
+    res.setHeader('X-RateLimit-Limit', String(status.limit));
+    res.setHeader('X-RateLimit-Remaining', String(status.remaining));
+
+    if (!status.allowed) {
+      res.setHeader('Retry-After', String(status.retryAfterSeconds));
+      res.status(429).json({ error: 'rate_limited', retryAfterSeconds: status.retryAfterSeconds });
       return;
     }
 
-    res.setHeader('X-RateLimit-Remaining', String(max - bucket.count));
-    if (buckets.size > MAX_BUCKETS) sweep(now);
     next();
   };
 }
@@ -144,6 +137,7 @@ export function rateLimit(name: string, envName: string, fallbackPerMinute: numb
 /** Test helper: drops all counters. */
 export function resetRateLimits() {
   buckets.clear();
+  clearRateLimitHits();
 }
 
 export function httpErrorHandler(err: any, _req: Request, res: Response, next: NextFunction) {

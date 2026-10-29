@@ -125,7 +125,14 @@ export function initDatabase() {
       updated_at INTEGER NOT NULL,
       FOREIGN KEY(room_id) REFERENCES rooms(id) ON DELETE CASCADE
     );
-    CREATE TABLE IF NOT EXISTS audit_logs (
+    
+    CREATE TABLE IF NOT EXISTS rate_limit_hits (
+      key TEXT PRIMARY KEY,
+      count INTEGER NOT NULL,
+      reset_at INTEGER NOT NULL
+    );
+
+CREATE TABLE IF NOT EXISTS audit_logs (
       id TEXT PRIMARY KEY,
       event_type TEXT NOT NULL,
       actor_id TEXT NOT NULL,
@@ -1339,4 +1346,39 @@ export function getAuditLogs(filter: { actorId?: string; eventType?: string; lim
     details: r.details_json ? JSON.parse(r.details_json) : undefined,
     createdAt: r.created_at,
   }));
+}
+
+
+export interface RateLimitStatus {
+  allowed: boolean;
+  limit: number;
+  remaining: number;
+  retryAfterSeconds: number;
+}
+
+export function checkAndConsumeRateLimit(key: string, limit: number, windowMs: number = 60000): RateLimitStatus {
+  const now = Date.now();
+  // Sweep expired hits
+  db.prepare('DELETE FROM rate_limit_hits WHERE reset_at <= ?').run(now);
+
+  const row = db.prepare('SELECT * FROM rate_limit_hits WHERE key = ?').get(key) as any;
+
+  if (!row) {
+    const resetAt = now + windowMs;
+    db.prepare('INSERT INTO rate_limit_hits (key, count, reset_at) VALUES (?, 1, ?)').run(key, resetAt);
+    return { allowed: true, limit, remaining: limit - 1, retryAfterSeconds: 0 };
+  }
+
+  if (row.count >= limit) {
+    const retryAfter = Math.max(1, Math.ceil((row.reset_at - now) / 1000));
+    return { allowed: false, limit, remaining: 0, retryAfterSeconds: retryAfter };
+  }
+
+  const newCount = row.count + 1;
+  db.prepare('UPDATE rate_limit_hits SET count = ? WHERE key = ?').run(newCount, key);
+  return { allowed: true, limit, remaining: limit - newCount, retryAfterSeconds: 0 };
+}
+
+export function clearRateLimitHits() {
+  db.prepare('DELETE FROM rate_limit_hits').run();
 }
