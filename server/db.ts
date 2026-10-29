@@ -337,7 +337,7 @@ function ensureNewCategoriesSeeded() {
         insertListing.run(item);
       }
     }
-  } catch (err) {
+  } catch (err: any) {
     logger.error('Error ensuring new categories seeded', { error: err?.message || String(err) });
   }
 }
@@ -966,9 +966,10 @@ export type MessageInsertFailure = 'room_not_found' | 'duplicate_message_id';
  * returns null and must be surfaced as a real error, never swallowed.
  */
 export function classifyMessageInsertError(err: unknown): MessageInsertFailure | null {
-  const code = (err as { code?: string } | null)?.code;
-  if (code === 'SQLITE_CONSTRAINT_FOREIGNKEY') return 'room_not_found';
-  if (code === 'SQLITE_CONSTRAINT_PRIMARYKEY' || code === 'SQLITE_CONSTRAINT_UNIQUE') {
+  const code = (err as { code?: string; message?: string } | null)?.code;
+  const message = (err as { message?: string } | null)?.message;
+  if (code === 'SQLITE_CONSTRAINT_FOREIGNKEY' || (message && message.includes('FOREIGN KEY constraint failed'))) return 'room_not_found';
+  if (code === 'SQLITE_CONSTRAINT_PRIMARYKEY' || code === 'SQLITE_CONSTRAINT_UNIQUE' || (message && message.includes('UNIQUE constraint failed'))) {
     return 'duplicate_message_id';
   }
   return null;
@@ -1431,6 +1432,73 @@ export function clearRateLimitHits() {
   db.prepare('DELETE FROM rate_limit_hits').run();
 }
 
+
+export interface RoomEventRecord {
+  id: string;
+  roomId: string;
+  eventType: string;
+  payload: any;
+  createdAt: number;
+}
+
+let eventSeq = 0;
+
+export function saveRoomEventInDb(event: {
+  id?: string;
+  roomId: string;
+  eventType: string;
+  payload: any;
+  createdAt?: number;
+}): RoomEventRecord {
+  const now = event.createdAt || Date.now();
+  eventSeq = (eventSeq + 1) % 1000;
+  const seqStr = String(eventSeq).padStart(3, '0');
+  const eventId = event.id || `evt-${now}-${seqStr}`;
+
+  db.prepare(`
+    INSERT OR REPLACE INTO room_events (id, room_id, event_type, payload_json, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(
+    eventId,
+    event.roomId,
+    event.eventType,
+    JSON.stringify(event.payload),
+    now
+  );
+
+  return {
+    id: eventId,
+    roomId: event.roomId,
+    eventType: event.eventType,
+    payload: event.payload,
+    createdAt: now,
+  };
+}
+
+export function getRoomEventsAfterInDb(roomId: string, lastEventId: string): RoomEventRecord[] {
+  let cutoffTimestamp = 0;
+  if (lastEventId) {
+    const timeMatches = lastEventId.match(/\d+/g);
+    if (timeMatches && timeMatches.length > 0) {
+      const tsMatch = timeMatches.find((m) => Number(m) >= 1000) || timeMatches[timeMatches.length - 1];
+      cutoffTimestamp = Number(tsMatch);
+    }
+  }
+
+  const rows = db.prepare(`
+    SELECT * FROM room_events
+    WHERE room_id = ? AND created_at > ?
+    ORDER BY created_at ASC
+  `).all(roomId, cutoffTimestamp) as any[];
+
+  return rows.map((r) => ({
+    id: r.id,
+    roomId: r.room_id,
+    eventType: r.event_type,
+    payload: JSON.parse(r.payload_json || '{}'),
+    createdAt: r.created_at,
+  }));
+}
 
 export interface UploadRecord {
   id: string;
