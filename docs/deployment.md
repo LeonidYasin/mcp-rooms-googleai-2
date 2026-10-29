@@ -89,7 +89,8 @@ For automated zero-downtime updates on every `git push` to `main`:
 1. Store the following GitHub Repository Secrets (`Settings -> Secrets and variables -> Actions`):
    - `VPS_HOST`: Public IP or domain of your server.
    - `VPS_USERNAME`: SSH username (e.g. `root` or `deploy`).
-   - `VPS_SSH_KEY`: Private SSH key for server access.
+   - `VPS_PASSWORD`: Password for SSH authentication (if not using SSH key).
+   - `VPS_SSH_KEY`: Private SSH key for server access (optional if password is set).
 
 2. Create workflow file `.github/workflows/deploy.yml`:
 

@@ -837,11 +837,21 @@ export function updateListingInDb(id: string, updates: any, owner: string) {
   const category = updates.category || updates.content?.category || existing.content.category;
   const locality = updates.locality || updates.content?.locality || existing.content.locality;
 
+  let priceMinor = existing.content.price_minor;
+  if (updates.price_rubles !== undefined) {
+    const rubles = Number(updates.price_rubles);
+    priceMinor = Number.isFinite(rubles) && rubles > 0 ? Math.floor(rubles * 100) : 0;
+  } else if (updates.price_minor !== undefined) {
+    priceMinor = updates.price_minor;
+  } else if (updates.content?.price_minor !== undefined) {
+    priceMinor = updates.content.price_minor;
+  }
+
   db.prepare(`
     UPDATE listings
-    SET title = ?, description = ?, category = ?, locality = ?, revision = revision + 1, updated_at = ?
+    SET title = ?, description = ?, category = ?, locality = ?, price_minor = ?, revision = revision + 1, updated_at = ?
     WHERE id = ? AND owner = ?
-  `).run(title, description, category, locality, now, id, owner);
+  `).run(title, description, category, locality, priceMinor, now, id, owner);
 
   return getListingByIdFromDb(id);
 }

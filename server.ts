@@ -8,6 +8,7 @@ import {
   getListingsFromDb,
   getListingByIdFromDb,
   createListingInDb,
+  updateListingInDb,
   publishListingInDb,
   withdrawListingInDb,
   getRoomsFromDb,
@@ -249,6 +250,20 @@ app.get('/api/llm/status', (_req, res) => {
   res.json(llmStatus());
 });
 
+app.get('/healthz', (_req, res) => {
+  res.json({
+    status: 'ok',
+    uptime: process.uptime(),
+  });
+});
+
+app.get('/readyz', (_req, res) => {
+  res.json({
+    status: 'ready',
+    database: 'connected',
+  });
+});
+
 app.get('/api/health', (_req, res) => {
   const memory = process.memoryUsage();
   const dbPath = process.env.DATABASE_PATH || path.resolve(process.cwd(), 'data', 'mcp_rooms.db');
@@ -416,6 +431,30 @@ app.post('/api/listings', requireAuth, rateLimit('listings', 'RATE_LIMIT_LISTING
   try {
     const created = createListingInDb(normalized.listing);
     res.status(201).json(created);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/listings/:id', requireAuth, (req, res) => {
+  try {
+    const listingId = String(req.params.id);
+    const existing = getListingByIdFromDb(listingId);
+    if (!existing) {
+      res.status(404).json({ error: 'not_found', message: 'Listing not found' });
+      return;
+    }
+    if (existing.owner !== req.principal!.principalId) {
+      res.status(403).json({ error: 'forbidden', message: 'Не являетесь владельцем объявления' });
+      return;
+    }
+
+    const updated = updateListingInDb(listingId, req.body || {}, req.principal!.principalId);
+    if (!updated) {
+      res.status(500).json({ error: 'update_failed' });
+      return;
+    }
+    res.json(toPublicListing(updated));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
