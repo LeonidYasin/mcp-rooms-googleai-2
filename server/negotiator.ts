@@ -8,6 +8,12 @@ import { matchListingAsymmetric } from './embeddings';
 export interface NegotiationOptions {
   /** Principal on whose behalf the demo or action runs. Used for display / ownership checks. */
   principalId?: string;
+  /**
+   * Execution mode:
+   * - 'demo' (default): rule-based simulated script without creating DB rooms or messaging authors
+   * - 'real': creates an active SQLite room and posts real messages to room participants
+   */
+  mode?: 'demo' | 'real';
 }
 
 export interface NegotiationStep {
@@ -340,6 +346,92 @@ export async function runAutonomousNegotiation(
   }
 
   const script = buildDemoScript(bestMatch);
+
+  // If real execution mode is explicitly requested, create a real SQLite room and send messages
+  if (options?.mode === 'real') {
+    const { createRoomInDb, saveNegotiationInDb, addMessageToRoomInDb } = await import('./db');
+    const realRoomId = `room-real-${now}-${Math.random().toString(36).substring(2, 6)}`;
+    const participants = [principalId, bestMatch.owner, 'agent:mcp-angel'];
+
+    createRoomInDb({
+      id: realRoomId,
+      listingId: bestMatch.id,
+      listingTitle: bestMatch.content.title,
+      participants,
+    });
+
+    const msg1 = {
+      id: `msg-real-${now}-1`,
+      roomId: realRoomId,
+      sender: principalId,
+      role: 'human' as const,
+      text: script.angelMessage1,
+      timestamp: now + 100,
+    };
+    addMessageToRoomInDb(msg1);
+
+    // Reactive counter-agent response
+    const agentMsg = await generateReactiveAgentResponse(realRoomId, principalId, userPrompt);
+
+    saveNegotiationInDb({
+      id: `neg-${now}`,
+      roomId: realRoomId,
+      listingId: bestMatch.id,
+      userGoal: userPrompt,
+      initiatorAgent: principalId,
+      counterpartAgent: bestMatch.owner,
+      status: 'in_progress',
+      rounds: [msg1, agentMsg].filter(Boolean),
+    });
+
+    steps.push({
+      type: 'agent_reply',
+      title: 'Комната переговоров создана в SQLite',
+      detail: `Создана реальная комната переговоров #${realRoomId} по объявлению «${bestMatch.content.title}».`,
+      status: 'completed',
+      timestamp: now + 200,
+    });
+
+    const realDialogue: NegotiationDialogueTurn[] = [
+      {
+        sender: principalId,
+        role: 'human',
+        agentName: principalId,
+        avatar: '👤',
+        text: msg1.text,
+        timestamp: msg1.timestamp,
+        simulated: false,
+      },
+    ];
+
+    if (agentMsg) {
+      realDialogue.push({
+        sender: agentMsg.sender,
+        role: 'agent',
+        agentName: `Агент автора (${bestMatch.author_name})`,
+        avatar: '🤖',
+        text: agentMsg.text,
+        timestamp: agentMsg.timestamp,
+        simulated: false,
+      });
+    }
+
+    return {
+      negotiationId: `neg-${now}`,
+      status: 'demo_preview',
+      demo: true,
+      targetListing: bestMatch,
+      roomId: realRoomId as any,
+      roomTitle: `Комната переговоров: ${bestMatch.content.title}`,
+      steps,
+      dialogue: realDialogue,
+      summary: `Создана реальная комната переговоров #${realRoomId} с автором «${bestMatch.author_name}». Первые сообщения сохранены в SQLite.`,
+      similarityScore: matchScore,
+      matchMethod,
+      matchReason,
+    };
+  }
+
   const turn1Time = now + 400;
   const turn2Time = now + 900;
   const turn3Time = now + 1400;

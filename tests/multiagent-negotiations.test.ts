@@ -49,6 +49,20 @@ describe('Multi-Agent Reactive Room Conversations', () => {
     expect(agentReply.text).toContain('Касательно цены');
   });
 
+  it('creates active SQLite room in real mode via runAutonomousNegotiation', async () => {
+    const { runAutonomousNegotiation } = await import('../server/negotiator');
+    const result = await runAutonomousNegotiation('Ищу велосипед в Казани', undefined, {
+      principalId: 'user:alice-tester',
+      mode: 'real',
+    });
+
+    expect(result.roomId).not.toBeNull();
+    expect(result.roomId).toMatch(/^room-real-/);
+    const room = getRoomByIdFromDb(result.roomId!);
+    expect(room).not.toBeNull();
+    expect(room!.messages.length).toBeGreaterThanOrEqual(1);
+  });
+
   it('generates reactive agent reply on send_message', async () => {
     const listings = getListingsFromDb({});
     const listing = listings[0];
