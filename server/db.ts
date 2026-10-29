@@ -834,6 +834,27 @@ export function publishListingInDb(id: string, owner: string, expectedRevision: 
   return { success: true, listing: getListingByIdFromDb(id) };
 }
 
+export function updateListingInDb(id: string, owner: string, updates: { title?: string; description?: string; price_rubles?: number; locality?: string }) {
+  const existing = getListingByIdFromDb(id);
+  if (!existing) return { success: false, reason: 'not_found' };
+  if (existing.owner !== owner) return { success: false, reason: 'forbidden' };
+
+  const now = Date.now();
+  const title = updates.title !== undefined ? updates.title.trim() : existing.content.title;
+  const description = updates.description !== undefined ? updates.description.trim() : existing.content.description;
+  const locality = updates.locality !== undefined ? updates.locality.trim() : existing.content.locality;
+  const priceRubles = updates.price_rubles !== undefined ? Number(updates.price_rubles) : (existing.content.price_minor ? existing.content.price_minor / 100 : 0);
+  const priceMinor = priceRubles > 0 ? Math.floor(priceRubles * 100) : null;
+
+  db.prepare(`
+    UPDATE listings
+    SET title = ?, description = ?, locality = ?, price_minor = ?, revision = revision + 1, updated_at = ?
+    WHERE id = ? AND owner = ?
+  `).run(title, description, locality, priceMinor, now, id, owner);
+
+  return { success: true, listing: getListingByIdFromDb(id) };
+}
+
 export function withdrawListingInDb(id: string, owner: string) {
   const now = Date.now();
   const res = db.prepare(`
