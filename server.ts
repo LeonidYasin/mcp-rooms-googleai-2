@@ -8,6 +8,7 @@ import {
   getListingsFromDb,
   getListingByIdFromDb,
   createListingInDb,
+  updateListingInDb,
   publishListingInDb,
   withdrawListingInDb,
   getRoomsFromDb,
@@ -20,6 +21,7 @@ import {
   classifyMessageInsertError,
   saveUploadInDb,
   addAuditLog,
+  db,
 } from './server/db';
 import { handleMcpJsonRpcRequest, executeMcpToolCall, MCP_TOOLS_MANIFEST } from './server/mcp';
 import { runAutonomousNegotiation } from './server/negotiator';
@@ -249,6 +251,29 @@ app.get('/api/llm/status', (_req, res) => {
   res.json(llmStatus());
 });
 
+app.get('/healthz', (_req, res) => {
+  res.json({
+    status: 'ok',
+    uptime: Math.floor(process.uptime()),
+  });
+});
+
+app.get('/readyz', (_req, res) => {
+  try {
+    db.prepare('SELECT 1').get();
+    res.json({
+      status: 'ready',
+      database: 'connected',
+    });
+  } catch (err: any) {
+    res.status(503).json({
+      status: 'not_ready',
+      database: 'disconnected',
+      error: err.message,
+    });
+  }
+});
+
 app.get('/api/health', (_req, res) => {
   const memory = process.memoryUsage();
   const dbPath = process.env.DATABASE_PATH || path.resolve(process.cwd(), 'data', 'mcp_rooms.db');
@@ -289,6 +314,31 @@ app.post('/api/match', rateLimit('match', 'RATE_LIMIT_MATCH_PER_MINUTE', 60), as
       embedding_status: getEmbeddingProviderStatus(),
       matches,
     });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/listings/:id', requireAuth, (req, res) => {
+  try {
+    const listingId = String(req.params.id);
+    const existing = getListingByIdFromDb(listingId);
+    if (!existing) {
+      res.status(404).json({ error: 'not_found', message: 'Listing not found' });
+      return;
+    }
+    if (existing.owner !== req.principal!.principalId) {
+      res.status(403).json({ error: 'forbidden', message: 'Не являетесь владельцем объявления' });
+      return;
+    }
+
+    const updated = updateListingInDb(listingId, req.body || {}, req.principal!.principalId);
+    if (!updated) {
+      res.status(500).json({ error: 'update_failed', message: 'Failed to update listing' });
+      return;
+    }
+
+    res.json(toPublicListing(updated));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

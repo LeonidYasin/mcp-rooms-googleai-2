@@ -28,14 +28,17 @@ jobs:
       - name: Install
         run: npm ci --no-audit --no-fund
 
-      - name: Typecheck
-        run: npx tsc --noEmit
+      - name: Lint and Typecheck
+        run: npm run lint
 
       - name: Unit tests
         run: npx vitest run --reporter=verbose
 
       - name: Build
         run: npm run build
+
+      - name: Check bundle size
+        run: npm run check:bundle
 
       - name: Production start smoke
         env:
@@ -55,6 +58,8 @@ jobs:
           if ! curl -fsS http://127.0.0.1:3100/api/listings > /dev/null; then
             echo 'server did not become ready'; cat /tmp/server.log; exit 1
           fi
+          curl -fsS http://127.0.0.1:3100/healthz > /dev/null
+          curl -fsS http://127.0.0.1:3100/readyz > /dev/null
           curl -fsS -X POST http://127.0.0.1:3100/mcp \
             -H 'content-type: application/json' \
             -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' > /tmp/mcp.json
@@ -117,6 +122,8 @@ jobs:
           grep -q '\[' /tmp/listings.json
           # The SPA is served from dist/ (production branch of start()).
           curl -fsS http://127.0.0.1:3200/ | grep -q 'id="root"'
+          curl -fsS http://127.0.0.1:3200/healthz > /dev/null
+          curl -fsS http://127.0.0.1:3200/readyz > /dev/null
           curl -fsS -X POST http://127.0.0.1:3200/mcp \
             -H 'content-type: application/json' \
             -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' > /tmp/mcp.json
