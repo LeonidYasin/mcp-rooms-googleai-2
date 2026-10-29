@@ -1,4 +1,5 @@
 import {
+  addAuditLog,
   getListingsFromDb,
   getListingByIdFromDb,
   createListingInDb,
@@ -313,6 +314,7 @@ export async function executeMcpToolCall(
       };
 
       const created = createListingInDb(newListing);
+      addAuditLog('listing.create', ctx.principalId, created.id, { title: created.content.title });
       return {
         success: true,
         message: 'Черновик объявления успешно сохранён в SQLite',
@@ -346,6 +348,7 @@ export async function executeMcpToolCall(
       const result = publishListingInDb(args.listing_id, ctx.principalId, revision);
       if (!result.success) return { error: result.reason, current_revision: result.currentRevision };
 
+      addAuditLog('listing.publish', ctx.principalId, args.listing_id);
       return {
         success: true,
         message: 'Объявление успешно опубликовано',
@@ -358,6 +361,7 @@ export async function executeMcpToolCall(
       const result = withdrawListingInDb(args.listing_id, ctx.principalId);
       if (!result.success) return { error: result.reason };
 
+      addAuditLog('listing.withdraw', ctx.principalId, args.listing_id);
       return {
         success: true,
         message: 'Объявление успешно отозвано (переведено в архив)',
@@ -448,6 +452,7 @@ export async function executeMcpToolCall(
 
       try {
         addMessageToRoomInDb(msg);
+        addAuditLog('room.send_message', sender, args.room_id, { text_length: text.length });
         await generateReactiveAgentResponse(args.room_id, sender, text);
       } catch (err) {
         const reason = classifyMessageInsertError(err);

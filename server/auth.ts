@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 import {
+  addAuditLog,
   createApiKeyInDb,
   getApiKeyByDigestInDb,
   touchApiKeyInDb,
@@ -148,6 +149,7 @@ export function requireScope(requiredScope: ApiScope) {
       return;
     }
     if (!hasScope(req.principal, requiredScope)) {
+      addAuditLog('auth.forbidden_scope', req.principal.principalId, undefined, { requiredScope });
       res.status(403).json({
         error: 'forbidden_scope',
         message: `Недостаточно прав. Требуется scope: ${requiredScope}`,

@@ -11,10 +11,10 @@
 | **Управление PR/Issues через CLI** | Сессия A (Jules) | ✅ Завершено | `scripts/github_mcp_cli.py`, `docs/mcp_cli_instructions.md` |
 | **Транспорт MCP JSON-RPC & SSE** | Сессия B | ✅ Завершено (PR #7) | PR #7 merged in `main` |
 | **Жизненный цикл объявлений (Draft -> Preview -> Publish)** | Сессия B | ✅ Завершено (PR #7) | PR #7 merged in `main` |
-| **Реактивный мульти-агентный чат в комнатах** | Сессия A (Jules) | ✅ Завершено | PR #10 merged in `main` (`server/negotiator.ts`) |
-| **RBAC / Scope-based Access Control для API-ключей** | Сессия A (Jules) | 🔄 В разработке | `feat/rbac-scopes-and-session-docs` |
+| **Реактивный мульти-агентный чат в комнатах** | Сессия A (Jules) | ✅ Завершено (PR #10) | PR #10 merged in `main` (`server/negotiator.ts`) |
+| **RBAC / Scope-based Access Control для API-ключей** | Сессия A (Jules) | ✅ Завершено (PR #11) | PR #11 merged in `main` (`server/auth.ts`) |
+| **Audit Logs (Трассировка действий агентов и прав)** | Сессия A (Jules) | 🔄 В разработке | `feat/audit-logs-observability` |
 | **Персистентный Rate Limiting & Trust Proxy** | Сессия B (Рекомендуется) | ⏳ Ожидает | Ограничение попыток запросов на уровне SQLite БД |
-| **Audit Logs (Трассировка действий агентов и прав)** | Сессия B (Рекомендуется) | ⏳ Ожидает | Таблица `audit_logs` и логирование 403 / write операций |
 | **Персистентное хранилище изображений (`/uploads`)** | Любая сессия | ⏳ Ожидает | Хранение изображений карточек на сервере с миниатюрами |
 
 ---
