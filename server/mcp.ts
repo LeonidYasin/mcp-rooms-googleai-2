@@ -314,7 +314,9 @@ export async function executeMcpToolCall(
       };
 
       const created = createListingInDb(newListing);
-      addAuditLog('listing.create', ctx.principalId, created.id, { title: created.content.title });
+      if (created) {
+        addAuditLog('listing.create', ctx.principalId, created.id, { title: created.content.title });
+      }
       return {
         success: true,
         message: 'Черновик объявления успешно сохранён в SQLite',
