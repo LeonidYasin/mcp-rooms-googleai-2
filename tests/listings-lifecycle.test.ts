@@ -188,7 +188,8 @@ describe('Listings publication lifecycle: draft -> preview -> publish -> withdra
     expect(withdrawRes.status).toBe(200);
 
     const stored = getListingByIdFromDb(draft.id);
-    expect(stored.status).toBe('archived');
+    expect(stored).not.toBeNull();
+    expect(stored!.status).toBe('archived');
 
     // Withdrawn listing no longer appears in public catalog
     const catalogRes = await fetch(`${baseUrl}/api/listings`);
