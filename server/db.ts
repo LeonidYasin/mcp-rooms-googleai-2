@@ -760,8 +760,8 @@ export function createListingInDb(listing: any) {
     price_minor: listing.content.price_minor,
     currency: listing.content.currency || 'RUB',
     condition: listing.content.condition || null,
-    status: listing.status || 'active',
-    visibility: listing.visibility || 'public',
+    status: listing.status || 'draft',
+    visibility: listing.visibility || 'private',
     revision: listing.revision || 1,
     created_at: listing.created_at || Date.now(),
     updated_at: listing.updated_at || Date.now(),
@@ -771,6 +771,43 @@ export function createListingInDb(listing: any) {
   });
 
   return getListingByIdFromDb(listing.id);
+}
+
+export function publishListingInDb(id: string, owner: string, expectedRevision: number) {
+  const now = Date.now();
+  const res = db.prepare(`
+    UPDATE listings
+    SET status = 'active', visibility = 'public', revision = revision + 1, updated_at = ?
+    WHERE id = ? AND owner = ? AND revision = ?
+  `).run(now, id, owner, expectedRevision);
+
+  if (res.changes === 0) {
+    const existing = getListingByIdFromDb(id);
+    if (!existing) return { success: false, reason: 'not_found' };
+    if (existing.owner !== owner) return { success: false, reason: 'forbidden' };
+    if (existing.revision !== expectedRevision) return { success: false, reason: 'revision_mismatch', currentRevision: existing.revision };
+    return { success: false, reason: 'unknown' };
+  }
+
+  return { success: true, listing: getListingByIdFromDb(id) };
+}
+
+export function withdrawListingInDb(id: string, owner: string) {
+  const now = Date.now();
+  const res = db.prepare(`
+    UPDATE listings
+    SET status = 'archived', visibility = 'private', revision = revision + 1, updated_at = ?
+    WHERE id = ? AND owner = ?
+  `).run(now, id, owner);
+
+  if (res.changes === 0) {
+    const existing = getListingByIdFromDb(id);
+    if (!existing) return { success: false, reason: 'not_found' };
+    if (existing.owner !== owner) return { success: false, reason: 'forbidden' };
+    return { success: false, reason: 'unknown' };
+  }
+
+  return { success: true, listing: getListingByIdFromDb(id) };
 }
 
 export function getRoomsFromDb() {

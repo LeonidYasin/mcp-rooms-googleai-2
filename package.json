@@ -9,6 +9,8 @@
     "start": "tsx server.ts",
     "key:issue": "tsx scripts/issue-key.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
+    "db:backup": "tsx scripts/backup-db.ts",
+    "db:restore": "tsx scripts/restore-db.ts",
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "preview": "vite preview"
