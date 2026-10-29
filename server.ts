@@ -5,6 +5,8 @@ import {
   getListingsFromDb,
   getListingByIdFromDb,
   createListingInDb,
+  publishListingInDb,
+  withdrawListingInDb,
   getRoomsFromDb,
   getRoomByIdFromDb,
   addMessageToRoomInDb,
@@ -317,8 +319,8 @@ function normalizeListingInput(
         currency: 'RUB',
         condition: text(body.condition) || 'Указано в описании',
       },
-      status: 'active',
-      visibility: 'public',
+      status: 'draft',
+      visibility: 'private',
       revision: 1,
       created_at: now,
       updated_at: now,
@@ -339,6 +341,93 @@ app.post('/api/listings', requireAuth, rateLimit('listings', 'RATE_LIMIT_LISTING
   try {
     const created = createListingInDb(normalized.listing);
     res.status(201).json(created);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/listings/:id/preview', requireAuth, (req, res) => {
+  try {
+    const listingId = String(req.params.id);
+    const listing = getListingByIdFromDb(listingId);
+    if (!listing) {
+      res.status(404).json({ error: 'not_found', message: 'Listing not found' });
+      return;
+    }
+    if (listing.owner !== req.principal!.principalId) {
+      res.status(403).json({ error: 'forbidden', message: 'Не являетесь владельцем объявления' });
+      return;
+    }
+
+    const consentToken = `consent-${listing.id}-r${listing.revision}-${Date.now()}`;
+    res.json({
+      listing_id: listing.id,
+      revision: listing.revision,
+      status: listing.status,
+      consent_token: consentToken,
+      preview: toPublicListing(listing),
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/listings/:id/publish', requireAuth, (req, res) => {
+  try {
+    const listingId = String(req.params.id);
+    const { consent_token, revision } = req.body || {};
+    if (!consent_token || typeof consent_token !== 'string') {
+      res.status(422).json({ error: 'consent_required', message: 'consent_token is required' });
+      return;
+    }
+    const expectedRevision = Number(revision);
+    if (!Number.isInteger(expectedRevision) || expectedRevision < 1) {
+      res.status(422).json({ error: 'invalid_revision', message: 'revision must be a positive integer' });
+      return;
+    }
+
+    const result = publishListingInDb(listingId, req.principal!.principalId, expectedRevision);
+    if (!result.success) {
+      if (result.reason === 'not_found') {
+        res.status(404).json({ error: 'not_found', message: 'Listing not found' });
+        return;
+      }
+      if (result.reason === 'forbidden') {
+        res.status(403).json({ error: 'forbidden', message: 'Не являетесь владельцем объявления' });
+        return;
+      }
+      if (result.reason === 'revision_mismatch') {
+        res.status(409).json({ error: 'revision_mismatch', current_revision: result.currentRevision });
+        return;
+      }
+      res.status(400).json({ error: result.reason });
+      return;
+    }
+
+    res.json(toPublicListing(result.listing));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/listings/:id/withdraw', requireAuth, (req, res) => {
+  try {
+    const listingId = String(req.params.id);
+    const result = withdrawListingInDb(listingId, req.principal!.principalId);
+    if (!result.success) {
+      if (result.reason === 'not_found') {
+        res.status(404).json({ error: 'not_found', message: 'Listing not found' });
+        return;
+      }
+      if (result.reason === 'forbidden') {
+        res.status(403).json({ error: 'forbidden', message: 'Не являетесь владельцем объявления' });
+        return;
+      }
+      res.status(400).json({ error: result.reason });
+      return;
+    }
+
+    res.json({ success: true, status: 'archived', listing_id: listingId });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
