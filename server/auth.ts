@@ -7,7 +7,7 @@ import {
 } from './db';
 
 /**
- * Authentication for the rooms API (PR-3).
+ * Authentication for the rooms API (PR-3 + RBAC Scopes).
  *
  * A principal is a stable string id such as `user:buy-laptop` or `agent:shopper-1`.
  * Each key belongs to exactly one principal and is shown once, when issued by
@@ -24,9 +24,19 @@ declare global {
   }
 }
 
+export type ApiScope =
+  | 'listings:read'
+  | 'listings:write'
+  | 'rooms:read'
+  | 'rooms:write'
+  | 'chat:write'
+  | 'admin'
+  | '*';
+
 export interface Principal {
   principalId: string;
   keyId: string;
+  scopes: ApiScope[];
 }
 
 export const KEY_PREFIX = 'mcr_';
@@ -46,13 +56,14 @@ export interface IssuedApiKey {
   key: string;
   principalId: string;
   name: string;
+  scopes: ApiScope[];
 }
 
 /**
  * Creates a key and returns the plaintext token exactly once. Throws on an
  * invalid principal id so a typo cannot silently create an unusable identity.
  */
-export function issueApiKey(principalId: string, name: string): IssuedApiKey {
+export function issueApiKey(principalId: string, name: string, scopes: ApiScope[] = ['*']): IssuedApiKey {
   if (!isValidPrincipalId(principalId)) {
     throw new Error(
       `Invalid principal id "${principalId}". Expected user:<slug>, agent:<slug> or org:<slug> using lowercase letters, digits, dot, dash or underscore.`
@@ -71,9 +82,10 @@ export function issueApiKey(principalId: string, name: string): IssuedApiKey {
     name: trimmedName,
     digest: hashApiKey(key),
     createdAt: Date.now(),
+    scopes: scopes.join(','),
   });
 
-  return { id: record.id, key, principalId: record.principalId, name: record.name };
+  return { id: record.id, key, principalId: record.principalId, name: record.name, scopes };
 }
 
 /** Resolves `Authorization: Bearer <token>` to a principal, or null. */
@@ -86,7 +98,17 @@ export function principalFromAuthorizationHeader(header: string | undefined): Pr
   if (!record || record.revokedAt !== null) return null;
 
   touchApiKeyInDb(record.id, Date.now());
-  return { principalId: record.principalId, keyId: record.id };
+  const scopes: ApiScope[] = record.scopes
+    ? (record.scopes.split(',') as ApiScope[])
+    : ['*'];
+
+  return { principalId: record.principalId, keyId: record.id, scopes };
+}
+
+export function hasScope(principal: Principal | undefined, requiredScope: ApiScope): boolean {
+  if (!principal) return false;
+  if (principal.scopes.includes('*') || principal.scopes.includes('admin')) return true;
+  return principal.scopes.includes(requiredScope);
 }
 
 /**
@@ -117,6 +139,23 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   }
   req.principal = principal;
   next();
+}
+
+export function requireScope(requiredScope: ApiScope) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.principal) {
+      res.status(401).json({ error: 'unauthorized', message: 'Требуется авторизация.' });
+      return;
+    }
+    if (!hasScope(req.principal, requiredScope)) {
+      res.status(403).json({
+        error: 'forbidden_scope',
+        message: `Недостаточно прав. Требуется scope: ${requiredScope}`,
+      });
+      return;
+    }
+    next();
+  };
 }
 
 export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
