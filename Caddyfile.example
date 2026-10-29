@@ -1,0 +1,30 @@
+{
+	email {$LETSENCRYPT_EMAIL:admin@example.com}
+	admin off
+}
+
+{$DOMAIN:mcp-rooms.example.com} {
+	encode zstd gzip
+
+	# Security headers
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), geolocation=(), microphone=()"
+		-Server
+	}
+
+	# Unbuffered proxy for Server-Sent Events (SSE) streaming endpoints
+	@sse path /api/rooms/*/stream
+	handle @sse {
+		reverse_proxy mcp-rooms:3000 {
+			flush_interval -1
+		}
+	}
+
+	# Reverse proxy all standard API and static app traffic
+	handle {
+		reverse_proxy mcp-rooms:3000
+	}
+}

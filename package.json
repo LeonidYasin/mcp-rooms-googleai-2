@@ -6,13 +6,16 @@
   "scripts": {
     "dev": "tsx server.ts",
     "build": "tsc && vite build",
+    "check:bundle": "tsx scripts/check-bundle-size.ts",
     "start": "tsx server.ts",
     "key:issue": "tsx scripts/issue-key.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "db:backup": "tsx scripts/backup-db.ts",
     "db:restore": "tsx scripts/restore-db.ts",
-    "lint": "tsc --noEmit",
+    "lint:docs": "tsx scripts/validate-docs.ts",
+    "lint": "tsc --noEmit && tsx scripts/validate-docs.ts",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "preview": "vite preview"
   },
   "dependencies": {
