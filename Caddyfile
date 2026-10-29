@@ -1,0 +1,31 @@
+# Caddy Production Reverse Proxy Configuration for MCP Rooms Marketplace
+# Handles Automatic HTTPS/TLS, SSE Stream Header Preservation, Compression & Rate Limit Pass-Through
+
+{$DOMAIN_NAME:localhost} {
+    # Encoding compression for static SPA and JSON API
+    encode zstd gzip
+
+    # Security Headers
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+        Permissions-Policy "camera=(), geolocation=(), microphone=()"
+        -Server
+    }
+
+    # Disable buffering for Server-Sent Events (SSE) streams
+    @sse path /api/rooms/*/stream
+    header @sse {
+        X-Accel-Buffering "no"
+        Cache-Control "no-cache, no-transform"
+    }
+
+    # Pass client real IP to Node.js backend
+    reverse_proxy 127.0.0.1:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
