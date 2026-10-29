@@ -104,6 +104,7 @@ export function initDatabase() {
       principal_id TEXT NOT NULL,
       name TEXT NOT NULL,
       digest TEXT NOT NULL UNIQUE, -- sha256 hex of the bearer token; the token itself is never stored
+      scopes TEXT NOT NULL DEFAULT '*',
       created_at INTEGER NOT NULL,
       last_used_at INTEGER,
       revoked_at INTEGER
@@ -166,6 +167,17 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     }
     if (!colNames.includes('embedding_json')) {
       db.exec(`ALTER TABLE listings ADD COLUMN embedding_json TEXT;`);
+    }
+  } catch {
+    // Column already exists or table freshly initialized
+  }
+
+  // Safe migration for api_keys table
+  try {
+    const keyColumns = db.prepare(`PRAGMA table_info(api_keys)`).all() as any[];
+    const keyColNames = keyColumns.map((c) => c.name);
+    if (!keyColNames.includes('scopes')) {
+      db.exec(`ALTER TABLE api_keys ADD COLUMN scopes TEXT NOT NULL DEFAULT '*';`);
     }
   } catch {
     // Column already exists or table freshly initialized
@@ -1215,6 +1227,7 @@ export interface ApiKeyRecord {
   id: string;
   principalId: string;
   name: string;
+  scopes: string;
   createdAt: number;
   lastUsedAt: number | null;
   revokedAt: number | null;
@@ -1225,6 +1238,7 @@ function mapApiKeyRow(row: any): ApiKeyRecord {
     id: row.id,
     principalId: row.principal_id,
     name: row.name,
+    scopes: row.scopes || '*',
     createdAt: row.created_at,
     lastUsedAt: row.last_used_at ?? null,
     revokedAt: row.revoked_at ?? null,
@@ -1236,12 +1250,13 @@ export function createApiKeyInDb(record: {
   principalId: string;
   name: string;
   digest: string;
+  scopes?: string;
   createdAt: number;
 }) {
   db.prepare(
-    `INSERT INTO api_keys (id, principal_id, name, digest, created_at)
-     VALUES (?, ?, ?, ?, ?)`
-  ).run(record.id, record.principalId, record.name, record.digest, record.createdAt);
+    `INSERT INTO api_keys (id, principal_id, name, digest, scopes, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(record.id, record.principalId, record.name, record.digest, record.scopes || '*', record.createdAt);
   return getApiKeyByIdInDb(record.id)!;
 }
 
