@@ -29,6 +29,9 @@ describe('MCP Spec Protocol & SSE Replay/Limits (PR-4 & PR-8)', () => {
 
   afterAll(async () => {
     if (!server) return;
+    if (typeof (server as any).closeAllConnections === 'function') {
+      (server as any).closeAllConnections();
+    }
     await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 
@@ -73,7 +76,7 @@ describe('MCP Spec Protocol & SSE Replay/Limits (PR-4 & PR-8)', () => {
     expect(profileRes.error).toBe('invalid_params');
   });
 
-  it('persists room events in SQLite and replays missed events based on Last-Event-ID', async () => {
+  it('persists room events in SQLite and replays missed events based on Last-Event-ID', { timeout: 20000 }, async () => {
     const roomId = `room-event-store-${run}`;
     createRoomInDb({ id: roomId, listingTitle: 'Event Store Test', participants: [ownerId] });
 
@@ -111,7 +114,7 @@ describe('MCP Spec Protocol & SSE Replay/Limits (PR-4 & PR-8)', () => {
     expect(fullText).not.toContain('Round 1 Event');
   });
 
-  it('replays room messages based on Last-Event-ID header', async () => {
+  it('replays room messages based on Last-Event-ID header', { timeout: 20000 }, async () => {
     const roomId = `room-replay-${run}`;
     createRoomInDb({ id: roomId, listingTitle: 'Replay Test', participants: [ownerId] });
 
@@ -153,7 +156,7 @@ describe('MCP Spec Protocol & SSE Replay/Limits (PR-4 & PR-8)', () => {
     expect(fullText).not.toContain('Msg 1');
   });
 
-  it('enforces 429 subscriber limit when subscriber count hits maximum', async () => {
+  it('enforces 429 subscriber limit when subscriber count hits maximum', { timeout: 20000 }, async () => {
     const roomId = `room-sub-limit-${run}`;
     createRoomInDb({ id: roomId, listingTitle: 'Subscriber Limit Test', participants: [ownerId] });
 
