@@ -153,8 +153,19 @@ CREATE TABLE IF NOT EXISTS audit_logs (
       created_at INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS webhooks (
+      id TEXT PRIMARY KEY,
+      url TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      owner TEXT NOT NULL,
+      secret TEXT,
+      created_at INTEGER NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON audit_logs(actor_id);
     CREATE INDEX IF NOT EXISTS idx_audit_logs_event ON audit_logs(event_type);
+    CREATE INDEX IF NOT EXISTS idx_webhooks_owner ON webhooks(owner);
+    CREATE INDEX IF NOT EXISTS idx_webhooks_event_type ON webhooks(event_type);
 
     CREATE TABLE IF NOT EXISTS room_events (
       id TEXT PRIMARY KEY,
@@ -1482,75 +1493,91 @@ export function getUploadByIdFromDb(id: string): UploadRecord | null {
   };
 }
 
-let roomEventSeq = 0;
-
-export interface PersistentRoomEvent {
+export interface WebhookRecord {
   id: string;
-  roomId: string;
-  eventType: string;
-  payload: any;
-  timestamp: number;
+  url: string;
+  eventType: string; // e.g. 'room.message', 'room.offer', '*'
+  owner: string;
+  secret?: string;
+  createdAt: number;
 }
 
-export function addRoomEventToDb(roomId: string, eventType: string, payload: any, eventId?: string): PersistentRoomEvent {
-  const now = Date.now();
-  roomEventSeq += 1;
-  const id = eventId || `ev-${now}-${roomEventSeq}`;
-  const payloadJson = JSON.stringify(payload || {});
-
+export function createWebhookInDb(hook: WebhookRecord): WebhookRecord {
   db.prepare(`
-    INSERT OR REPLACE INTO room_events (id, room_id, event_type, payload_json, timestamp, seq)
+    INSERT INTO webhooks (id, url, event_type, owner, secret, created_at)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run(id, roomId, eventType, payloadJson, now, roomEventSeq);
-
-  return { id, roomId, eventType, payload, timestamp: now };
+  `).run(
+    hook.id,
+    hook.url,
+    hook.eventType,
+    hook.owner,
+    hook.secret || null,
+    hook.createdAt
+  );
+  return hook;
 }
 
-export function getRoomEventsSinceInDb(roomId: string, lastEventId?: string): PersistentRoomEvent[] {
-  if (!lastEventId) {
-    const rows = db.prepare(`SELECT * FROM room_events WHERE room_id = ? ORDER BY timestamp ASC, seq ASC LIMIT 100`).all(roomId) as any[];
-    return rows.map((r) => ({
-      id: r.id,
-      roomId: r.room_id,
-      eventType: r.event_type,
-      payload: JSON.parse(r.payload_json),
-      timestamp: r.timestamp,
-    }));
-  }
-
-  const lastRow = db.prepare(`SELECT timestamp, seq FROM room_events WHERE id = ?`).get(lastEventId) as { timestamp: number; seq: number } | undefined;
-
-  if (lastRow) {
-    const rows = db.prepare(`
-      SELECT * FROM room_events 
-      WHERE room_id = ? AND (timestamp > ? OR (timestamp = ? AND seq > ?))
-      ORDER BY timestamp ASC, seq ASC LIMIT 100
-    `).all(roomId, lastRow.timestamp, lastRow.timestamp, lastRow.seq) as any[];
-
-    return rows.map((r) => ({
-      id: r.id,
-      roomId: r.room_id,
-      eventType: r.event_type,
-      payload: JSON.parse(r.payload_json),
-      timestamp: r.timestamp,
-    }));
-  }
-
-  const tsMatch = lastEventId.match(/(\d+)(?:-(\d+))?/);
-  const ts = tsMatch ? Number(tsMatch[1]) : 0;
-  const seq = tsMatch && tsMatch[2] ? Number(tsMatch[2]) : 0;
-
-  const rows = db.prepare(`
-    SELECT * FROM room_events 
-    WHERE room_id = ? AND (timestamp > ? OR (timestamp = ? AND seq > ?)) 
-    ORDER BY timestamp ASC, seq ASC LIMIT 100
-  `).all(roomId, ts, ts, seq) as any[];
+export function getWebhooksFromDb(owner?: string): WebhookRecord[] {
+  const rows = owner
+    ? db.prepare('SELECT * FROM webhooks WHERE owner = ? ORDER BY created_at DESC').all(owner) as any[]
+    : db.prepare('SELECT * FROM webhooks ORDER BY created_at DESC').all() as any[];
 
   return rows.map((r) => ({
     id: r.id,
-    roomId: r.room_id,
+    url: r.url,
     eventType: r.event_type,
-    payload: JSON.parse(r.payload_json),
-    timestamp: r.timestamp,
+    owner: r.owner,
+    secret: r.secret || undefined,
+    createdAt: r.created_at,
   }));
+}
+
+export function getWebhookByIdFromDb(id: string): WebhookRecord | null {
+  const row = db.prepare('SELECT * FROM webhooks WHERE id = ?').get(id) as any;
+  if (!row) return null;
+  return {
+    id: row.id,
+    url: row.url,
+    eventType: row.event_type,
+    owner: row.owner,
+    secret: row.secret || undefined,
+    createdAt: row.created_at,
+  };
+}
+
+export function deleteWebhookFromDb(id: string, owner: string): boolean {
+  const info = db.prepare('DELETE FROM webhooks WHERE id = ? AND owner = ?').run(id, owner);
+  return info.changes > 0;
+}
+
+export async function dispatchWebhooksForEvent(eventType: string, payload: Record<string, any>) {
+  const rows = db.prepare(
+    'SELECT * FROM webhooks WHERE event_type = ? OR event_type = "*"'
+  ).all(eventType) as any[];
+
+  if (rows.length === 0) return;
+
+  const body = JSON.stringify({
+    event: eventType,
+    timestamp: Date.now(),
+    data: payload,
+  });
+
+  const promises = rows.map(async (row) => {
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (row.secret) {
+        headers['X-Webhook-Secret'] = row.secret;
+      }
+      await fetch(row.url, {
+        method: 'POST',
+        headers,
+        body,
+      });
+    } catch (err) {
+      // Async dispatch swallows errors to not block main thread
+    }
+  });
+
+  await Promise.allSettled(promises);
 }
