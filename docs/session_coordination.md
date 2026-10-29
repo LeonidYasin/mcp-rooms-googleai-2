@@ -1,12 +1,6 @@
 # Координация сессий и распределение задач для AI-Агентов (Jules / Gemini)
 
-<<<<<<< HEAD
-Документ предназначен для централизованной оркестрации и параллельной работы нескольких сессий AI-агентов (и людей-разработчиков) над проектом **MCP Rooms Marketplace (`LeonidYasin/mcp-rooms-googleai-2`)**.
-
-Архитектура оркестрации и роли агентов подробно описаны в [`docs/agent_orchestration.md`](agent_orchestration.md).
-=======
-Документ предназначен для координации совместной параллельной работы нескольких сессий AI-агентов над проектом **MCP Rooms Marketplace (`LeonidYasin/mcp-rooms-googleai-2`)**.
->>>>>>> 976a10427b45ba4e812295b3730ce9bdf48eb174
+| **Playwright Headless E2E Tests** | Сессия A (Jules) | ✅ Завершено (PR #39) | PR #39 merged in  () |8eb174
 
 ---
 
@@ -38,10 +32,15 @@
 | **Персистентный Rate Limiting & Trust Proxy** | Сессия A (Jules) | ✅ Завершено (PR #14) | PR #14 merged in `main` (`server/http-guard.ts`) |
 | **Персистентное хранилище изображений (`/uploads`)** | Сессия A (Jules) | ✅ Завершено (PR #16) | PR #16 merged in `server.ts`) |
 | **Ticket-based SSE Auth & Stream Security** | Сессия A (Jules) | ✅ Завершено (PR #25) | PR #25 merged in `main` (`server/auth.ts`) |
+<<<<<<< HEAD
 | **Поддержка Last-Event-ID в SSE** | Сессия C (Jules) | ✅ Завершено (PR #28) | PR #28 merged in `main` (`tests/sse_replay.test.ts`, `server.ts`) |
 | **Caddy / Reverse Proxy Config & TLS** | Сессия A (Jules) | 🔄 В разработке | `feat/caddy-tls-production-config` |
 | **Playwright Headless E2E Tests** | Сессия B (Рекомендуется) | ⏳ Ожидает | Добавление E2E на фронтенд React |
 >>>>>>> 976a10427b45ba4e812295b3730ce9bdf48eb174
+=======
+| **Caddy / Reverse Proxy Config & TLS** | Сессия A (Jules) | ✅ Завершено (PR #29) | PR #29 merged in `main` (`Caddyfile`) |
+| **Playwright Headless E2E Tests** | Сессия A (Jules) | 🔄 В разработке | `feat/playwright-e2e-suite` |
+>>>>>>> b427cdb (feat: add Playwright E2E testing suite and update production roadmap)
 
 ---
 
