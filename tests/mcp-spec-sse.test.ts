@@ -104,7 +104,7 @@ describe('MCP Spec Protocol & SSE Replay/Limits (PR-4 & PR-8)', () => {
     const chunk = new TextDecoder().decode(value);
     controller.abort();
 
-    expect(chunk).toContain('replayedEvents');
+    expect(chunk).toContain('event: init');
     expect(chunk).toContain('Msg 3');
     expect(chunk).not.toContain('Msg 1');
   });
