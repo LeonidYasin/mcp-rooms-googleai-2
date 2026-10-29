@@ -27,9 +27,8 @@ Known boundaries, which must stay visible in docs and UI:
 
 ## Non-negotiable owner constraints
 
-- Do **not** merge `main`, publish releases/tags, deploy, restart/reconfigure a VPS
-  or reverse proxy, migrate a live database, or issue real credentials without
-  separate explicit owner approval.
+- Publishing releases/tags, deploying or reconfiguring VPS/Caddy, migrating live DBs, or issuing real credentials require explicit owner approval.
+- **Agent PR Self-Review & Auto-Merge Rule:** Agents conduct their own code review on PRs they open to check for errors and flaws. Prepare new changes in a dedicated feature/fix branch, open a PR, and if all tests/checks pass with no suspected issues, risks, or blocking flaws, agents merge the PR into `main` directly.
 - Run application code, tests, builds, and browser QA **only in GitHub Actions**.
   Local work is limited to reading files, editing, and static inspection.
 - Never commit a real `.env`, API key, database, uploaded photo, private log, or
