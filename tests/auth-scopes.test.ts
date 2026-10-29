@@ -15,8 +15,8 @@ describe('RBAC Scopes for API Keys', () => {
   });
 
   afterEach(() => {
-    revokeApiKeyInDb(fullKeyId);
-    revokeApiKeyInDb(readOnlyKeyId);
+    revokeApiKeyInDb(fullKeyId, Date.now());
+    revokeApiKeyInDb(readOnlyKeyId, Date.now());
   });
 
   it('correctly validates scopes for full access principal', () => {

@@ -15,7 +15,8 @@
 | **RBAC / Scope-based Access Control для API-ключей** | Сессия A (Jules) | ✅ Завершено (PR #11) | PR #11 merged in `main` (`server/auth.ts`) |
 | **Audit Logs (Трассировка действий агентов и прав)** | Сессия A (Jules) | ✅ Завершено (PR #12) | PR #12 merged in `main` (`server/db.ts`) |
 | **Персистентный Rate Limiting & Trust Proxy** | Сессия A (Jules) | ✅ Завершено (PR #14) | PR #14 merged in `main` (`server/http-guard.ts`) |
-| **Персистентное хранилище изображений (`/uploads`)** | Сессия A (Jules) | 🔄 В разработке | `feat/image-media-storage` |
+| **Персистентное хранилище изображений (`/uploads`)** | Сессия A (Jules) | ✅ Завершено (PR #16) | PR #16 merged in `main` |
+| **Технический аудит Prod-Readiness и фикс типов** | Сессия A (Jules) | ✅ Завершено | `docs/audit/2026-10-29-status-audit.md` |
 
 ---
 
