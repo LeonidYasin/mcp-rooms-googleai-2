@@ -69,9 +69,9 @@
 
 ### 🟢 Приоритет 3: Эксплуатация, мониторинг и DevEx (P3 — Observability & Ops)
 
-- [ ] **3.1 Healthchecks & Readiness Probes**
+- [x] **3.1 Healthchecks & Readiness Probes** *(Завершено — PR #41)*
   - Добавление эндпоинтов `/healthz` (liveness) и `/readyz` (readiness) с проверкой соединения с SQLite и доступности Gemini API.
-  - *Затронутые файлы:* `server/routes/health.ts`.
+  - *Затронутые файлы:* `server.ts`, `tests/healthchecks.test.ts`.
 
 - [ ] **3.2 Структурированное логирование (JSON Logs)**
   - Переход на `pino` / `winston` с единым `correlation_id` для отладки вызовов MCP и HTTP.
