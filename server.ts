@@ -35,6 +35,7 @@ import {
 } from './server/http-guard';
 import { configuredModel, llmStatus, recordLlmFailure, resolveLlmClient } from './server/llm';
 import { logger } from './server/logger';
+import { registerWebhookInDb, getWebhooksFromDb, deleteWebhookFromDb, dispatchWebhookEvent } from './server/webhooks';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -320,6 +321,58 @@ app.post('/api/match', rateLimit('match', 'RATE_LIMIT_MATCH_PER_MINUTE', 60), as
   }
 });
 
+// -------------------------------------------------------------
+// Webhooks API Endpoints
+// -------------------------------------------------------------
+app.get('/api/webhooks', requireAuth, (req, res) => {
+  try {
+    const hooks = getWebhooksFromDb(req.principal!.principalId);
+    res.json(hooks);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/webhooks', requireAuth, (req, res) => {
+  try {
+    const { url, events, secret } = req.body || {};
+    if (!url || typeof url !== 'string' || !url.startsWith('http')) {
+      res.status(422).json({ error: 'invalid_url', message: 'Valid HTTP/HTTPS URL is required' });
+      return;
+    }
+
+    const hookId = 'wh-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+    const created = registerWebhookInDb({
+      id: hookId,
+      owner: req.principal!.principalId,
+      url,
+      events: Array.isArray(events) ? events : ['*'],
+      secret: typeof secret === 'string' ? secret : undefined,
+    });
+
+    addAuditLog('webhook.register', req.principal!.principalId, hookId, { url });
+    res.status(201).json(created);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/webhooks/:id', requireAuth, (req, res) => {
+  try {
+    const hookId = String(req.params.id);
+    const success = deleteWebhookFromDb(hookId, req.principal!.principalId);
+    if (!success) {
+      res.status(404).json({ error: 'not_found', message: 'Webhook not found or forbidden' });
+      return;
+    }
+
+    addAuditLog('webhook.delete', req.principal!.principalId, hookId);
+    res.json({ success: true, id: hookId });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/profiles', (_req, res) => {
   try {
     const profiles = getProfilesFromDb();
@@ -441,6 +494,7 @@ app.post('/api/listings', requireAuth, rateLimit('listings', 'RATE_LIMIT_LISTING
   }
   try {
     const created = createListingInDb(normalized.listing);
+    dispatchWebhookEvent('listing.created', created).catch(() => {});
     res.status(201).json(created);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -760,6 +814,7 @@ app.post('/api/rooms/:id/messages', requireAuth, rateLimit('messages', 'RATE_LIM
     }
     // Broadcast live event to SSE subscribers
     roomEventBus.broadcast(roomId, 'message', message);
+    dispatchWebhookEvent('room.message', message).catch(() => {});
     res.status(201).json(message);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

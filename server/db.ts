@@ -157,6 +157,15 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON audit_logs(actor_id);
     CREATE INDEX IF NOT EXISTS idx_audit_logs_event ON audit_logs(event_type);
 
+    CREATE TABLE IF NOT EXISTS webhooks (
+      id TEXT PRIMARY KEY,
+      owner TEXT NOT NULL,
+      url TEXT NOT NULL,
+      events_json TEXT NOT NULL DEFAULT '[]',
+      secret TEXT,
+      created_at INTEGER NOT NULL
+    );
+
   `);
 
   // Safe migration for existing listings table
