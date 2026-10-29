@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import { logger } from './logger';
 
 /**
  * F-15: the model id used to be hard-coded (`gemini-3.8-flash`) and unverified,
@@ -157,11 +158,11 @@ export function recordLlmFailure(error: unknown, now: number = Date.now()): LlmD
   cooldown = { until: now + LLM_COOLDOWN_MS, reason, apiKey: readApiKey(), model: configuredModel() };
   metrics.modelFailures += 1;
 
-  console.warn(
-    `[llm] model call failed (${reason}); rule-based fallback for ${Math.round(
-      LLM_COOLDOWN_MS / 1000
-    )}s: ${message}`
-  );
+  logger.warn('Gemini model call failed; rule-based fallback activated', {
+    reason,
+    cooldownSeconds: Math.round(LLM_COOLDOWN_MS / 1000),
+    error: message,
+  });
   return reason;
 }
 
