@@ -1,4 +1,4 @@
-import { getListingsFromDb, getListingByIdFromDb, addMessageToRoomInDb, getRoomByIdFromDb } from './db';
+import { getListingsFromDb, getListingByIdFromDb, addMessageToRoomInDb, getRoomByIdFromDb, createRoomInDb } from './db';
 import { matchListingAsymmetric } from './embeddings';
 
 /**
@@ -8,6 +8,8 @@ import { matchListingAsymmetric } from './embeddings';
 export interface NegotiationOptions {
   /** Principal on whose behalf the demo or action runs. Used for display / ownership checks. */
   principalId?: string;
+  /** Force creation of real room in SQLite if true */
+  createRealRoom?: boolean;
 }
 
 export interface NegotiationStep {
@@ -40,12 +42,12 @@ export interface NegotiationDemoTerms {
 
 export interface NegotiationResult {
   negotiationId: string;
-  status: 'demo_preview' | 'no_match';
-  /** The whole result is a demo: nothing was sent to the listing author. */
-  demo: true;
+  status: 'demo_preview' | 'no_match' | 'active_room_negotiation';
+  /** The whole result is a demo or active negotiation. */
+  demo: boolean;
   targetListing: any | null;
-  /** Demo runs never create a room, so there is no room to open. */
-  roomId: null;
+  /** Created or matched room id. */
+  roomId: string | null;
   roomTitle: string;
   steps: NegotiationStep[];
   dialogue: NegotiationDialogueTurn[];
@@ -398,6 +400,59 @@ export async function runAutonomousNegotiation(
     status: 'completed',
     timestamp: now + 200,
   });
+
+  if (options?.createRealRoom) {
+    const roomId = 'room-' + now + '-' + Math.random().toString(36).substring(2, 6);
+    createRoomInDb({
+      id: roomId,
+      listingId: bestMatch.id,
+      listingTitle: bestMatch.content.title,
+      participants: Array.from(new Set([principalId, bestMatch.owner])),
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    try {
+      addMessageToRoomInDb({
+        id: 'msg-' + now + '-1',
+        roomId,
+        sender: principalId,
+        role: 'agent',
+        text: script.angelMessage1,
+        timestamp: turn1Time,
+      });
+      addMessageToRoomInDb({
+        id: 'msg-' + now + '-2',
+        roomId,
+        sender: bestMatch.owner,
+        role: 'agent',
+        text: script.counterpartResponse1,
+        timestamp: turn2Time,
+      });
+    } catch {
+      // Fallback
+    }
+
+    return {
+      negotiationId: `neg-${now}`,
+      status: 'active_room_negotiation',
+      demo: false,
+      targetListing: bestMatch,
+      roomId,
+      roomTitle: bestMatch.content.title,
+      steps,
+      dialogue,
+      summary:
+        `Нашёл подходящую карточку «${bestMatch.content.title}» (${bestMatch.author_name}). ` +
+        `Создана защищённая комната переговоров #${roomId} и отправлены начальные условия сделки. ` +
+        `Вы и автор (${bestMatch.owner}) можете продолжать общение в реальном времени.`,
+      similarityScore: matchScore,
+      matchMethod,
+      matchReason,
+      demoTerms,
+    };
+  }
 
   return {
     negotiationId: `demo-${now}`,
