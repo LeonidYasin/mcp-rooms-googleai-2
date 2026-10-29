@@ -23,6 +23,7 @@
 | **Структурированное логирование (JSON Logs)** | Сессия C (Jules) | ✅ Завершено (PR #43) | PR #43 merged in `main` (`server/logger.ts`, `tests/logger.test.ts`) |
 | **Повторный комплексный аудит безопасности и архитектуры** | Сессия C (Jules) | ✅ Завершено (PR #45) | PR #45 merged in `main` (`docs/audit_v2.md`) |
 | **Создание скилов по правилам работы с репозиторием** | Сессия C (Jules) | ✅ Завершено (PR #48) | PR #48 merged in `main` (`docs/skills/repository_rules.md`) |
+| **Строгая политика CSP** | Сессия C (Jules) | ✅ Завершено (PR #50) | PR #50 merged in `main` (`server/http-guard.ts`) |
 | **Caddy / Reverse Proxy Config & TLS** | Сессия A (Jules) | 🔄 В разработке | `feat/caddy-tls-production-config` |
 | **Playwright Headless E2E Tests** | Сессия B (Рекомендуется) | ⏳ Ожидает | Добавление E2E на фронтенд React |
 
