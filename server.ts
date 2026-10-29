@@ -20,6 +20,7 @@ import {
   classifyMessageInsertError,
   saveUploadInDb,
   addAuditLog,
+  getRoomEventsAfterInDb,
 } from './server/db';
 import { handleMcpJsonRpcRequest, executeMcpToolCall, MCP_TOOLS_MANIFEST } from './server/mcp';
 import { runAutonomousNegotiation } from './server/negotiator';
@@ -666,12 +667,15 @@ app.get('/api/rooms/:id/stream', optionalAuth, (req, res) => {
   const negs = getNegotiationsFromDb();
   const roomNeg = negs.find((n) => n.roomId === roomId) || null;
 
-  // PR-8: Replay missing messages if lastEventId was provided
+  // PR-8 + TASK-01: Replay missing events from SQLite room_events store if lastEventId provided
+  let replayedEvents: any[] = [];
   let filteredMessages = room.messages;
   if (lastEventId) {
-    const lastTimeMatch = lastEventId.match(/(\d+)$/);
-    if (lastTimeMatch) {
-      const lastTimestamp = Number(lastTimeMatch[1]);
+    replayedEvents = getRoomEventsAfterInDb(roomId, lastEventId);
+    const timeMatches = lastEventId.match(/\d+/g);
+    if (timeMatches && timeMatches.length > 0) {
+      const tsMatch = timeMatches.find((m) => Number(m) >= 1000) || timeMatches[timeMatches.length - 1];
+      const lastTimestamp = Number(tsMatch);
       if (Number.isFinite(lastTimestamp)) {
         filteredMessages = room.messages.filter((m: any) => m.timestamp > lastTimestamp);
       }
@@ -685,6 +689,7 @@ app.get('/api/rooms/:id/stream', optionalAuth, (req, res) => {
     participants: room.participants,
     status: room.status,
     messages: filteredMessages,
+    replayedEvents,
     negotiation: roomNeg,
     serverTime: Date.now(),
     lastEventId,

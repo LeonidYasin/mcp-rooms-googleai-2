@@ -1,3 +1,5 @@
+import { saveRoomEventInDb } from './db';
+
 export interface RoomEvent {
   id: string;
   type: 'init' | 'message' | 'step' | 'turn' | 'agreement' | 'status' | 'typing';
@@ -30,12 +32,25 @@ class RoomEventBus {
 
   broadcast(roomId: string, type: RoomEvent['type'], data: any, eventId?: string): RoomEvent {
     const event: RoomEvent = {
-      id: eventId || `ev-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      id: eventId || `evt-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       type,
       roomId,
       data,
       timestamp: Date.now(),
     };
+
+    // Persist event in SQLite for replay on reconnection
+    try {
+      saveRoomEventInDb({
+        id: event.id,
+        roomId,
+        eventType: type,
+        payload: data,
+        createdAt: event.timestamp,
+      });
+    } catch {
+      // Non-blocking fallback if persistence fails
+    }
 
     const subs = this.listeners.get(roomId);
     if (subs) {

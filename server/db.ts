@@ -144,6 +144,18 @@ export function initDatabase() {
       created_at INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS room_events (
+      id TEXT PRIMARY KEY,
+      room_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY(room_id) REFERENCES rooms(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_room_events_room ON room_events(room_id);
+    CREATE INDEX IF NOT EXISTS idx_room_events_created ON room_events(created_at);
+
 CREATE TABLE IF NOT EXISTS audit_logs (
       id TEXT PRIMARY KEY,
       event_type TEXT NOT NULL,
@@ -1470,4 +1482,71 @@ export function getUploadByIdFromDb(id: string): UploadRecord | null {
     owner: row.owner,
     createdAt: row.created_at,
   };
+}
+
+export interface RoomEventRecord {
+  id: string;
+  roomId: string;
+  eventType: string;
+  payload: any;
+  createdAt: number;
+}
+
+let eventSeq = 0;
+
+export function saveRoomEventInDb(event: {
+  id?: string;
+  roomId: string;
+  eventType: string;
+  payload: any;
+  createdAt?: number;
+}): RoomEventRecord {
+  const now = event.createdAt || Date.now();
+  eventSeq = (eventSeq + 1) % 1000;
+  const seqStr = String(eventSeq).padStart(3, '0');
+  const eventId = event.id || `evt-${now}-${seqStr}`;
+
+  db.prepare(`
+    INSERT OR REPLACE INTO room_events (id, room_id, event_type, payload_json, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(
+    eventId,
+    event.roomId,
+    event.eventType,
+    JSON.stringify(event.payload),
+    now
+  );
+
+  return {
+    id: eventId,
+    roomId: event.roomId,
+    eventType: event.eventType,
+    payload: event.payload,
+    createdAt: now,
+  };
+}
+
+export function getRoomEventsAfterInDb(roomId: string, lastEventId: string): RoomEventRecord[] {
+  let cutoffTimestamp = 0;
+  if (lastEventId) {
+    const timeMatches = lastEventId.match(/\d+/g);
+    if (timeMatches && timeMatches.length > 0) {
+      const tsMatch = timeMatches.find((m) => Number(m) >= 1000) || timeMatches[timeMatches.length - 1];
+      cutoffTimestamp = Number(tsMatch);
+    }
+  }
+
+  const rows = db.prepare(`
+    SELECT * FROM room_events
+    WHERE room_id = ? AND created_at > ?
+    ORDER BY created_at ASC
+  `).all(roomId, cutoffTimestamp) as any[];
+
+  return rows.map((r) => ({
+    id: r.id,
+    roomId: r.room_id,
+    eventType: r.event_type,
+    payload: JSON.parse(r.payload_json || '{}'),
+    createdAt: r.created_at,
+  }));
 }
