@@ -18,7 +18,7 @@
 | **Персистентное хранилище изображений (`/uploads`)** | Issue #16 | PR #16 (merged) | Сессия A (Jules) | ✅ Завершено |
 | **Ticket-based SSE Auth & Stream Security** | Issue #25 | PR #25 (merged) | Сессия A (Jules) | ✅ Завершено |
 | **Caddy / Reverse Proxy Config & TLS** | Issue #29 | PR #29 (merged) | Сессия A (Jules) | ✅ Завершено |
-| **Playwright Headless E2E Tests** | Issue #30 | `feat/playwright-e2e` | Сессия B (Параллельная) | ⏳ Ожидает / Backlog |
+| **Playwright Headless E2E Tests** | Issue #30 | PR #30 (merged) | Сессия B (Jules) | ✅ Завершено |
 | **SSE Replay & Last-Event-ID** | Issue #31 | `feat/sse-last-event-id` | Сессия A/B | ⏳ Ожидает / Backlog |
 | **Мульти-модельные переговоры (Claude/OpenAI)** | Issue #32 | `feat/multi-model-negotiation` | Сессия A/B | ⏳ Ожидает / Backlog |
 | **Строгая CSP & Security Headers** | Issue #33 | `feat/csp-security-headers` | Сессия C | ⏳ Ожидает / Backlog |

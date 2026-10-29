@@ -69,6 +69,10 @@
 
 ### 🟢 Приоритет 3: Эксплуатация, мониторинг и DevEx (P3 — Observability & Ops)
 
+- [x] **3.0 Playwright Headless E2E Tests** — ✅ **Issue #30 / PR #30 (merged)**
+  - Автоматизированное E2E тестирование визуального React-интерфейса, фильтров, диалогов и модального окна API-ключей.
+  - *Затронутые файлы:* `playwright.config.ts`, `tests/e2e-playwright.spec.ts`.
+
 - [x] **3.1 Healthchecks & Readiness Probes** — ✅ **PR #29 (merged)**
   - Эндпоинт статуса `/api/llm/status` и проверка Docker healthcheck.
   - *Затронутые файлы:* `server.ts`, `Dockerfile`.
