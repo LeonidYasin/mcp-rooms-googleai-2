@@ -244,6 +244,37 @@ app.get('/api/embedding/status', (_req, res) => {
 // Configuration of the chat model, not a live probe: it answers whether the
 // next /api/chat call would attempt a model call, and why not if it would not.
 // There is no invented default model id — see GEMINI_MODEL in .env.example.
+
+// Production System Health & Metrics Endpoint
+app.get('/api/health', (req, res) => {
+  const memoryUsage = process.memoryUsage();
+  const uptimeSeconds = Math.floor(process.uptime());
+
+  let dbStatus = 'ok';
+  try {
+    const listCount = getListingsFromDb({}).length;
+  } catch {
+    dbStatus = 'error';
+  }
+
+  res.json({
+    status: dbStatus === 'ok' ? 'healthy' : 'degraded',
+    version: '0.1.0',
+    uptime_seconds: uptimeSeconds,
+    database: {
+      status: dbStatus,
+      path: process.env.DATABASE_PATH || './data/mcp_rooms.db',
+    },
+    memory_mb: {
+      rss: Math.round(memoryUsage.rss / 1024 / 1024),
+      heapTotal: Math.round(memoryUsage.heapTotal / 1024 / 1024),
+      heapUsed: Math.round(memoryUsage.heapUsed / 1024 / 1024),
+    },
+    node_version: process.version,
+    timestamp: Date.now(),
+  });
+});
+
 app.get('/api/llm/status', (_req, res) => {
   res.json(llmStatus());
 });
