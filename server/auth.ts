@@ -174,3 +174,33 @@ export function isRoomParticipant(
   if (!room || !principalId) return false;
   return Array.isArray(room.participants) && room.participants.includes(principalId);
 }
+
+
+export interface SseTicket {
+  ticket: string;
+  principal: Principal;
+  roomId: string;
+  expiresAt: number;
+}
+
+const sseTickets = new Map<string, SseTicket>();
+
+export function issueSseTicket(principal: Principal, roomId: string, ttlMs = 30000): string {
+  const ticket = 'ticket_' + crypto.randomBytes(16).toString('hex');
+  sseTickets.set(ticket, {
+    ticket,
+    principal,
+    roomId,
+    expiresAt: Date.now() + ttlMs,
+  });
+  return ticket;
+}
+
+export function consumeSseTicket(ticket: string, roomId: string): Principal | null {
+  const record = sseTickets.get(ticket);
+  if (!record) return null;
+  sseTickets.delete(ticket); // Single-use ticket
+  if (record.expiresAt < Date.now()) return null;
+  if (record.roomId !== roomId) return null;
+  return record.principal;
+}
