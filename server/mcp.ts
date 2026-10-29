@@ -17,7 +17,7 @@ import {
   matchListingAsymmetric,
   getEmbeddingProviderStatus,
 } from './embeddings';
-import { runAutonomousNegotiation } from './negotiator';
+import { runAutonomousNegotiation, generateReactiveAgentResponse } from './negotiator';
 import { isRoomParticipant } from './auth';
 
 // Definitions of Model Context Protocol (MCP) Tools
@@ -402,6 +402,7 @@ export async function executeMcpToolCall(
             text: args.initial_message,
             timestamp: Date.now(),
           });
+          await generateReactiveAgentResponse(roomId, buyer, args.initial_message);
         }
       }
 
@@ -447,6 +448,7 @@ export async function executeMcpToolCall(
 
       try {
         addMessageToRoomInDb(msg);
+        await generateReactiveAgentResponse(args.room_id, sender, text);
       } catch (err) {
         const reason = classifyMessageInsertError(err);
         if (reason === 'room_not_found') {
