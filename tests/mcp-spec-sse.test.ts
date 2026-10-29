@@ -151,9 +151,9 @@ describe('MCP Spec Protocol & SSE Replay/Limits (PR-4 & PR-8)', () => {
     }
     controller.abort();
 
-    expect(chunk).toContain('event: init');
-    expect(chunk).toContain('Msg 3');
-    expect(chunk).not.toContain('Msg 1');
+    expect(fullText).toContain('Msg 2');
+    expect(fullText).toContain('Msg 3');
+    expect(fullText).not.toContain('Msg 1');
   });
 
   it('enforces 429 subscriber limit when subscriber count hits maximum', { timeout: 20000 }, async () => {

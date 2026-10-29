@@ -399,56 +399,6 @@ export async function runAutonomousNegotiation(
     timestamp: now + 200,
   });
 
-  if (options?.createRealRoom) {
-    const roomId = 'room-' + now + '-' + Math.random().toString(36).substring(2, 6);
-    createRoomInDb({
-      id: roomId,
-      listingId: bestMatch.id,
-      listingTitle: bestMatch.content.title,
-      participants: Array.from(new Set([principalId, bestMatch.owner])),
-    });
-
-    try {
-      addMessageToRoomInDb({
-        id: 'msg-' + now + '-1',
-        roomId,
-        sender: principalId,
-        role: 'agent',
-        text: script.angelMessage1,
-        timestamp: turn1Time,
-      });
-      addMessageToRoomInDb({
-        id: 'msg-' + now + '-2',
-        roomId,
-        sender: bestMatch.owner,
-        role: 'agent',
-        text: script.counterpartResponse1,
-        timestamp: turn2Time,
-      });
-    } catch {
-      // Fallback
-    }
-
-    return {
-      negotiationId: `neg-${now}`,
-      status: 'active_room_negotiation',
-      demo: false,
-      targetListing: bestMatch,
-      roomId,
-      roomTitle: bestMatch.content.title,
-      steps,
-      dialogue,
-      summary:
-        `Нашёл подходящую карточку «${bestMatch.content.title}» (${bestMatch.author_name}). ` +
-        `Создана защищённая комната переговоров #${roomId} и отправлены начальные условия сделки. ` +
-        `Вы и автор (${bestMatch.owner}) можете продолжать общение в реальном времени.`,
-      similarityScore: matchScore,
-      matchMethod,
-      matchReason,
-      demoTerms,
-    };
-  }
-
   return {
     negotiationId: `demo-${now}`,
     status: 'demo_preview',
