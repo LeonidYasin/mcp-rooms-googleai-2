@@ -45,9 +45,9 @@
   - Поддержка `X-Forwarded-For` с настройкой доверенных прокси (`trust proxy`).
   - *Затронутые файлы:* `server/rate_limiter.ts`, `server/index.ts`.
 
-- [ ] **1.4 Поддержка `Last-Event-ID` в SSE**
+- [x] **1.4 Поддержка `Last-Event-ID` в SSE** *(Завершено — PR #28)*
   - Присвоение порядковых ID сообщениям комнат и доотправка пропущенных сообщений при переподключении.
-  - *Затронутые файлы:* `server/sse.ts`, `server/db.ts`.
+  - *Затронутые файлы:* `server.ts`, `tests/sse_replay.test.ts`.
 
 ---
 
@@ -57,9 +57,9 @@
   - Перевод `negotiate_agreement` из демо-режима в реальный диалоговый процесс с фиксацией условий сделки (`Agreement Locked`).
   - *Затронутые файлы:* `server/negotiator.ts`, `server/mcp.ts`.
 
-- [ ] **2.2 Строгая проверка прав владения (Ownership Checks)**
+- [x] **2.2 Строгая проверка прав владения (Ownership Checks)** *(Завершено — PR #39)*
   - Проверка `owner === principal` для редактирования и удаления объявлений/комнат.
-  - *Затронутые файлы:* `server/listings.ts`, `server/auth.ts`.
+  - *Затронутые файлы:* `server.ts`, `server/db.ts`, `tests/ownership_checks.test.ts`.
 
 - [ ] **2.3 Уведомления и Webhooks**
   - Отправка уведомлений агентам и пользователям при появлении новых сообщений или офферов.
@@ -69,9 +69,9 @@
 
 ### 🟢 Приоритет 3: Эксплуатация, мониторинг и DevEx (P3 — Observability & Ops)
 
-- [ ] **3.1 Healthchecks & Readiness Probes**
+- [x] **3.1 Healthchecks & Readiness Probes** *(Завершено — PR #41)*
   - Добавление эндпоинтов `/healthz` (liveness) и `/readyz` (readiness) с проверкой соединения с SQLite и доступности Gemini API.
-  - *Затронутые файлы:* `server/routes/health.ts`.
+  - *Затронутые файлы:* `server.ts`, `tests/healthchecks.test.ts`.
 
 - [ ] **3.2 Структурированное логирование (JSON Logs)**
   - Переход на `pino` / `winston` с единым `correlation_id` для отладки вызовов MCP и HTTP.

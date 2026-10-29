@@ -1,13 +1,18 @@
 # Координация сессий, Оркестрация и Пул Задач (Backlog / ТЗ) для AI-Агентов
 
+<<<<<<< HEAD
 Документ предназначен для централизованной оркестрации и параллельной работы нескольких сессий AI-агентов (и людей-разработчиков) над проектом **MCP Rooms Marketplace (`LeonidYasin/mcp-rooms-googleai-2`)**.
 
 Архитектура оркестрации и роли агентов подробно описаны в [`docs/agent_orchestration.md`](agent_orchestration.md).
+=======
+Документ предназначен для координации совместной параллельной работы нескольких сессий AI-агентов над проектом **MCP Rooms Marketplace (`LeonidYasin/mcp-rooms-googleai-2`)**.
+>>>>>>> d274ee1171584937c2f5d92f3f3071357545b944
 
 ---
 
 ## 📊 1. Матрица Завершённых Задач (Completed Tasks)
 
+<<<<<<< HEAD
 | Задача / Раздел | Ветка | Затронутые файлы / Модули | Ответственная сессия | Статус | Обновлено (UTC) | Коммиты / PR |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Управление PR/Issues через CLI** | `feat/mcp-cli` | `scripts/github_mcp_cli.py`, `docs/mcp_cli_instructions.md` | Сессия A (Jules) | ✅ Завершено | 2026-10-28 | `scripts/github_mcp_cli.py` |
@@ -22,20 +27,45 @@
 | **Ticket-based SSE Auth & Stream Security** | `feat/sse-ticket-auth-clean` | `server.ts`, `server/auth.ts`, `tests/sse-ticket-auth.test.ts` | Сессия A (Jules) | ✅ Завершено | 2026-10-29 | PR #25 merged in `main` |
 | **Оркестрация агентов и пул задач в GitHub Issues** | `feat/agent-orchestration-pool` | `docs/agent_orchestration.md`, `docs/session_coordination.md` | Architect (Jules) | ✅ Завершено | 2026-10-29 07:50 | PR #26 merged in `main` |
 | **TASK-01 (Issue #30): Персистентный Event Store в SQLite для SSE** | `feat/sse-event-store-replay` | `server/db.ts`, `server/events.ts`, `server.ts`, `tests/mcp-spec-sse.test.ts` | Core Agent (Jules) | 🔄 В разработке | 2026-10-29 08:15 | В процессе выполнения |
+=======
+| Задача / Раздел | Ответственная сессия | Статус | Коммиты / PR |
+| :--- | :--- | :--- | :--- |
+| **Управление PR/Issues через CLI** | Сессия A (Jules) | ✅ Завершено | `scripts/github_mcp_cli.py`, `docs/mcp_cli_instructions.md` |
+| **Транспорт MCP JSON-RPC & SSE** | Сессия B | ✅ Завершено (PR #7) | PR #7 merged in `main` |
+| **Жизненный цикл объявлений (Draft -> Preview -> Publish)** | Сессия B | ✅ Завершено (PR #7) | PR #7 merged in `main` |
+| **Реактивный мульти-агентный чат в комнатах** | Сессия A (Jules) | ✅ Завершено (PR #10) | PR #10 merged in `main` (`server/negotiator.ts`) |
+| **RBAC / Scope-based Access Control для API-ключей** | Сессия A (Jules) | ✅ Завершено (PR #11) | PR #11 merged in `main` (`server/auth.ts`) |
+| **Audit Logs (Трассировка действий агентов и прав)** | Сессия A (Jules) | ✅ Завершено (PR #12) | PR #12 merged in `main` (`server/db.ts`) |
+| **Персистентный Rate Limiting & Trust Proxy** | Сессия A (Jules) | ✅ Завершено (PR #14) | PR #14 merged in `main` (`server/http-guard.ts`) |
+| **Персистентное хранилище изображений (`/uploads`)** | Сессия A (Jules) | ✅ Завершено (PR #16) | PR #16 merged in `server.ts`) |
+| **Ticket-based SSE Auth & Stream Security** | Сессия A (Jules) | ✅ Завершено (PR #25) | PR #25 merged in `main` (`server/auth.ts`) |
+| **Поддержка Last-Event-ID в SSE** | Сессия C (Jules) | ✅ Завершено (PR #28) | PR #28 merged in `main` (`tests/sse_replay.test.ts`, `server.ts`) |
+| **Строгая проверка прав владения (Ownership Checks)** | Сессия C (Jules) | ✅ Завершено (PR #39) | PR #39 merged in `main` (`PUT /api/listings/:id`, `tests/ownership_checks.test.ts`) |
+| **Healthchecks & Readiness Probes (/healthz & /readyz)** | Сессия C (Jules) | ✅ Завершено (PR #41) | PR #41 merged in `main` (`server.ts`, `tests/healthchecks.test.ts`) |
+| **Caddy / Reverse Proxy Config & TLS** | Сессия A (Jules) | 🔄 В разработке | `feat/caddy-tls-production-config` |
+| **Playwright Headless E2E Tests** | Сессия B (Рекомендуется) | ⏳ Ожидает | Добавление E2E на фронтенд React |
+>>>>>>> d274ee1171584937c2f5d92f3f3071357545b944
 
 ---
 
 ## 🎯 2. Активный Пул Задач для Оркестрации Агентов (Task Pool & Technical Specifications)
 
+<<<<<<< HEAD
 Все задачи созданы в **GitHub Issues** репозитория (#30–#35) для оперативного трекинга.  
 Агенты могут просматривать и управлять задачами через CLI:
 ```bash
 # Список открытых задач (Issues)
 python3 scripts/github_mcp_cli.py --repo LeonidYasin/mcp-rooms-googleai-2 issues list --state open
 ```
+=======
+1. **Создание веток:**
+   - Всегда создавайте новую отдельную ветку для задачи: `feat/<название-задачи>` или `fix/<описание>`.
+   - Именуйте ветки явно, чтобы не затирать работу соседней сессии.
+>>>>>>> d274ee1171584937c2f5d92f3f3071357545b944
 
 ---
 
+<<<<<<< HEAD
 ### 📦 TASK-01 (Issue #30): Персистентный Event Store в SQLite для SSE и Реплей Событий (`Last-Event-ID`)
 
 - **Issue:** [#30](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/30)
@@ -135,3 +165,14 @@ python3 scripts/github_mcp_cli.py --repo LeonidYasin/mcp-rooms-googleai-2 issues
 * **2026-10-29 08:15 (Core Agent / Jules):**
   - **Статус:** Реализована персистентность событий в SQLite таблице `room_events` и реплей событий при подключении к SSE с `Last-Event-ID`.
   - **Заметки:** Выполнена задача TASK-01 (Issue #30). Тесты в `tests/mcp-spec-sse.test.ts` расширены и успешно проходят.
+=======
+3. **Создание и слияние PR:**
+   - Используйте инструмент `scripts/github_mcp_cli.py` для создания PR:
+     ```bash
+     GITHUB_TOKEN="$TOKEN" python3 scripts/github_mcp_cli.py --repo LeonidYasin/mcp-rooms-googleai-2 prs create --title "..." --head <branch> --base main --body "..."
+     ```
+   - Если тесты CI проходят, PR можно сливать командой `prs merge --number <PR_NUM>`.
+
+4. **Обновление этого документа (`docs/session_coordination.md`):**
+   - В завершение работы по каждой задаче отмечайте статус `✅ Завершено` в таблице выше, чтобы параллельная сессия всегда видела актуальный прогресс!
+>>>>>>> d274ee1171584937c2f5d92f3f3071357545b944
