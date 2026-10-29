@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { checkAndConsumeRateLimit, clearRateLimitHits } from './db';
+import { logger } from './logger';
 
 /**
  * F-13: the HTTP edge had a 10 MB JSON body limit, no security headers, no
@@ -153,6 +154,6 @@ export function httpErrorHandler(err: any, _req: Request, res: Response, next: N
     res.status(400).json({ error: 'invalid_json' });
     return;
   }
-  console.error('[http] unhandled error:', err?.stack || err);
+  logger.error('Unhandled HTTP error', { error: err?.message || String(err), stack: err?.stack });
   res.status(500).json({ error: 'internal_error' });
 }
