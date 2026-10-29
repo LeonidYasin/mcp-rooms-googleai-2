@@ -1,0 +1,85 @@
+name: Auto-Deploy to VPS (Option B)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy to Production VPS
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    if: github.repository == 'LeonidYasin/mcp-rooms-googleai-2'
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          HOST_PORT: ${{ secrets.HOST_PORT }}
+          CADDY_HTTP_PORT: ${{ secrets.CADDY_HTTP_PORT }}
+          CADDY_HTTPS_PORT: ${{ secrets.CADDY_HTTPS_PORT }}
+          SITE_ADDRESS: ${{ secrets.SITE_ADDRESS }}
+          EMBEDDING_PROVIDER: ${{ secrets.EMBEDDING_PROVIDER }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VPS_DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          passphrase: ${{ secrets.VPS_PASSPHRASE }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          envs: HOST_PORT,CADDY_HTTP_PORT,CADDY_HTTPS_PORT,SITE_ADDRESS,EMBEDDING_PROVIDER,GEMINI_API_KEY,VPS_DEPLOY_PATH
+          script: |
+            set -euo pipefail
+            DEPLOY_DIR="${VPS_DEPLOY_PATH:-$HOME/mcp-rooms}"
+            echo "==> Deploying MCP Rooms Marketplace to $DEPLOY_DIR"
+
+            # 1. Ensure deployment directory exists and pull latest code
+            mkdir -p "$DEPLOY_DIR"
+            cd "$DEPLOY_DIR"
+
+            if [ -d .git ]; then
+              echo "==> Pulling latest changes from main branch..."
+              git fetch origin main
+              git reset --hard origin/main
+            else
+              echo "==> Cloning repository..."
+              git clone https://github.com/LeonidYasin/mcp-rooms-googleai-2.git .
+            fi
+
+            # 2. Run Pre-Deploy VPS Safety & Port Check
+            chmod +x scripts/pre-deploy-check.sh
+            ./scripts/pre-deploy-check.sh
+
+            # 3. Configure production .env file with bash defaults
+            cat <<EOF > .env
+            NODE_ENV=production
+            PORT=3000
+            HOST_PORT=${HOST_PORT:-3000}
+            CADDY_HTTP_PORT=${CADDY_HTTP_PORT:-8080}
+            CADDY_HTTPS_PORT=${CADDY_HTTPS_PORT:-8443}
+            SITE_ADDRESS=${SITE_ADDRESS:-:80}
+            EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-google}
+            GEMINI_API_KEY=${GEMINI_API_KEY:-}
+            DEMO_SEED=0
+            EOF
+
+            # 4. Start Docker Compose Production Stack
+            echo "==> Building and launching Docker containers..."
+            docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+
+            # 5. Verify Container Health Endpoints
+            echo "==> Waiting for application container health check..."
+            sleep 10
+            docker compose -f docker-compose.prod.yml ps
+
+            TARGET_PORT="${HOST_PORT:-3000}"
+            echo "==> Testing /healthz endpoint on port $TARGET_PORT..."
+            curl -fsS "http://127.0.0.1:${TARGET_PORT}/healthz" || exit 1
+
+            echo "==> Deployment completed successfully!"

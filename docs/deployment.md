@@ -1,11 +1,6 @@
-# Running the app (Docker Compose)
+# Running the app & VPS Deployment (Docker Compose + Caddy Option B)
 
-This is a prototype runbook, not evidence of a deployment. The repository has a
-`Dockerfile` and `docker-compose.yml`. CI job `docker` builds the image on
-`ubuntu-24.04`, asserts that it runs as the unprivileged `node` user (UID 1000),
-starts a container, and checks `/api/listings`, `POST /mcp` `tools/list`, and a
-SQLite write through `scripts/issue-key.ts`. That covers the image contract only —
-there is no live, TEST, or production deployment.
+This runbook covers both local Docker Compose execution and automated GitHub Actions deployment to a production VPS using Option B (isolated containers without interfering with existing host Caddy or VPN services).
 
 ## 1. Configure
 
@@ -89,15 +84,41 @@ The server is still started with `node --import tsx server.ts`, i.e. TypeScript 
 transpiled at startup; only the frontend is prebuilt into `dist/`. Removing that last
 runtime transpile step is not done here.
 
-## What this setup does not include
+## Automated GitHub Actions Auto-Deploy to VPS (Option B)
 
-- TLS, a domain, or a reverse proxy (Caddy/nginx). Do not expose port 3000 to the
-  internet as-is.
-- A read-only root filesystem. `/app/data` must stay writable, and `npm run key:issue`
-  inside the container still needs a writable `$HOME`.
-- Backups, migrations, monitoring, shared rate limiting across instances (the limiter is
-  per process), key scopes, or audit logs.
-- A verified production or TEST environment. Green CI does not imply either.
+Option B deploys `mcp-rooms` and an isolated `caddy` container on alternate ports (default `8080:80` and `8443:443`), preventing port conflicts with any pre-existing host Caddy daemon, nginx, or VPN services.
+
+### 1. Pre-Deployment Inspection Script
+
+Before launching containers, run the automated health check script to verify RAM, disk space, Docker installation, and socket conflicts:
+
+```bash
+./scripts/pre-deploy-check.sh
+```
+
+### 2. GitHub Repository Secrets Setup
+
+In your GitHub repository, go to **Settings > Secrets and variables > Actions** and add the following secrets:
+
+- `VPS_HOST`: IP address or domain of your VPS
+- `VPS_USERNAME`: SSH username (e.g. `root` or `ubuntu`)
+- `VPS_SSH_KEY`: Private SSH key for passwordless authentication
+- `GEMINI_API_KEY`: API key for Google Gemini LLM & Embeddings
+
+**Optional Secrets:**
+- `HOST_PORT`: Host port mapping for Node.js app (default: `3000`)
+- `CADDY_HTTP_PORT`: Port for Caddy HTTP (default: `8080`)
+- `CADDY_HTTPS_PORT`: Port for Caddy HTTPS (default: `8443`)
+- `SITE_ADDRESS`: Target domain name or address for Caddy (default: `:80`)
+
+### 3. Deploying via GitHub Actions
+
+When code is merged into `main` (or triggered manually via **Actions > Auto-Deploy to VPS**), GitHub Actions will:
+1. Connect securely to your VPS via SSH.
+2. Clone/pull the latest code into `~/mcp-rooms`.
+3. Run `scripts/pre-deploy-check.sh` to confirm port availability and system health.
+4. Launch the stack with `docker compose -f docker-compose.prod.yml up -d --build`.
+5. Verify container readiness via `/healthz` endpoint.
 
 Back up `./data/mcp_rooms.db` (and its `-wal`/`-shm` files) before any manual upgrade.
-Restoring a backup as root will change file ownership — re-run the `chown` from step 2.
+Restoring a backup as root will change file ownership — re-run `sudo chown -R 1000:1000 ./data`.

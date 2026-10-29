@@ -1,0 +1,28 @@
+# Production Caddyfile for Option B Isolated Container Setup
+# Listens on alternate ports (default 8080/8443) to avoid conflicts with host Caddy/VPN
+
+{$SITE_ADDRESS::80} {
+    encode zstd gzip
+
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+        Permissions-Policy "camera=(), geolocation=(), microphone=()"
+        -Server
+    }
+
+    @sse path /api/rooms/*/stream
+    header @sse {
+        X-Accel-Buffering "no"
+        Cache-Control "no-cache, no-transform"
+    }
+
+    reverse_proxy mcp-rooms:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        flush_interval -1
+    }
+}
