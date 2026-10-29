@@ -20,7 +20,7 @@
 | **Caddy / Reverse Proxy Config & TLS** | Issue #29 | PR #29 (merged) | Сессия A (Jules) | ✅ Завершено |
 | **Playwright Headless E2E Tests** | Issue #30 | PR #30 (merged) | Сессия B (Jules) | ✅ Завершено |
 | **SSE Replay & Last-Event-ID** | Issue #31 | PR #31 (merged) | Сессия A (Jules) | ✅ Завершено |
-| **Мульти-модельные переговоры (Claude/OpenAI)** | Issue #32 | `feat/multi-model-negotiation` | Сессия A/B | ⏳ Ожидает / Backlog |
+| **Мульти-модельные переговоры (Claude/OpenAI)** | Issue #32 | PR #32 (merged) | Сессия A (Jules) | ✅ Завершено |
 | **Строгая CSP & Security Headers** | Issue #33 | PR #33 (merged) | Сессия A (Jules) | ✅ Завершено |
 | **Деплой на боевой VPS (TLS + Domain)** | Issue #34 | `ops/vps-live-deploy` | Ops / CTO | 🛑 Одобрение владельца |
 

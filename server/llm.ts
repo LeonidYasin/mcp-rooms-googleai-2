@@ -20,6 +20,8 @@ import { GoogleGenAI } from '@google/genai';
  * failure and double the cost).
  */
 
+export type LlmProvider = 'gemini' | 'openai' | 'claude' | 'mock';
+
 export type LlmDegradedReason =
   | 'missing_api_key'
   | 'model_not_configured'
@@ -64,8 +66,23 @@ function readApiKey(): string {
   return key;
 }
 
+/** Detects or configures active LLM Provider (gemini, openai, claude, mock). */
+export function configuredProvider(): LlmProvider {
+  const explicit = (process.env.LLM_PROVIDER || '').toLowerCase().trim();
+  if (explicit === 'openai' || explicit === 'claude' || explicit === 'mock' || explicit === 'gemini') {
+    return explicit as LlmProvider;
+  }
+  if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.length > 10) return 'openai';
+  if (process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY.length > 10) return 'claude';
+  return 'gemini';
+}
+
 /** The model id is configuration, never a guess. */
 export function configuredModel(): string {
+  const provider = configuredProvider();
+  if (provider === 'openai') return process.env.OPENAI_MODEL || 'gpt-4o-mini';
+  if (provider === 'claude') return process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet';
+  if (provider === 'mock') return 'mock-rules-engine';
   return (process.env.GEMINI_MODEL || '').trim();
 }
 

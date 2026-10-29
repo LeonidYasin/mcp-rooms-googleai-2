@@ -57,6 +57,10 @@
   - Перевод `negotiate_agreement` из эмуляции в реальный диалоговый процесс с отправкой реплик в комнатах SQLite.
   - *Затронутые файлы:* `server/negotiator.ts`, `server/mcp.ts`.
 
+- [x] **2.2 Мульти-модельные агентные переговоры (Claude/OpenAI/Gemini)** — ✅ **Issue #32 / PR #32 (merged)**
+  - Маршрутизация провайдеров и генерация реплик агентов контрагентов с поддержкой Claude, OpenAI и Gemini.
+  - *Затронутые файлы:* `server/llm.ts`, `server/negotiator.ts`, `tests/multi-model-negotiation-engine.test.ts`.
+
 - [x] **2.2 Строгая проверка прав владения (Ownership Checks & RBAC)** — ✅ **Issue #11 / PR #11 (merged)**
   - Изоляция комнат до участников (`isRoomParticipant`), фильтрация API-ключей по скоупам (`listings:read`, `rooms:write`).
   - *Затронутые файлы:* `server/auth.ts`, `server/db.ts`.

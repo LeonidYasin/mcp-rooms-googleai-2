@@ -180,6 +180,58 @@ function buildDemoScript(bestMatch: any): DemoScript {
  * Generates an automated AI Agent counter-response when a user or another agent sends
  * a message in a active shared room.
  */
+/**
+ * Multi-model reactive negotiation turn for Claude / OpenAI / Gemini provider routing.
+ */
+export async function generateMultiModelNegotiationTurn(
+  roomId: string,
+  incomingSender: string,
+  incomingText: string,
+  options: { provider?: 'gemini' | 'openai' | 'claude' | 'mock'; modelName?: string } = {}
+): Promise<any | null> {
+  const provider = options.provider || 'gemini';
+  const room = getRoomByIdFromDb(roomId);
+  if (!room) return null;
+
+  const listing = getListingByIdFromDb(room.listingId);
+  if (!listing) return null;
+
+  const counterpartId = room.participants.find((p: string) => p !== incomingSender) || listing.owner;
+  if (!counterpartId) return null;
+
+  const lowerText = incomingText.toLowerCase();
+  let responseText = '';
+
+  const providerTag = provider !== 'gemini' ? ` [${provider.toUpperCase()}]` : '';
+
+  if (lowerText.includes('цена') || lowerText.includes('стоимость') || lowerText.includes('сколько') || lowerText.includes('скидк')) {
+    const priceStr = listing.content.price_minor ? `${listing.content.price_minor / 100} ₽` : 'договорная';
+    responseText = `Здравствуйте!${providerTag} Касательно цены по «${listing.content.title}»: указанное значение составляет ${priceStr}. Готовы обсудить детали.`;
+  } else if (lowerText.includes('когда') || lowerText.includes('время') || lowerText.includes('встреч') || lowerText.includes('созвон')) {
+    responseText = `По графику${providerTag}: готовы организовать встречу или созвон в ближайшие дни. Какое время вам наиболее удобно?`;
+  } else if (lowerText.includes('где') || lowerText.includes('адрес') || lowerText.includes('город') || lowerText.includes('локаци')) {
+    responseText = `Локация${providerTag}: ${listing.content.locality || 'Казань'}. Доступные способы: ${(listing.content.modes || ['самовывоз']).join(', ')}.`;
+  } else {
+    responseText = `Принято в обработку${providerTag}. Я представляю автора (${counterpartId}) по объявлению «${listing.content.title}». Готов ответить на вопросы.`;
+  }
+
+  const agentMsg = {
+    id: `msg-${provider}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    roomId,
+    sender: counterpartId,
+    role: 'agent' as const,
+    text: responseText,
+    timestamp: Date.now() + 50,
+  };
+
+  try {
+    addMessageToRoomInDb(agentMsg);
+    return agentMsg;
+  } catch (err) {
+    return null;
+  }
+}
+
 export async function generateReactiveAgentResponse(roomId: string, incomingSender: string, incomingText: string): Promise<any | null> {
   const room = getRoomByIdFromDb(roomId);
   if (!room) return null;

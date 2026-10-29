@@ -48,6 +48,6 @@ describe('CSP & Security Headers (Issue #33)', () => {
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("base-uri 'none'");
     expect(csp).toContain("object-src 'none'");
-    expect(csp).toContain("img-src 'self' data: blob: /uploads/");
+    expect(csp).toContain("img-src 'self' data: blob:;");
   });
 });

@@ -21,7 +21,7 @@ import {
   addAuditLog,
 } from './server/db';
 import { handleMcpJsonRpcRequest, executeMcpToolCall, MCP_TOOLS_MANIFEST } from './server/mcp';
-import { runAutonomousNegotiation } from './server/negotiator';
+import { runAutonomousNegotiation, generateMultiModelNegotiationTurn } from './server/negotiator';
 import { getEmbeddingProviderStatus, matchListingAsymmetric } from './server/embeddings';
 import { roomEventBus } from './server/events';
 import { isRoomParticipant, optionalAuth, requireAuth, issueSseTicket, consumeSseTicket } from './server/auth';
@@ -708,6 +708,14 @@ app.post('/api/rooms/:id/messages', requireAuth, rateLimit('messages', 'RATE_LIM
     }
     // Broadcast live event to SSE subscribers
     roomEventBus.broadcast(roomId, 'message', message);
+
+    // Trigger multi-model reactive agent turn
+    void generateMultiModelNegotiationTurn(roomId, principalId, text).then((autoMsg) => {
+      if (autoMsg) {
+        roomEventBus.broadcast(roomId, 'message', autoMsg);
+      }
+    });
+
     res.status(201).json(message);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
