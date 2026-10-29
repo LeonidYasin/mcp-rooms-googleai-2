@@ -19,6 +19,7 @@
 | **Ticket-based SSE Auth & Stream Security** | Сессия A (Jules) | ✅ Завершено (PR #25) | PR #25 merged in `main` (`server/auth.ts`) |
 | **Поддержка Last-Event-ID в SSE** | Сессия C (Jules) | ✅ Завершено (PR #28) | PR #28 merged in `main` (`tests/sse_replay.test.ts`, `server.ts`) |
 | **Строгая проверка прав владения (Ownership Checks)** | Сессия C (Jules) | ✅ Завершено (PR #39) | PR #39 merged in `main` (`PUT /api/listings/:id`, `tests/ownership_checks.test.ts`) |
+| **Healthchecks & Readiness Probes (/healthz & /readyz)** | Сессия C (Jules) | ✅ Завершено (PR #41) | PR #41 merged in `main` (`server.ts`, `tests/healthchecks.test.ts`) |
 | **Caddy / Reverse Proxy Config & TLS** | Сессия A (Jules) | 🔄 В разработке | `feat/caddy-tls-production-config` |
 | **Playwright Headless E2E Tests** | Сессия B (Рекомендуется) | ⏳ Ожидает | Добавление E2E на фронтенд React |
 

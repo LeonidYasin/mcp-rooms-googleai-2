@@ -246,6 +246,20 @@ app.get('/api/embedding/status', (_req, res) => {
 // next /api/chat call would attempt a model call, and why not if it would not.
 // There is no invented default model id — see GEMINI_MODEL in .env.example.
 
+// Standard Kubernetes / Production Health Probes
+app.get('/healthz', (_req, res) => {
+  res.status(200).json({ status: 'ok', uptime: Math.floor(process.uptime()), timestamp: Date.now() });
+});
+
+app.get('/readyz', (_req, res) => {
+  try {
+    getListingsFromDb({});
+    res.status(200).json({ status: 'ready', database: 'connected', timestamp: Date.now() });
+  } catch (err: any) {
+    res.status(503).json({ status: 'not_ready', database: 'disconnected', error: err.message });
+  }
+});
+
 // Production System Health & Metrics Endpoint
 app.get('/api/health', (req, res) => {
   const memoryUsage = process.memoryUsage();
