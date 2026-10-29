@@ -125,6 +125,18 @@ export function initDatabase() {
       updated_at INTEGER NOT NULL,
       FOREIGN KEY(room_id) REFERENCES rooms(id) ON DELETE CASCADE
     );
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id TEXT PRIMARY KEY,
+      event_type TEXT NOT NULL,
+      actor_id TEXT NOT NULL,
+      resource_id TEXT,
+      details_json TEXT,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON audit_logs(actor_id);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_event ON audit_logs(event_type);
+
   `);
 
   // Safe migration for existing listings table
@@ -1265,4 +1277,66 @@ export function toPublicListing(listing: any): any {
       }
     : undefined;
   return { ...rest, profile: publicProfile };
+}
+
+
+export interface AuditLogEntry {
+  id: string;
+  eventType: string;
+  actorId: string;
+  resourceId?: string;
+  details?: Record<string, any>;
+  createdAt: number;
+}
+
+export function addAuditLog(eventType: string, actorId: string, resourceId?: string, details?: Record<string, any>): AuditLogEntry {
+  const entry: AuditLogEntry = {
+    id: 'audit-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+    eventType,
+    actorId,
+    resourceId,
+    details,
+    createdAt: Date.now(),
+  };
+
+  db.prepare(`
+    INSERT INTO audit_logs (id, event_type, actor_id, resource_id, details_json, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
+    entry.id,
+    entry.eventType,
+    entry.actorId,
+    entry.resourceId || null,
+    entry.details ? JSON.stringify(entry.details) : null,
+    entry.createdAt
+  );
+
+  return entry;
+}
+
+export function getAuditLogs(filter: { actorId?: string; eventType?: string; limit?: number } = {}): AuditLogEntry[] {
+  let query = 'SELECT * FROM audit_logs WHERE 1=1';
+  const params: any[] = [];
+
+  if (filter.actorId) {
+    query += ' AND actor_id = ?';
+    params.push(filter.actorId);
+  }
+  if (filter.eventType) {
+    query += ' AND event_type = ?';
+    params.push(filter.eventType);
+  }
+
+  query += ' ORDER BY created_at DESC LIMIT ?';
+  params.push(filter.limit || 50);
+
+  const rows = db.prepare(query).all(...params) as any[];
+  return rows.map((r) => ({
+    id: r.id,
+    eventType: r.event_type,
+    actorId: r.actor_id,
+    resourceId: r.resource_id || undefined,
+    details: r.details_json ? JSON.parse(r.details_json) : undefined,
+    createdAt: r.created_at,
+  }));
 }
