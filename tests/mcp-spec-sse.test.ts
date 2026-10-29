@@ -73,7 +73,7 @@ describe('MCP Spec Protocol & SSE Replay/Limits (PR-4 & PR-8)', () => {
     expect(profileRes.error).toBe('invalid_params');
   });
 
-  it('replays room messages based on Last-Event-ID header', async () => {
+  it('replays room messages and persisted room_events based on Last-Event-ID header', async () => {
     const roomId = `room-replay-${run}`;
     createRoomInDb({ id: roomId, listingTitle: 'Replay Test', participants: [ownerId] });
 
@@ -82,10 +82,11 @@ describe('MCP Spec Protocol & SSE Replay/Limits (PR-4 & PR-8)', () => {
     const t3 = 300000;
 
     addMessageToRoomInDb({ id: `msg-${run}-${t1}`, roomId, sender: ownerId, role: 'human', text: 'Msg 1', timestamp: t1 });
-    addMessageToRoomInDb({ id: `msg-${run}-${t2}`, roomId, sender: ownerId, role: 'human', text: 'Msg 2', timestamp: t2 });
+    // Broadcast events via bus to populate SQLite room_events
+    roomEventBus.broadcast(roomId, 'typing', { user: ownerId }, `evt-${t2}`);
     addMessageToRoomInDb({ id: `msg-${run}-${t3}`, roomId, sender: ownerId, role: 'human', text: 'Msg 3', timestamp: t3 });
 
-    // Request stream with Last-Event-ID = msg-100000 -> should only replay msg-200000 and msg-300000
+    // Request stream with Last-Event-ID = msg-100000 -> should replay events after 100000
     const controller = new AbortController();
     const res = await fetch(`${baseUrl}/api/rooms/${roomId}/stream`, {
       signal: controller.signal,
@@ -103,7 +104,7 @@ describe('MCP Spec Protocol & SSE Replay/Limits (PR-4 & PR-8)', () => {
     const chunk = new TextDecoder().decode(value);
     controller.abort();
 
-    expect(chunk).toContain('Msg 2');
+    expect(chunk).toContain('replayedEvents');
     expect(chunk).toContain('Msg 3');
     expect(chunk).not.toContain('Msg 1');
   });

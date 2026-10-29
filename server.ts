@@ -9,6 +9,7 @@ import {
   createListingInDb,
   publishListingInDb,
   withdrawListingInDb,
+  updateListingInDb,
   getRoomsFromDb,
   getRoomByIdFromDb,
   addMessageToRoomInDb,
@@ -19,6 +20,7 @@ import {
   classifyMessageInsertError,
   saveUploadInDb,
   addAuditLog,
+  getRoomEventsAfterInDb,
 } from './server/db';
 import { handleMcpJsonRpcRequest, executeMcpToolCall, MCP_TOOLS_MANIFEST } from './server/mcp';
 import { runAutonomousNegotiation } from './server/negotiator';
@@ -244,6 +246,20 @@ app.get('/api/embedding/status', (_req, res) => {
 // Configuration of the chat model, not a live probe: it answers whether the
 // next /api/chat call would attempt a model call, and why not if it would not.
 // There is no invented default model id — see GEMINI_MODEL in .env.example.
+
+// Standard Kubernetes / Production Health Probes
+app.get('/healthz', (_req, res) => {
+  res.status(200).json({ status: 'ok', uptime: Math.floor(process.uptime()), timestamp: Date.now() });
+});
+
+app.get('/readyz', (_req, res) => {
+  try {
+    getListingsFromDb({});
+    res.status(200).json({ status: 'ready', database: 'connected', timestamp: Date.now() });
+  } catch (err: any) {
+    res.status(503).json({ status: 'not_ready', database: 'disconnected', error: err.message });
+  }
+});
 
 // Production System Health & Metrics Endpoint
 app.get('/api/health', (req, res) => {
@@ -495,6 +511,42 @@ app.post('/api/listings/:id/publish', requireAuth, (req, res) => {
   }
 });
 
+app.put('/api/listings/:id', requireAuth, rateLimit('listings', 'RATE_LIMIT_LISTINGS_PER_MINUTE', 30), (req, res) => {
+  try {
+    const listingId = String(req.params.id);
+    const principalId = req.principal!.principalId;
+    const { title, description, price_rubles, locality } = req.body || {};
+
+    if (title !== undefined && (typeof title !== 'string' || title.trim().length < 3 || title.trim().length > 200)) {
+      res.status(422).json({ error: 'invalid_title', message: 'title must be between 3 and 200 characters' });
+      return;
+    }
+    if (description !== undefined && (typeof description !== 'string' || description.trim().length < 3 || description.trim().length > 5000)) {
+      res.status(422).json({ error: 'invalid_description', message: 'description must be between 3 and 5000 characters' });
+      return;
+    }
+
+    const result = updateListingInDb(listingId, principalId, { title, description, price_rubles, locality });
+    if (!result.success) {
+      if (result.reason === 'not_found') {
+        res.status(404).json({ error: 'not_found', message: 'Listing not found' });
+        return;
+      }
+      if (result.reason === 'forbidden') {
+        res.status(403).json({ error: 'forbidden', message: 'Не являетесь владельцем объявления' });
+        return;
+      }
+      res.status(400).json({ error: result.reason });
+      return;
+    }
+
+    addAuditLog('listing.update', principalId, listingId, { title, locality });
+    res.json(toPublicListing(result.listing));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/listings/:id/withdraw', requireAuth, (req, res) => {
   try {
     const listingId = String(req.params.id);
@@ -615,12 +667,15 @@ app.get('/api/rooms/:id/stream', optionalAuth, (req, res) => {
   const negs = getNegotiationsFromDb();
   const roomNeg = negs.find((n) => n.roomId === roomId) || null;
 
-  // PR-8: Replay missing messages if lastEventId was provided
+  // PR-8 + TASK-01: Replay missing events from SQLite room_events store if lastEventId provided
+  let replayedEvents: any[] = [];
   let filteredMessages = room.messages;
   if (lastEventId) {
-    const lastTimeMatch = lastEventId.match(/(\d+)$/);
-    if (lastTimeMatch) {
-      const lastTimestamp = Number(lastTimeMatch[1]);
+    replayedEvents = getRoomEventsAfterInDb(roomId, lastEventId);
+    const timeMatches = lastEventId.match(/\d+/g);
+    if (timeMatches && timeMatches.length > 0) {
+      const tsMatch = timeMatches.find((m) => Number(m) >= 1000) || timeMatches[timeMatches.length - 1];
+      const lastTimestamp = Number(tsMatch);
       if (Number.isFinite(lastTimestamp)) {
         filteredMessages = room.messages.filter((m: any) => m.timestamp > lastTimestamp);
       }
@@ -634,6 +689,7 @@ app.get('/api/rooms/:id/stream', optionalAuth, (req, res) => {
     participants: room.participants,
     status: room.status,
     messages: filteredMessages,
+    replayedEvents,
     negotiation: roomNeg,
     serverTime: Date.now(),
     lastEventId,
