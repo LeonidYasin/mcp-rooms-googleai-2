@@ -34,6 +34,11 @@ jobs:
       - name: Unit tests
         run: npx vitest run --reporter=verbose
 
+      - name: Playwright E2E tests
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test
+
       - name: Build
         run: npm run build
 
