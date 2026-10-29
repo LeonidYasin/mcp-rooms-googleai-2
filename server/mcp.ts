@@ -203,6 +203,9 @@ export async function executeMcpToolCall(
 ): Promise<any> {
   switch (name) {
     case 'match_listings': {
+      if (!args?.query || typeof args.query !== 'string' || !args.query.trim()) {
+        return { error: 'invalid_params', message: 'Параметр query обязателен и должен быть непустой строкой' };
+      }
       const candidates = getListingsFromDb({
         category: args.category,
         locality: args.locality,
@@ -237,6 +240,9 @@ export async function executeMcpToolCall(
     }
 
     case 'get_profile': {
+      if (!args?.profile_id || typeof args.profile_id !== 'string') {
+        return { error: 'invalid_params', message: 'Параметр profile_id обязателен' };
+      }
       const profile = getProfileByIdFromDb(args.profile_id);
       if (!profile) {
         return { error: `Профиль ${args.profile_id} не найден` };
@@ -513,6 +519,43 @@ export async function handleMcpJsonRpcRequest(
 
   try {
     switch (method) {
+      case 'initialize': {
+        const clientVersion = params?.protocolVersion || '2024-11-05';
+        const sessionId = `mcp-sess-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: {
+            protocolVersion: '2024-11-05',
+            capabilities: {
+              tools: {},
+              resources: {},
+            },
+            serverInfo: {
+              name: 'mcp-rooms',
+              version: '0.1.0',
+            },
+            sessionId,
+          },
+        };
+      }
+
+      case 'notifications/initialized': {
+        return {
+          jsonrpc: '2.0',
+          id: id ?? null,
+          result: { initialized: true },
+        };
+      }
+
+      case 'ping': {
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: {},
+        };
+      }
+
       case 'tools/list':
         return {
           jsonrpc: '2.0',

@@ -477,6 +477,13 @@ app.get('/api/rooms/:id/stream', requireAuth, (req, res) => {
     return;
   }
 
+  // PR-8: Enforce max 50 concurrent SSE subscribers per room
+  const MAX_ROOM_SUBSCRIBERS = 50;
+  if (roomEventBus.getSubscriberCount(roomId) >= MAX_ROOM_SUBSCRIBERS) {
+    res.status(429).json({ error: 'too_many_subscribers', message: 'Превышен лимит подключений к комнате (макс. 50)' });
+    return;
+  }
+
   // Set SSE Headers
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -485,20 +492,32 @@ app.get('/api/rooms/:id/stream', requireAuth, (req, res) => {
     'X-Accel-Buffering': 'no',
   });
 
-  // Client lastEventId for reconnection support
-  const lastEventId = (req.headers['last-event-id'] as string) || '';
+  // Client lastEventId for reconnection and replay support
+  const lastEventId = (req.headers['last-event-id'] as string) || (req.query.lastEventId as string) || '';
 
   // Current negotiation if exists
   const negs = getNegotiationsFromDb();
   const roomNeg = negs.find((n) => n.roomId === roomId) || null;
 
-  // Send initial snapshot with all SQLite messages
+  // PR-8: Replay missing messages if lastEventId was provided
+  let filteredMessages = room.messages;
+  if (lastEventId) {
+    const lastTimeMatch = lastEventId.match(/(\d+)$/);
+    if (lastTimeMatch) {
+      const lastTimestamp = Number(lastTimeMatch[1]);
+      if (Number.isFinite(lastTimestamp)) {
+        filteredMessages = room.messages.filter((m: any) => m.timestamp > lastTimestamp);
+      }
+    }
+  }
+
+  // Send initial snapshot with SQLite messages (replayed or full)
   const initialPayload = {
     roomId: room.id,
     listingTitle: room.listingTitle,
     participants: room.participants,
     status: room.status,
-    messages: room.messages, // All messages loaded directly from SQLite
+    messages: filteredMessages,
     negotiation: roomNeg,
     serverTime: Date.now(),
     lastEventId,
