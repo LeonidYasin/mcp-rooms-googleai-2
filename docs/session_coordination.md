@@ -13,8 +13,8 @@
 | **Жизненный цикл объявлений (Draft -> Preview -> Publish)** | Сессия B | ✅ Завершено (PR #7) | PR #7 merged in `main` |
 | **Реактивный мульти-агентный чат в комнатах** | Сессия A (Jules) | ✅ Завершено (PR #10) | PR #10 merged in `main` (`server/negotiator.ts`) |
 | **RBAC / Scope-based Access Control для API-ключей** | Сессия A (Jules) | ✅ Завершено (PR #11) | PR #11 merged in `main` (`server/auth.ts`) |
-| **Audit Logs (Трассировка действий агентов и прав)** | Сессия A (Jules) | 🔄 В разработке | `feat/audit-logs-observability` |
-| **Персистентный Rate Limiting & Trust Proxy** | Сессия B (Рекомендуется) | ⏳ Ожидает | Ограничение попыток запросов на уровне SQLite БД |
+| **Audit Logs (Трассировка действий агентов и прав)** | Сессия A (Jules) | ✅ Завершено (PR #12) | PR #12 merged in `main` (`server/db.ts`) |
+| **Персистентный Rate Limiting & Trust Proxy** | Сессия A (Jules) | 🔄 В разработке | `feat/persistent-rate-limiter` |
 | **Персистентное хранилище изображений (`/uploads`)** | Любая сессия | ⏳ Ожидает | Хранение изображений карточек на сервере с миниатюрами |
 
 ---
