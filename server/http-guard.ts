@@ -26,8 +26,11 @@ export function securityHeaders(_req: Request, res: Response, next: NextFunction
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Permissions-Policy', 'camera=(), geolocation=(), microphone=()');
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
-  // Only directives that do not govern resource loading: safe for the SPA.
-  res.setHeader('Content-Security-Policy', "frame-ancestors 'none'; base-uri 'none'; object-src 'none'");
+  // Strict Content-Security-Policy tailored for Vite React SPA + SSE/WebSocket & Uploads
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: /uploads/; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'none'; object-src 'none'"
+  );
   next();
 }
 

@@ -45,9 +45,9 @@
   - Защита от превышения лимитов с HTTP 429 и заголовком `Retry-After`.
   - *Затронутые файлы:* `server/http-guard.ts`.
 
-- [ ] **1.4 Поддержка `Last-Event-ID` в SSE** — ⏳ **Issue #31 / Backlog**
-  - Присвоение порядковых ID сообщениям комнат и доотправка пропущенных сообщений при переподключении.
-  - *Затронутые файлы:* `server/sse.ts`, `server/db.ts`.
+- [x] **1.4 Поддержка `Last-Event-ID` в SSE** — ✅ **Issue #31 / PR #31 (merged)**
+  - Фильтрация и доотправка пропущенных сообщений комнат по заголовочному или query параметру `Last-Event-ID`.
+  - *Затронутые файлы:* `server.ts`, `tests/sse-replay.test.ts`.
 
 ---
 
@@ -85,6 +85,6 @@
   - Конфигурация `Caddyfile` с проксированием SSE/WebSocket, TLS и заголовочной безопасностью.
   - *Затронутые файлы:* `Caddyfile`, `docs/deployment.md`.
 
-- [ ] **3.4 Строгая политика CSP (Content Security Policy)** — ⏳ **Issue #33 / Backlog**
-  - Настройка `Content-Security-Policy` для продакшен-сборки Vite/React.
-  - *Затронутые файлы:* `server.ts`.
+- [x] **3.4 Строгая политика CSP (Content Security Policy)** — ✅ **Issue #33 / PR #33 (merged)**
+  - Настройка продуктовой Content-Security-Policy в `securityHeaders` middleware.
+  - *Затронутые файлы:* `server/http-guard.ts`, `tests/csp-security.test.ts`.
