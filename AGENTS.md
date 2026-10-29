@@ -49,3 +49,4 @@ Known boundaries, which must stay visible in docs and UI:
 - CI (`typecheck`, `vitest`, build, production smoke) is green on the **exact SHA**
   you report. Link the run; do not claim more than the run proves.
 - Green CI ≠ live TEST ≠ production. No live deployment is implied.
+- **PR Status Commenting:** Upon finishing work on a branch or PR, the agent MUST leave a clear comment stating whether the PR has been verified and is ready to merge, OR listing the remaining tasks/fixes required before it can be merged.
