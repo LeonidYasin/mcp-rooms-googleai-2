@@ -1,6 +1,7 @@
 import DatabaseModule from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import { logger } from './logger';
 
 const Database = (DatabaseModule as any).default || DatabaseModule;
 
@@ -143,18 +144,6 @@ export function initDatabase() {
       owner TEXT NOT NULL,
       created_at INTEGER NOT NULL
     );
-
-    CREATE TABLE IF NOT EXISTS room_events (
-      id TEXT PRIMARY KEY,
-      room_id TEXT NOT NULL,
-      event_type TEXT NOT NULL,
-      payload_json TEXT NOT NULL,
-      created_at INTEGER NOT NULL,
-      FOREIGN KEY(room_id) REFERENCES rooms(id) ON DELETE CASCADE
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_room_events_room ON room_events(room_id);
-    CREATE INDEX IF NOT EXISTS idx_room_events_created ON room_events(created_at);
 
 CREATE TABLE IF NOT EXISTS audit_logs (
       id TEXT PRIMARY KEY,
@@ -348,8 +337,8 @@ function ensureNewCategoriesSeeded() {
         insertListing.run(item);
       }
     }
-  } catch (err) {
-    console.error('Error ensuring new categories seeded:', err);
+  } catch (err: any) {
+    logger.error('Error ensuring new categories seeded', { error: err?.message || String(err) });
   }
 }
 
@@ -977,9 +966,10 @@ export type MessageInsertFailure = 'room_not_found' | 'duplicate_message_id';
  * returns null and must be surfaced as a real error, never swallowed.
  */
 export function classifyMessageInsertError(err: unknown): MessageInsertFailure | null {
-  const code = (err as { code?: string } | null)?.code;
-  if (code === 'SQLITE_CONSTRAINT_FOREIGNKEY') return 'room_not_found';
-  if (code === 'SQLITE_CONSTRAINT_PRIMARYKEY' || code === 'SQLITE_CONSTRAINT_UNIQUE') {
+  const code = (err as { code?: string; message?: string } | null)?.code;
+  const message = (err as { message?: string } | null)?.message;
+  if (code === 'SQLITE_CONSTRAINT_FOREIGNKEY' || (message && message.includes('FOREIGN KEY constraint failed'))) return 'room_not_found';
+  if (code === 'SQLITE_CONSTRAINT_PRIMARYKEY' || code === 'SQLITE_CONSTRAINT_UNIQUE' || (message && message.includes('UNIQUE constraint failed'))) {
     return 'duplicate_message_id';
   }
   return null;
@@ -1443,47 +1433,6 @@ export function clearRateLimitHits() {
 }
 
 
-export interface UploadRecord {
-  id: string;
-  filename: string;
-  mimeType: string;
-  size: number;
-  url: string;
-  owner: string;
-  createdAt: number;
-}
-
-export function saveUploadInDb(upload: UploadRecord): UploadRecord {
-  db.prepare(`
-    INSERT INTO uploads (id, filename, mime_type, size, url, owner, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    upload.id,
-    upload.filename,
-    upload.mimeType,
-    upload.size,
-    upload.url,
-    upload.owner,
-    upload.createdAt
-  );
-
-  return upload;
-}
-
-export function getUploadByIdFromDb(id: string): UploadRecord | null {
-  const row = db.prepare('SELECT * FROM uploads WHERE id = ?').get(id) as any;
-  if (!row) return null;
-  return {
-    id: row.id,
-    filename: row.filename,
-    mimeType: row.mime_type,
-    size: row.size,
-    url: row.url,
-    owner: row.owner,
-    createdAt: row.created_at,
-  };
-}
-
 export interface RoomEventRecord {
   id: string;
   roomId: string;
@@ -1549,4 +1498,45 @@ export function getRoomEventsAfterInDb(roomId: string, lastEventId: string): Roo
     payload: JSON.parse(r.payload_json || '{}'),
     createdAt: r.created_at,
   }));
+}
+
+export interface UploadRecord {
+  id: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  url: string;
+  owner: string;
+  createdAt: number;
+}
+
+export function saveUploadInDb(upload: UploadRecord): UploadRecord {
+  db.prepare(`
+    INSERT INTO uploads (id, filename, mime_type, size, url, owner, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    upload.id,
+    upload.filename,
+    upload.mimeType,
+    upload.size,
+    upload.url,
+    upload.owner,
+    upload.createdAt
+  );
+
+  return upload;
+}
+
+export function getUploadByIdFromDb(id: string): UploadRecord | null {
+  const row = db.prepare('SELECT * FROM uploads WHERE id = ?').get(id) as any;
+  if (!row) return null;
+  return {
+    id: row.id,
+    filename: row.filename,
+    mimeType: row.mime_type,
+    size: row.size,
+    url: row.url,
+    owner: row.owner,
+    createdAt: row.created_at,
+  };
 }

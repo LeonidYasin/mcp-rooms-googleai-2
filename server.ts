@@ -20,7 +20,6 @@ import {
   classifyMessageInsertError,
   saveUploadInDb,
   addAuditLog,
-  getRoomEventsAfterInDb,
 } from './server/db';
 import { handleMcpJsonRpcRequest, executeMcpToolCall, MCP_TOOLS_MANIFEST } from './server/mcp';
 import { runAutonomousNegotiation } from './server/negotiator';
@@ -35,6 +34,7 @@ import {
   securityHeaders,
 } from './server/http-guard';
 import { configuredModel, llmStatus, recordLlmFailure, resolveLlmClient } from './server/llm';
+import { logger } from './server/logger';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -667,15 +667,12 @@ app.get('/api/rooms/:id/stream', optionalAuth, (req, res) => {
   const negs = getNegotiationsFromDb();
   const roomNeg = negs.find((n) => n.roomId === roomId) || null;
 
-  // PR-8 + TASK-01: Replay missing events from SQLite room_events store if lastEventId provided
-  let replayedEvents: any[] = [];
+  // PR-8: Replay missing messages if lastEventId was provided
   let filteredMessages = room.messages;
   if (lastEventId) {
-    replayedEvents = getRoomEventsAfterInDb(roomId, lastEventId);
-    const timeMatches = lastEventId.match(/\d+/g);
-    if (timeMatches && timeMatches.length > 0) {
-      const tsMatch = timeMatches.find((m) => Number(m) >= 1000) || timeMatches[timeMatches.length - 1];
-      const lastTimestamp = Number(tsMatch);
+    const lastTimeMatch = lastEventId.match(/(\d+)$/);
+    if (lastTimeMatch) {
+      const lastTimestamp = Number(lastTimeMatch[1]);
       if (Number.isFinite(lastTimestamp)) {
         filteredMessages = room.messages.filter((m: any) => m.timestamp > lastTimestamp);
       }
@@ -689,7 +686,6 @@ app.get('/api/rooms/:id/stream', optionalAuth, (req, res) => {
     participants: room.participants,
     status: room.status,
     messages: filteredMessages,
-    replayedEvents,
     negotiation: roomNeg,
     serverTime: Date.now(),
     lastEventId,
@@ -1141,7 +1137,7 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
       executedTools: [],
     });
   } catch (chatErr: any) {
-    console.error('Unhandled error in /api/chat:', chatErr);
+    logger.error('Unhandled error in /api/chat', { error: chatErr?.message || String(chatErr), stack: chatErr?.stack });
     res.status(500).json({
       error: chatErr?.message || 'Внутренняя ошибка обработки чата',
       text: 'Извините, произошла техническая ошибка при обработке запроса. База данных SQLite сохранена и доступна.',
@@ -1174,7 +1170,7 @@ async function start() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`MCP Rooms server with SQLite & JSON-RPC running on http://0.0.0.0:${PORT}`);
+    logger.info('MCP Rooms server running', { port: PORT, env: process.env.NODE_ENV || 'development' });
   });
 }
 
