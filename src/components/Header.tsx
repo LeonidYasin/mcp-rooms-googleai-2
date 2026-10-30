@@ -69,7 +69,7 @@ export const Header: React.FC<HeaderProps> = ({
                 currentTab === 'chat' ? 'text-[var(--blue)]' : 'text-[var(--ink)]'
               }`}
             >
-              <span>👼 Агент-Ангел (MCP)</span>
+              <span>💬 Чат с Ангелом</span>
             </button>
             <button
               type="button"
@@ -135,7 +135,7 @@ export const Header: React.FC<HeaderProps> = ({
                     : 'bg-[var(--surface)] border-[var(--line)] text-[var(--ink)] hover:bg-[var(--raised)]'
                 }`}
               >
-                <span>👼 Агент-Ангел</span>
+                <span>💬 Чат с Ангелом</span>
               </button>
 
               <button
