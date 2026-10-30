@@ -79,6 +79,7 @@ export const McpChat: React.FC<McpChatProps> = ({
   const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
   const [googleUser, setGoogleUser] = useState<GoogleUserProfile | null>(getStoredGoogleUser());
   const [hasGoogleAuth, setHasGoogleAuth] = useState<boolean>(Boolean(getStoredGoogleToken()));
+  const [hasStoredApiKey, setHasStoredApiKey] = useState<boolean>(Boolean(getStoredApiKey()));
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -89,6 +90,11 @@ export const McpChat: React.FC<McpChatProps> = ({
   useEffect(() => {
     scrollToBottom();
   }, [messages, isLoading]);
+
+  useEffect(() => {
+    setHasStoredApiKey(Boolean(getStoredApiKey()));
+    setHasGoogleAuth(Boolean(getStoredGoogleToken()));
+  }, [isGoogleModalOpen]);
 
   useEffect(() => {
     // Fetch live embedding provider status from backend
@@ -104,9 +110,13 @@ export const McpChat: React.FC<McpChatProps> = ({
     const text = (textToSend || input).trim();
     if (!text || isLoading) return;
 
-    // Chat writes data (rooms, listings), so it is a keyed operation.
-    if (!getStoredApiKey()) {
-      onRequireKey?.('Чат с агентом требует API-ключ: он определяет, от чьего имени агент пишет.');
+    // Chat requires an identity (Google OAuth or platform API-key)
+    const storedApiKey = getStoredApiKey();
+    const googleToken = getStoredGoogleToken();
+    const hasAuth = Boolean(storedApiKey || googleToken);
+
+    if (!hasAuth) {
+      onRequireKey?.('Чат с агентом требует авторизацию: подключите Google-аккаунт или укажите API-ключ.');
       return;
     }
 
@@ -121,19 +131,30 @@ export const McpChat: React.FC<McpChatProps> = ({
     if (!textToSend) setInput('');
     setIsLoading(true);
 
-    // All chat goes through POST /api/chat. Negotiation results come back as an
-    // explicit demo_preview; there is no live SSE negotiation stream.
-    const googleToken = getStoredGoogleToken();
+    const googleUser = getStoredGoogleUser();
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (storedApiKey) {
+        headers['Authorization'] = `Bearer ${storedApiKey}`;
+      } else if (googleToken) {
+        headers['Authorization'] = `Bearer ${googleToken}`;
+      }
+      if (googleToken) {
+        headers['x-google-access-token'] = googleToken;
+        if (googleUser?.email) {
+          headers['x-google-user-id'] = googleUser.email;
+        }
+      }
+
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: authHeaders({
-          'Content-Type': 'application/json',
-          ...(googleToken ? { 'x-google-access-token': googleToken } : {}),
-        }),
+        headers,
         body: JSON.stringify({
           targetListingId: contextListing?.id || undefined,
           googleAccessToken: googleToken || undefined,
+          googleUserId: googleUser?.email || undefined,
           messages: [...messages, userMessage].map((m) => ({
             role: m.role,
             content: m.content,
@@ -144,7 +165,14 @@ export const McpChat: React.FC<McpChatProps> = ({
       const data = await response.json();
 
       if (response.status === 401) {
-        onRequireKey?.('Сервер отклонил ключ. Вставьте действующий ключ (401).');
+        if (googleToken && !storedApiKey) {
+          clearGoogleAuth();
+          setHasGoogleAuth(false);
+          setGoogleUser(null);
+          onRequireKey?.('Срок действия сессии Google истёк. Войдите заново через Google или используйте API-ключ.');
+        } else {
+          onRequireKey?.('Сервер отклонил ключ. Вставьте действующий ключ или войдите через Google (401).');
+        }
         return;
       }
       if (!response.ok) {
@@ -537,6 +565,33 @@ export const McpChat: React.FC<McpChatProps> = ({
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Auth Guidance Banner if neither key nor Google is connected */}
+      {!hasStoredApiKey && !hasGoogleAuth && (
+        <div className="border-x border-t border-[var(--line)] bg-amber-500/10 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-800 dark:text-amber-300">
+          <div className="flex items-center gap-1.5 font-medium">
+            <span>💡</span>
+            <span>Для отправки поручений Ангелу подключите Google или активируйте ключ:</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsGoogleModalOpen(true)}
+              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-md font-semibold cursor-pointer shadow-xs transition-colors"
+            >
+              🌐 Войти с Google
+            </button>
+            <span className="text-[var(--muted)]">или</span>
+            <button
+              type="button"
+              onClick={() => onRequireKey?.('Быстрый вход по ключу создателя')}
+              className="px-2.5 py-1 bg-[var(--surface)] hover:bg-[var(--raised)] border border-[var(--line)] rounded-md font-semibold text-[var(--ink)] cursor-pointer transition-colors"
+            >
+              ⚡ Ключ Создателя
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Preset Chips */}
       <div className="border-x border-[var(--line)] bg-[var(--surface)] px-4 py-2.5 space-y-2">
