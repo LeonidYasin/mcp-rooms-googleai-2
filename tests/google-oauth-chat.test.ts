@@ -86,4 +86,22 @@ describe('Google OAuth 2.0 Gemini Chat Integration', () => {
     expect(data.text).toBeDefined();
     expect(data.degraded).toBe(true);
   });
+
+  it('allows /api/chat with personal Gemini API key without MCP key', async () => {
+    const res = await fetch(`${baseUrl}/api/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-gemini-api-key': 'AIzaSyMockKeyForTestingPurposes12345',
+      },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: 'Привет от пользователя с личным ключом' }],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.text).toBeDefined();
+    expect(data.degraded).toBe(true);
+  });
 });

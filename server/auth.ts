@@ -160,6 +160,20 @@ export function principalFromRequest(req: Request): Principal | null {
     };
   }
 
+  // User-provided Gemini API Key support (e.g. AIzaSy...)
+  const userGeminiKey =
+    (typeof req.headers['x-gemini-api-key'] === 'string' ? req.headers['x-gemini-api-key'] : undefined) ||
+    (typeof req.body?.geminiApiKey === 'string' ? req.body.geminiApiKey : undefined);
+
+  if (userGeminiKey && userGeminiKey.startsWith('AIza') && userGeminiKey.length > 20) {
+    const hash = crypto.createHash('sha256').update(userGeminiKey).digest('hex').slice(0, 12);
+    return {
+      principalId: `user:gemini-${hash}`,
+      keyId: 'gemini_api_key',
+      scopes: ['*'],
+    };
+  }
+
   return null;
 }
 

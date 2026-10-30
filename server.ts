@@ -838,6 +838,7 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
   const userPrompt = messages[messages.length - 1]?.content || '';
   const promptLower = userPrompt.toLowerCase();
   const googleAccessToken = (req.headers['x-google-access-token'] as string) || req.body?.googleAccessToken;
+  const userGeminiApiKey = (req.headers['x-gemini-api-key'] as string) || req.body?.geminiApiKey;
   let llmDegradedReason: string | null = null;
 
   const systemInstruction = `Ты — персональный ИИ-ассистент («Агент-Ангел») автономной децентрализованной площадки объявлений «Хочу · Предлагаю» (MCP Rooms).
@@ -978,8 +979,9 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
     }
   }
 
-  // 2. Try the server-configured Gemini model with autonomous MCP Function Calling
-  const llm = resolveLlmClient();
+  // 2. Try user-provided Gemini API key or server-configured Gemini model with autonomous MCP Function Calling
+  const effectiveModel = configuredModel() || (userGeminiApiKey ? 'gemini-1.5-flash' : '');
+  const llm = resolveLlmClient(userGeminiApiKey);
   if (!llmDegradedReason) {
     llmDegradedReason = llm.reason;
   }
@@ -987,7 +989,7 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
   if (aiClient) {
     try {
       const response = await aiClient.models.generateContent({
-        model: configuredModel(),
+        model: effectiveModel,
         contents,
         config: {
           systemInstruction,
@@ -1044,7 +1046,7 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
         ];
 
         const followUpResponse = await aiClient.models.generateContent({
-          model: configuredModel(),
+          model: effectiveModel,
           contents: followUpContents,
           config: {
             systemInstruction,
@@ -1054,8 +1056,9 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
 
         res.json({
           text: followUpResponse.text || 'Действие успешно выполнено через протокол MCP.',
-          model: configuredModel(),
+          model: effectiveModel,
           degraded: false,
+          authType: userGeminiApiKey ? 'user_gemini_key' : 'server_llm',
           executedTools: executedToolsLog,
           negotiation: negotiationResult,
           createdListing: createdListingResult,
@@ -1066,8 +1069,9 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
       if (response.text) {
         res.json({
           text: response.text,
-          model: configuredModel(),
+          model: effectiveModel,
           degraded: false,
+          authType: userGeminiApiKey ? 'user_gemini_key' : 'server_llm',
           executedTools: [],
         });
         return;

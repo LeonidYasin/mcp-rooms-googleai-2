@@ -112,9 +112,9 @@ export interface ResolvedLlm {
  * Returns a client only when the call may actually be attempted. The caller
  * must report `reason` to the user instead of pretending the model answered.
  */
-export function resolveLlmClient(now: number = Date.now()): ResolvedLlm {
-  const apiKey = readApiKey();
-  const model = configuredModel();
+export function resolveLlmClient(apiKeyOverride?: string, now: number = Date.now()): ResolvedLlm {
+  const apiKey = (apiKeyOverride || readApiKey()).trim();
+  const model = configuredModel() || (apiKeyOverride ? 'gemini-1.5-flash' : '');
 
   const missing = missingConfigReason(apiKey);
   if (missing) return { client: null, reason: missing };

@@ -6,6 +6,8 @@ import {
   getStoredGoogleToken,
   getStoredGoogleUser,
   clearGoogleAuth,
+  getStoredGeminiApiKey,
+  storeGeminiApiKey,
   GoogleUserProfile,
 } from '../lib/googleAuth';
 
@@ -84,6 +86,7 @@ export const McpChat: React.FC<McpChatProps> = ({
   const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
   const [googleUser, setGoogleUser] = useState<GoogleUserProfile | null>(getStoredGoogleUser());
   const [hasGoogleAuth, setHasGoogleAuth] = useState<boolean>(Boolean(getStoredGoogleToken()));
+  const [userGeminiKey, setUserGeminiKey] = useState<string>(getStoredGeminiApiKey());
   const [hasStoredApiKey, setHasStoredApiKey] = useState<boolean>(Boolean(getStoredApiKey()));
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -99,6 +102,7 @@ export const McpChat: React.FC<McpChatProps> = ({
   useEffect(() => {
     setHasStoredApiKey(Boolean(getStoredApiKey()));
     setHasGoogleAuth(Boolean(getStoredGoogleToken()));
+    setUserGeminiKey(getStoredGeminiApiKey());
   }, [isGoogleModalOpen]);
 
   useEffect(() => {
@@ -128,13 +132,14 @@ export const McpChat: React.FC<McpChatProps> = ({
     const text = (textToSend || input).trim();
     if (!text || isLoading) return;
 
-    // Chat requires an identity (Google OAuth or platform API-key)
+    // Chat requires an identity (Google OAuth, Gemini API key, or platform API-key)
     const storedApiKey = getStoredApiKey();
     const googleToken = getStoredGoogleToken();
-    const hasAuth = Boolean(storedApiKey || googleToken);
+    const currentGeminiKey = getStoredGeminiApiKey();
+    const hasAuth = Boolean(storedApiKey || googleToken || currentGeminiKey);
 
     if (!hasAuth) {
-      onRequireKey?.('Чат с агентом требует авторизацию: подключите Google-аккаунт или укажите API-ключ.');
+      onRequireKey?.('Чат с агентом требует авторизацию: подключите Google-аккаунт, укажите Gemini API ключ или войдите как гость.');
       return;
     }
 
@@ -158,12 +163,17 @@ export const McpChat: React.FC<McpChatProps> = ({
         headers['Authorization'] = `Bearer ${storedApiKey}`;
       } else if (googleToken) {
         headers['Authorization'] = `Bearer ${googleToken}`;
+      } else if (currentGeminiKey) {
+        headers['Authorization'] = `Bearer ${currentGeminiKey}`;
       }
       if (googleToken) {
         headers['x-google-access-token'] = googleToken;
         if (googleUser?.email) {
           headers['x-google-user-id'] = googleUser.email;
         }
+      }
+      if (currentGeminiKey) {
+        headers['x-gemini-api-key'] = currentGeminiKey;
       }
 
       const response = await fetch('/api/chat', {
@@ -172,6 +182,7 @@ export const McpChat: React.FC<McpChatProps> = ({
         body: JSON.stringify({
           targetListingId: contextListing?.id || undefined,
           googleAccessToken: googleToken || undefined,
+          geminiApiKey: currentGeminiKey || undefined,
           googleUserId: googleUser?.email || undefined,
           messages: [...messages, userMessage].map((m) => ({
             role: m.role,
@@ -304,15 +315,15 @@ export const McpChat: React.FC<McpChatProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          {hasGoogleAuth ? (
+          {hasGoogleAuth || userGeminiKey ? (
             <button
               type="button"
               onClick={() => setIsGoogleModalOpen(true)}
               className="flex items-center gap-1.5 text-xs text-emerald-400 border border-emerald-500/30 px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors cursor-pointer"
-              title="Google Gemini OAuth 2.0 подключен"
+              title="Google Gemini подключен"
             >
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span className="hidden sm:inline font-medium">{googleUser?.email || 'Google Gemini'}</span>
+              <span className="hidden sm:inline font-medium">{googleUser?.email || (userGeminiKey ? 'Gemini API Key' : 'Google Gemini')}</span>
               <span className="sm:hidden font-medium">Gemini</span>
             </button>
           ) : (
@@ -585,7 +596,7 @@ export const McpChat: React.FC<McpChatProps> = ({
       </div>
 
       {/* Auth Guidance Banner if neither key nor Google is connected */}
-      {!hasStoredApiKey && !hasGoogleAuth && (
+      {!hasStoredApiKey && !hasGoogleAuth && !userGeminiKey && (
         <div className="border-x border-t border-[var(--line)] bg-amber-500/10 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-800 dark:text-amber-300">
           <div className="flex items-center gap-1.5 font-medium">
             <span>💡</span>
