@@ -12,6 +12,21 @@ const STORAGE_KEY_TOKEN = 'mcp_google_access_token';
 const STORAGE_KEY_EXPIRES = 'mcp_google_token_expires_at';
 const STORAGE_KEY_USER = 'mcp_google_user_profile';
 const STORAGE_KEY_CLIENT_ID = 'mcp_google_client_id';
+const STORAGE_KEY_GEMINI_KEY = 'mcp_user_gemini_api_key';
+
+export function getStoredGeminiApiKey(): string {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem(STORAGE_KEY_GEMINI_KEY) || '';
+}
+
+export function storeGeminiApiKey(key: string): void {
+  if (typeof window === 'undefined') return;
+  if (!key.trim()) {
+    localStorage.removeItem(STORAGE_KEY_GEMINI_KEY);
+  } else {
+    localStorage.setItem(STORAGE_KEY_GEMINI_KEY, key.trim());
+  }
+}
 
 // Default / fallback Client ID (can be overridden by environment or UI settings)
 export const DEFAULT_GOOGLE_CLIENT_ID =
@@ -122,7 +137,7 @@ export async function signInWithGoogle(
     try {
       const tokenClient = window.google!.accounts.oauth2.initTokenClient({
         client_id: clientId,
-        scope: 'https://www.googleapis.com/auth/generative-language email profile openid',
+        scope: 'https://www.googleapis.com/auth/cloud-platform email profile openid',
         callback: async (resp) => {
           if (resp.error) {
             reject(new Error(resp.error_description || resp.error));
