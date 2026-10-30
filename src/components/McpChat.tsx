@@ -2,7 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Listing, McpRoom, NegotiationResult, EmbeddingProviderStatus } from '../types';
 import { authHeaders, getStoredApiKey } from '../lib/api';
 import { GoogleAuthModal } from './GoogleAuthModal';
-import { getStoredGoogleToken, getStoredGoogleUser, GoogleUserProfile } from '../lib/googleAuth';
+import {
+  getStoredGoogleToken,
+  getStoredGoogleUser,
+  clearGoogleAuth,
+  GoogleUserProfile,
+} from '../lib/googleAuth';
 
 export interface ChatMessage {
   id: string;
