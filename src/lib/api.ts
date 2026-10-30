@@ -34,17 +34,6 @@ export function authHeaders(base: Record<string, string> = {}): Record<string, s
   return key ? { ...base, Authorization: `Bearer ${key}` } : { ...base };
 }
 
-/**
- * EventSource cannot send headers, so the SSE endpoint accepts the token as a
- * query parameter. Temporary: the stream transport is replaced in PR-8.
- */
-export function withAccessToken(url: string): string {
-  const key = getStoredApiKey();
-  if (!key) return url;
-  const separator = url.includes('?') ? '&' : '?';
-  return `${url}${separator}access_token=${encodeURIComponent(key)}`;
-}
-
 export interface ApiFailure {
   status: number;
   message: string;
