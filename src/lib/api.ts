@@ -66,3 +66,14 @@ export async function readApiFailure(res: Response): Promise<ApiFailure> {
 export function isUnauthorized(failure: ApiFailure | null | undefined): boolean {
   return failure?.status === 401;
 }
+
+/** Requests a fresh, isolated guest key from the server in 1 click. */
+export async function createGuestSession(): Promise<{ key: string; principalId: string }> {
+  const res = await fetch('/api/auth/guest', { method: 'POST' });
+  if (!res.ok) {
+    throw new Error('Не удалось получить гостевой доступ');
+  }
+  const data = await res.json();
+  storeApiKey(data.key);
+  return data;
+}

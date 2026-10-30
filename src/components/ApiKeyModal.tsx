@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getStoredApiKey, storeApiKey } from '../lib/api';
+import { getStoredApiKey, storeApiKey, createGuestSession } from '../lib/api';
 
 interface ApiKeyModalProps {
   isOpen: boolean;
@@ -17,15 +17,32 @@ interface ApiKeyModalProps {
 export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSaved, reason }) => {
   const [value, setValue] = useState('');
   const [showValue, setShowValue] = useState(false);
+  const [isGuestLoading, setIsGuestLoading] = useState(false);
+  const [guestError, setGuestError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setValue(getStoredApiKey());
       setShowValue(false);
+      setGuestError(null);
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
+
+  const handleGuestLogin = async () => {
+    setIsGuestLoading(true);
+    setGuestError(null);
+    try {
+      const data = await createGuestSession();
+      onSaved(data.key);
+      onClose();
+    } catch (err: any) {
+      setGuestError(err?.message || 'Ошибка создания гостевого аккаунта');
+    } finally {
+      setIsGuestLoading(false);
+    }
+  };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,32 +97,39 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSav
           </div>
         )}
 
-        {/* Quick Founder Key Option */}
-        <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 rounded-xl space-y-2">
+        {/* 1-Click Guest Access Option */}
+        <div className="mb-4 p-3.5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 rounded-xl space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 font-bold text-xs text-blue-700 dark:text-blue-400">
-              <span>⚡</span>
-              <span>Быстрый вход: Ключ Создателя</span>
+            <div className="flex items-center gap-1.5 font-bold text-xs text-emerald-700 dark:text-emerald-400">
+              <span>👤</span>
+              <span>Вход для посетителей: Гостевой профиль</span>
             </div>
             <button
               type="button"
-              onClick={() => {
-                const founderKey = 'mcr_5SiuxQaWs7jiKqxb0cCFtO5aKP6Ho0mzLsoFi5d_6A8';
-                storeApiKey(founderKey);
-                onSaved(founderKey);
-                onClose();
-              }}
-              className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg cursor-pointer transition-colors shadow-xs"
+              disabled={isGuestLoading}
+              onClick={handleGuestLogin}
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg cursor-pointer transition-colors shadow-xs disabled:opacity-50"
             >
-              Использовать Founder Key
+              {isGuestLoading ? 'Создание...' : 'Войти как Гость (1 клик)'}
             </button>
           </div>
           <p className="text-[11px] text-[var(--muted)] leading-relaxed">
-            Активирует ключ создателя площадки в браузере с полными правами (публикация, комнаты переговоров, чат с Ангелом).
+            Создаёт ваш персональный изолированный профиль на сервере (например, <code>user:guest-…</code>). Ваши объявления и комнаты будут принадлежать только вам.
           </p>
+          {guestError && (
+            <div className="text-xs text-red-500">{guestError}</div>
+          )}
         </div>
 
         <form onSubmit={handleSave} className="space-y-3">
+          <div>
+            <label className="block text-xs font-semibold text-[var(--ink)] uppercase mb-1">
+              Ключ Создателя или Администратора
+            </label>
+            <p className="text-xs text-[var(--muted)] mb-2">
+              Если у вас есть персональный ключ (например, вы Создатель площадки или MCP-агент), вставьте его сюда:
+            </p>
+          </div>
           <label className="block text-xs font-semibold text-[var(--muted)] uppercase">
             Ключ (mcr_…)
           </label>
