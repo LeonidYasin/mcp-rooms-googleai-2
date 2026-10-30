@@ -113,7 +113,7 @@ print("Ответ MCP:", result["result"]["content"][0]["text"])`;
   const openApiYaml = `openapi: 3.1.0
 info:
   title: MCP Rooms Marketplace API
-  description: Каталог объявлений и семантический матчинг площадки «Хочу · Предлагаю»
+  description: Каталог объявлений и семантический матчинг площадки «Ищу · Предлагаю»
   version: 1.0.0
 servers:
   - url: ${serverUrl}
@@ -144,7 +144,7 @@ paths:
   /api/match:
     post:
       operationId: matchNeedsOffers
-      summary: Асимметричный матчинг (поиск пары Хочу <-> Предлагаю)
+      summary: Асимметричный матчинг (поиск пары Ищу <-> Предлагаю)
       requestBody:
         required: true
         content:

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Listing, McpRoom, CATEGORY_LABELS, MODE_LABELS } from '../types';
 import { formatPrice } from './ListingCard';
+import { useI18n, TranslationKey } from '../i18n';
 
 interface ListingDetailProps {
   listing: Listing;
@@ -21,11 +22,14 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
   onOpenRoom,
   onAddPhoto,
 }) => {
+  const { t, locale } = useI18n();
   const { content, photos, author_name, revision } = listing;
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
   const [showPhotoUploadModal, setShowPhotoUploadModal] = useState(false);
 
-  const modesText = content.modes.map((m) => MODE_LABELS[m]).join(' / ');
+  const modesText = content.modes
+    .map((m) => t(`mode.${m}` as TranslationKey))
+    .join(' / ');
   const locationText = [content.locality, content.region, content.country]
     .filter(Boolean)
     .join(' · ');
@@ -53,10 +57,10 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
           onClick={onBack}
           className="text-[var(--blue)] hover:underline cursor-pointer font-medium"
         >
-          Все объявления
+          {t('nav.catalog')}
         </button>
         <span>/</span>
-        <span>{CATEGORY_LABELS[content.category]}</span>
+        <span>{t(`cat.${content.category}` as TranslationKey)}</span>
         {content.subcategory && (
           <>
             <span>/</span>
@@ -70,8 +74,14 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
         {/* Left Article */}
         <article className="min-w-0">
           <div className="mb-2">
-            <span className="text-xs font-semibold text-[var(--green)] bg-[var(--greenbg)] px-2.5 py-1 rounded inline-block">
-              {content.kind === 'offer' ? 'Предлагаю · объявление' : 'Ищу · запрос'}
+            <span
+              className={`text-xs font-bold px-3 py-1 rounded-full inline-block ${
+                content.kind === 'offer'
+                  ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800'
+                  : 'text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800'
+              }`}
+            >
+              {content.kind === 'offer' ? `📦 ${t('kind.offer')}` : `🔍 ${t('kind.request')}`}
             </span>
           </div>
 
@@ -273,15 +283,15 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
               onClick={() => onContactSeller(listing)}
               className="w-full h-11 mb-2.5 rounded-lg bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white font-semibold text-sm transition-colors cursor-pointer"
             >
-              Написать продавцу
+              {locale === 'en' ? 'Contact Author' : 'Написать продавцу'}
             </button>
 
             <button
               type="button"
               onClick={() => onAgentDiscuss(listing)}
-              className="w-full h-11 mb-4 rounded-lg border border-blue-200 bg-[var(--soft)] hover:bg-blue-100 text-[var(--blue)] font-bold text-sm transition-colors cursor-pointer flex items-center justify-center gap-2"
+              className="w-full h-11 mb-4 rounded-lg border border-blue-200 dark:border-blue-900 bg-[var(--soft)] hover:bg-blue-100 dark:hover:bg-blue-950/40 text-[var(--blue)] font-bold text-sm transition-colors cursor-pointer flex items-center justify-center gap-2"
             >
-              <span>👼 Поручить Агенту-Ангелу</span>
+              <span>👼 {locale === 'en' ? 'Discuss with Angel Agent' : 'Поручить Агенту-Ангелу'}</span>
             </button>
 
             {/* Attached Rooms Section */}

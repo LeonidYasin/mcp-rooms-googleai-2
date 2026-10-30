@@ -27,7 +27,7 @@ export type ListingKind = 'offer' | 'request';
 
 export const KIND_LABELS: Record<ListingKind, string> = {
   offer: 'Предлагаю',
-  request: 'Хочу (Ищу)',
+  request: 'Ищу',
 };
 
 export type FulfilmentMode = 'pickup' | 'shipping' | 'online';

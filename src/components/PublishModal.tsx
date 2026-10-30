@@ -9,6 +9,7 @@ import {
   ListingPhoto,
 } from '../types';
 import { formatPrice } from './ListingCard';
+import { useI18n, TranslationKey } from '../i18n';
 
 interface PublishModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   onClose,
   onPublish,
 }) => {
+  const { t, locale } = useI18n();
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
   const [kind, setKind] = useState<ListingKind>('offer');
   const [category, setCategory] = useState<ListingCategory>('things');
@@ -217,7 +219,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                         : 'border-[var(--line)] text-[var(--ink)] hover:bg-[var(--surface)]'
                     }`}
                   >
-                    🔍 Хочу / Ищу (запрос / покупка)
+                    🔍 {locale === 'en' ? 'Seeking (request / buying)' : 'Ищу (запрос / покупка)'}
                   </button>
                 </div>
               </div>
@@ -427,8 +429,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
             /* PREVIEW TAB */
             <div className="border border-[var(--line)] rounded-xl p-5 bg-[var(--surface)] space-y-4">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-[var(--green)] bg-[var(--greenbg)] px-2 py-0.5 rounded">
-                  {kind === 'offer' ? 'Предлагаю' : 'Хочу'} · {CATEGORY_LABELS[category]}
+                <span className="text-xs font-semibold text-[var(--green)] bg-[var(--greenbg)] px-2.5 py-0.5 rounded-full">
+                  {kind === 'offer' ? t('kind.offer') : t('kind.request')} · {t(`cat.${category}` as TranslationKey)}
                 </span>
                 {subcategory && (
                   <span className="text-xs text-[var(--muted)]">→ {subcategory}</span>
