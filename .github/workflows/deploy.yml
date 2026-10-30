@@ -28,35 +28,28 @@ jobs:
             set -e
             echo "🚀 Starting automated deployment..."
 
-            export PATH=$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/snap/bin
+            export PATH=$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/snap/bin:$HOME/.local/bin
 
-            run_sudo() {
-              if [ "$(id -u)" -eq 0 ]; then
-                "$@"
-              elif [ -n "$VPS_PASSWORD" ]; then
-                echo "$VPS_PASSWORD" | sudo -S "$@"
-              else
-                sudo -n "$@" 2>/dev/null || sudo "$@"
-              fi
-            }
+            echo "=== VPS DIAGNOSTICS ==="
+            echo "USER: $(whoami)"
+            echo "HOME: $HOME"
+            echo "ID: $(id)"
+            echo "GROUPS: $(groups 2>/dev/null || true)"
+            echo "PATH: $PATH"
+            which docker || true
+            docker --version || true
+            docker compose version || true
 
-            # 1. Install Docker & Docker Compose if not installed on VPS
-            if ! command -v docker &> /dev/null; then
-              echo "📦 Installing Docker on VPS..."
-              curl -fsSL https://get.docker.com | run_sudo sh
+            DEPLOY_DIR="/opt/mcp-rooms"
+            if [ ! -w "/opt" ] && [ ! -d "$DEPLOY_DIR" ]; then
+              DEPLOY_DIR="$HOME/mcp-rooms"
             fi
+            echo "DEPLOY_DIR: $DEPLOY_DIR"
 
-            # 2. Add current user to docker group if needed
-            if ! groups $USER 2>/dev/null | grep -q docker; then
-              run_sudo usermod -aG docker $USER || true
-            fi
+            mkdir -p "$DEPLOY_DIR"
+            cd "$DEPLOY_DIR"
 
-            # 3. Create project working directories
-            run_sudo mkdir -p /opt/mcp-rooms
-            run_sudo chown -R $USER:$USER /opt/mcp-rooms
-            cd /opt/mcp-rooms
-
-            # 4. Clone or update repository to latest main commit
+            # Clone or update repository
             if [ ! -d ".git" ]; then
               git clone https://github.com/LeonidYasin/mcp-rooms-googleai-2.git .
             else
@@ -64,21 +57,17 @@ jobs:
               git reset --hard origin/main
             fi
 
-            # 5. Bootstrap default .env if missing
+            # Bootstrap default .env if missing
             if [ ! -f ".env" ]; then
               cp .env.example .env
               echo "DOMAIN=${{ secrets.VPS_HOST }}" >> .env
             fi
 
-            # 6. Ensure persistent database and upload directories with non-root UID 1000
+            # Ensure persistent directories
             mkdir -p ./data/uploads ./data/thumbnails
-            run_sudo chown -R 1000:1000 ./data || true
+            chmod -R 777 ./data 2>/dev/null || true
 
-            # 7. Restart production Docker stack
-            if docker compose version &>/dev/null; then
-              docker compose -f docker-compose.prod.yml up -d --build
-            else
-              run_sudo docker compose -f docker-compose.prod.yml up -d --build
-            fi
+            # Restart production Docker stack
+            docker compose -f docker-compose.prod.yml up -d --build
 
             echo "✅ Deployment completed successfully!"
