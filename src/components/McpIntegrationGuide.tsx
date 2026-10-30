@@ -190,6 +190,91 @@ paths:
         )}
       </div>
 
+      {/* Universal Connector Cheat Sheet: what to enter into any MCP client */}
+      <div className="bg-[var(--canvas)] border border-blue-200/80 dark:border-blue-900/60 rounded-xl p-4 space-y-3.5 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--line)] pb-2.5">
+          <div className="flex items-center gap-2">
+            <span className="text-base">📋</span>
+            <h3 className="font-bold text-sm text-[var(--ink)]">
+              Шпаргалка для коннекторов (Claude, Cursor, DeepSeek MCP Lite, Cline, Roo Code)
+            </h3>
+          </div>
+          <span className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded">
+            JSON-RPC 2.0 · Streamable HTTP & SSE
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+          {/* Field 1: Base Address */}
+          <div className="p-3 bg-[var(--surface)] border border-[var(--line)] rounded-lg space-y-1.5 flex flex-col justify-between">
+            <div>
+              <div className="font-bold text-[var(--ink)]">
+                1. Базовый адрес (URL / Host)
+              </div>
+              <p className="text-[11px] text-[var(--muted)] leading-tight mt-0.5">
+                Эндпоинт протокола MCP на сервере
+              </p>
+              <div className="font-mono text-[11px] font-bold text-sky-600 dark:text-sky-400 mt-2 bg-[var(--canvas)] p-2 rounded border border-[var(--line)] break-all select-all">
+                {mcpEndpoint}
+              </div>
+              <div className="text-[10px] text-[var(--muted)] mt-1">
+                Для клиентов с путем <code>/sse</code>: <code className="text-sky-600">{`${serverUrl}/sse`}</code>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => copyToClipboard(mcpEndpoint, 'topUrl')}
+              className="w-full mt-2 py-1 bg-[var(--blue)] text-white text-[11px] font-bold rounded hover:bg-[var(--blue-hover)] cursor-pointer transition shadow-2xs"
+            >
+              {copiedKey === 'topUrl' ? '✓ Скопировано' : 'Скопировать адрес'}
+            </button>
+          </div>
+
+          {/* Field 2: Bearer Token */}
+          <div className="p-3 bg-[var(--surface)] border border-[var(--line)] rounded-lg space-y-1.5 flex flex-col justify-between">
+            <div>
+              <div className="font-bold text-[var(--ink)]">
+                2. Bearer токен (API Key)
+              </div>
+              <p className="text-[11px] text-[var(--muted)] leading-tight mt-0.5">
+                Выданный вам ключ с префиксом <code>mcr_...</code>
+              </p>
+              <div className="font-mono text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 mt-2 bg-[var(--canvas)] p-2 rounded border border-[var(--line)] break-all">
+                mcr_... (вставлять в поле токена)
+              </div>
+              <p className="text-[10px] text-[var(--muted)] mt-1 leading-tight">
+                Рукопожатие (<code>initialize</code>) и каталог (<code>tools/list</code>) открыты <strong>без токена</strong>. Токен нужен только для выполнения действий (<code>tools/call</code>).
+              </p>
+            </div>
+            <div className="text-[10px] text-amber-700 dark:text-amber-400 font-medium pt-1">
+              💡 Скопируйте ваш токен по кнопке 🔑 в шапке сайта
+            </div>
+          </div>
+
+          {/* Field 3: Custom Headers */}
+          <div className="p-3 bg-[var(--surface)] border border-[var(--line)] rounded-lg space-y-1.5 flex flex-col justify-between">
+            <div>
+              <div className="font-bold text-[var(--ink)]">
+                3. Доп. заголовки (Headers)
+              </div>
+              <p className="text-[11px] text-[var(--muted)] leading-tight mt-0.5">
+                Обязательных нет. Опционально:
+              </p>
+              <div className="text-[11px] font-mono text-[var(--ink)] mt-2 bg-[var(--canvas)] p-2 rounded border border-[var(--line)] space-y-0.5">
+                <div><span className="text-[var(--blue)]">x-llm-provider:</span> openrouter</div>
+                <div><span className="text-[var(--blue)]">x-llm-model:</span> deepseek/deepseek-chat</div>
+              </div>
+              <p className="text-[10px] text-[var(--muted)] mt-1 leading-tight">
+                Стандартные заголовки (<code>Content-Type: application/json</code>) плагины ставят сами. Поле Headers можно оставить пустым.
+              </p>
+            </div>
+            <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium pt-1">
+              ✓ Дополнительные заголовки не требуются
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Tabs */}
       <div className="flex flex-wrap gap-2 text-xs border-b border-[var(--line)] pb-2">
         <button

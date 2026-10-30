@@ -196,8 +196,8 @@ export const McpConsole: React.FC<McpConsoleProps> = ({
         )}
         {!getStoredApiKey() && (
           <p className="text-xs text-amber-800 dark:text-amber-300 mt-2">
-            Ключ не задан: <code>tools/list</code> открыт, но <code>tools/call</code> вернёт 401.
-            Нажмите 🔑 в шапке и вставьте ключ, выданный командой <code>npm run key:issue</code>.
+            Ключ не задан: рукопожатие (<code>initialize</code>) и список (<code>tools/list</code>) открыты без ключа, но <code>tools/call</code> вернёт 401.
+            Нажмите 🔑 в шапке, чтобы скопировать или сгенерировать ваш Bearer токен в 1 клик.
           </p>
         )}
       </div>
