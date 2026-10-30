@@ -41,6 +41,29 @@ jobs:
             docker --version || true
             docker compose version || true
 
+            echo "=== HOST WEB SERVERS & PORTS ==="
+            ss -tlpn 2>/dev/null | grep -E ':(80|443|3000)\b' || true
+            ps aux | grep -E 'caddy|nginx|apache' | grep -v grep || true
+            which caddy || true
+            find /etc -name "*Caddy*" 2>/dev/null || true
+            find /etc -name "*caddy*" 2>/dev/null || true
+            ls -la /etc/caddy 2>/dev/null || true
+
+            cat << 'HELPER' > "$HOME/fix-caddy.sh"
+#!/usr/bin/env bash
+set -e
+echo "=== Diagnosing Web Server & Caddy ==="
+ps aux | grep -E 'caddy|nginx|apache' | grep -v grep || true
+which caddy 2>/dev/null || true
+systemctl status caddy --no-pager 2>/dev/null || true
+echo "=== Listening ports 80/443 ==="
+ss -tlpn | grep -E ':(80|443)\b' || true
+echo "=== Config files found ==="
+find /etc -name "*addy*" 2>/dev/null || true
+find /etc -name "*nginx*" 2>/dev/null || true
+HELPER
+            chmod +x "$HOME/fix-caddy.sh"
+
             DEPLOY_DIR="/opt/mcp-rooms"
             if [ ! -w "/opt" ] && [ ! -d "$DEPLOY_DIR" ]; then
               DEPLOY_DIR="$HOME/mcp-rooms"
