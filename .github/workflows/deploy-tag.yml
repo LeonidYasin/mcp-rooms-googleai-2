@@ -15,6 +15,8 @@ jobs:
 
       - name: SSH Auto-Provisioning & Deployment
         uses: appleboy/ssh-action@v1.0.0
+        env:
+          VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
@@ -22,24 +24,37 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           passphrase: ${{ secrets.VPS_PASSPHRASE }}
           port: ${{ secrets.VPS_PORT || 22 }}
+          envs: VPS_PASSWORD
           script: |
             set -e
             echo "🚀 Starting automated VPS provisioning and tag release deployment..."
 
+            export PATH=$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/snap/bin
+
+            run_sudo() {
+              if [ "$(id -u)" -eq 0 ]; then
+                "$@"
+              elif [ -n "$VPS_PASSWORD" ]; then
+                echo "$VPS_PASSWORD" | sudo -S "$@"
+              else
+                sudo -n "$@" 2>/dev/null || sudo "$@"
+              fi
+            }
+
             # 1. Install Docker & Docker Compose if not installed on VPS
             if ! command -v docker &> /dev/null; then
               echo "📦 Installing Docker on VPS..."
-              curl -fsSL https://get.docker.com | sh || sudo curl -fsSL https://get.docker.com | sh
+              curl -fsSL https://get.docker.com | run_sudo sh
             fi
 
             # 2. Add current user to docker group if needed
-            if ! groups $USER | grep -q docker; then
-              sudo usermod -aG docker $USER || true
+            if ! groups $USER 2>/dev/null | grep -q docker; then
+              run_sudo usermod -aG docker $USER || true
             fi
 
             # 3. Create project working directories
-            sudo mkdir -p /opt/mcp-rooms
-            sudo chown -R $USER:$USER /opt/mcp-rooms
+            run_sudo mkdir -p /opt/mcp-rooms
+            run_sudo chown -R $USER:$USER /opt/mcp-rooms
             cd /opt/mcp-rooms
 
             # 4. Clone or update repository to latest code/tag
@@ -57,9 +72,13 @@ jobs:
 
             # 6. Ensure persistent database and upload directories with non-root UID 1000
             mkdir -p ./data/uploads ./data/thumbnails
-            sudo chown -R 1000:1000 ./data || true
+            run_sudo chown -R 1000:1000 ./data || true
 
             # 7. Build and run production Docker containers
-            docker compose -f docker-compose.prod.yml up -d --build
+            if docker compose version &>/dev/null; then
+              docker compose -f docker-compose.prod.yml up -d --build
+            else
+              run_sudo docker compose -f docker-compose.prod.yml up -d --build
+            fi
 
             echo "✅ Auto-provisioning & deployment successful!"
