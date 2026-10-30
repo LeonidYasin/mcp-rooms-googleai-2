@@ -56,6 +56,8 @@ const PORT = Number(process.env.PORT) || 3000;
 // No advertising of the framework; explicit same-origin CORS policy; bounded
 // JSON bodies instead of the previous 10 MB default.
 app.disable('x-powered-by');
+// Trust reverse proxy (Caddy / Nginx) to properly resolve client IPs for rate-limiting
+app.set('trust proxy', Number(process.env.TRUST_PROXY) || 1);
 app.use(securityHeaders);
 app.use(corsPolicy);
 app.use(express.json({ limit: JSON_BODY_LIMIT }));
