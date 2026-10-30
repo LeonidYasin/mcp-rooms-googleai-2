@@ -149,8 +149,8 @@ export const AiSettingsModal: React.FC<AiSettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-      <div className="w-full max-w-2xl bg-[var(--canvas)] border border-[var(--line)] rounded-2xl shadow-2xl p-5 md:p-6 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-5 overflow-y-auto">
+      <div className="w-full max-w-2xl bg-[var(--canvas)] border border-[var(--line)] rounded-2xl shadow-2xl p-5 md:p-6 my-auto max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-[var(--line)] mb-4">
           <div className="flex items-center gap-2.5">

@@ -621,8 +621,8 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
 
       {/* Create Room Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[var(--canvas)] border border-[var(--line)] rounded-2xl max-w-md w-full p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+          <div className="bg-[var(--canvas)] border border-[var(--line)] rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl my-auto max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-[var(--ink)]">
                 Новая переговорная комната / тема

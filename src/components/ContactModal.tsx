@@ -40,8 +40,8 @@ export const ContactModal: React.FC<ContactModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-[var(--canvas)] border border-[var(--line)] rounded-2xl max-w-lg w-full p-6 shadow-2xl">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+      <div className="bg-[var(--canvas)] border border-[var(--line)] rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl my-auto max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-start mb-4">
           <div>
             <h2 className="text-xl font-bold text-[var(--ink)]">
