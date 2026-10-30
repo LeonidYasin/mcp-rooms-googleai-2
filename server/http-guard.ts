@@ -51,14 +51,44 @@ function isSameOrigin(origin: string, host?: string): boolean {
 }
 
 /**
- * No `Origin` header (curl, MCP clients, server-to-server) → allowed.
- * Same origin → allowed without CORS headers.
- * Allowlisted origin → echoed `Access-Control-Allow-Origin`, preflight handled.
- * Anything else → 403 for preflight and for non-GET requests; GET/HEAD pass
- * without CORS headers, so a browser cannot read the response.
+ * MCP endpoints (/mcp, /sse, /mcp/sse) must be accessible from ANY origin (browser extensions,
+ * web clients like DeepSeek/ChatGPT, IDEs).
+ * For all other REST endpoints:
+ * - No `Origin` header (curl, server-to-server) → allowed.
+ * - Same origin → allowed without CORS headers.
+ * - Allowlisted origin → echoed `Access-Control-Allow-Origin`, preflight handled.
+ * - Anything else → 403 for preflight and for non-GET requests; GET/HEAD pass
+ *   without CORS headers, so a browser cannot read the response.
  */
 export function corsPolicy(req: Request, res: Response, next: NextFunction) {
+  const isMcpPath =
+    req.path === '/mcp' ||
+    req.path === '/sse' ||
+    req.path.startsWith('/mcp/') ||
+    req.path.startsWith('/sse/');
+
   const origin = req.headers.origin;
+
+  if (isMcpPath) {
+    const allowOrigin = origin || '*';
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+    if (origin) res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      'Authorization, Content-Type, Accept, Last-Event-ID, x-llm-provider, x-llm-api-key, x-llm-model, x-llm-base-url, x-gemini-api-key, x-google-access-token'
+    );
+    res.setHeader('Access-Control-Max-Age', '86400');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+
+    if (req.method === 'OPTIONS') {
+      res.status(204).end();
+      return;
+    }
+    next();
+    return;
+  }
+
   if (!origin) {
     next();
     return;

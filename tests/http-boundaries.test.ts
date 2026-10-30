@@ -105,6 +105,41 @@ describe('HTTP boundaries', () => {
     expect(res.status).toBe(200);
   });
 
+  it('allows cross-origin MCP preflight and requests from any origin', async () => {
+    const preflight = await fetch(`${baseUrl}/mcp`, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'https://chat.deepseek.com',
+        'Access-Control-Request-Method': 'POST',
+        'Access-Control-Request-Headers': 'authorization,content-type',
+      },
+    });
+
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get('access-control-allow-origin')).toBe('https://chat.deepseek.com');
+    expect(preflight.headers.get('cross-origin-resource-policy')).toBe('cross-origin');
+
+    const mcpRes = await fetch(`${baseUrl}/mcp`, {
+      method: 'POST',
+      headers: {
+        Origin: 'https://chat.deepseek.com',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'cors-test',
+        method: 'initialize',
+        params: { protocolVersion: '2025-03-26' },
+      }),
+    });
+
+    expect(mcpRes.status).toBe(200);
+    expect(mcpRes.headers.get('access-control-allow-origin')).toBe('https://chat.deepseek.com');
+    expect(mcpRes.headers.get('cross-origin-resource-policy')).toBe('cross-origin');
+    const body = await mcpRes.json();
+    expect(body.result.protocolVersion).toBe('2025-03-26');
+  });
+
   it('wires the limiter into /api/chat', async () => {
     const res = await fetch(`${baseUrl}/api/chat`, {
       method: 'POST',
