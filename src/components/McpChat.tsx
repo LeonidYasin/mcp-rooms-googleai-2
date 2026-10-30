@@ -1,13 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Listing, McpRoom, NegotiationResult, EmbeddingProviderStatus } from '../types';
-import { authHeaders, getStoredApiKey, storeApiKey, createGuestSession } from '../lib/api';
+import { getStoredApiKey, createGuestSession } from '../lib/api';
 import { GoogleAuthModal } from './GoogleAuthModal';
 import {
   getStoredGoogleToken,
   getStoredGoogleUser,
   clearGoogleAuth,
   getStoredGeminiApiKey,
-  storeGeminiApiKey,
   GoogleUserProfile,
 } from '../lib/googleAuth';
 
@@ -41,16 +40,12 @@ interface McpChatProps {
   onRequireKey?: (reason: string) => void;
 }
 
-/**
- * Stable reason codes from server/llm.ts. The badge must explain why the answer
- * came from rules instead of the model, not show a raw provider error.
- */
 const DEGRADED_REASON_LABELS: Record<string, string> = {
-  missing_api_key: 'GEMINI_API_KEY не задан — ответ построен правилами',
-  model_not_configured: 'GEMINI_MODEL не задан — ответ построен правилами',
-  invalid_api_key: 'ключ Gemini отклонён — ответ построен правилами',
-  model_error: 'ошибка вызова модели — ответ построен правилами',
-  google_token_expired: 'срок действия токена Google истёк — войдите заново',
+  missing_api_key: 'локальный режим — ответ построен по каталогу (подключите Gemini)',
+  model_not_configured: 'локальный режим — модель не сконфигурирована',
+  invalid_api_key: 'ключ Gemini отклонён — проверьте ключ в настройках',
+  model_error: 'ошибка вызова модели — ответ построен локально',
+  google_token_expired: 'срок действия сессии истёк — войдите заново',
 };
 
 function degradedTitle(reason?: string): string {
@@ -59,10 +54,7 @@ function degradedTitle(reason?: string): string {
 }
 
 export const McpChat: React.FC<McpChatProps> = ({
-  listings,
-  rooms,
   onOpenListing,
-  onOpenRoom,
   onListingCreated,
   onRefreshData,
   contextListing,
@@ -74,15 +66,15 @@ export const McpChat: React.FC<McpChatProps> = ({
       id: 'welcome-angel',
       role: 'assistant',
       content:
-        'Здравствуйте! Я ваш персональный **Агент-Ангел** площадки MCP Rooms.\n\nЯ ищу совпадения в каталоге и работаю с базой данных SQLite. Без настроенного Gemini API ответы строятся правилами и помечаются как деградировавшие.\n\n• 🏢 **Недвижимость:** найду коворкинг, офис или жильё в каталоге;\n• 🏛️ **Сообщества:** найду проектные команды и инициативы;\n• 🤝 **Бизнес:** найду партнёра или кофаундера;\n• 🔧 **Услуги:** найду мастера в каталоге;\n• 💼 **Работа:** подберу вакансию или специалистов по стеку;\n• 🌲 **Знакомства:** найду компанию для хобби и спорта;\n• 🚴 **Товары:** найду объявление о покупке.\n\nСценарий переговоров — демонстрационный: он не отправляет сообщения автору и не создаёт комнату. Реальная комната открывается из карточки объявления.',
+        'Привет! Я ваш Агент-Ангел и персональный помощник на площадке «Хочу · Предлагаю» ✨\n\nСо мной можно свободно поговорить на абсолютно любые темы — обсудить идеи, проектные планы, технологии, задать вопрос или просто поболтать. А если нужно решить задачу на площадке, я с радостью помогу:\n\n• 🤝 **Бизнес:** найти партнёра, инвестора или кофаундера;\n• 💼 **Работа:** подобрать вакансию или специалиста в команду;\n• 🏢 **Недвижимость:** найти удобный коворкинг, офис или жильё;\n• 🔧 **Услуги:** найти мастера или исполнителя под ключ;\n• 🌲 **Сообщества и хобби:** найти компанию для спорта или совместных проектов.\n\nНапишите мне о чём угодно — чем могу помочь вам сегодня? 😊',
       timestamp: Date.now(),
     },
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTabPrompt, setActiveTabPrompt] = useState<'all' | 'biz' | 'services' | 'jobs' | 'dating'>('all');
   const [expandedDialogueId, setExpandedDialogueId] = useState<string | null>(null);
   const [embeddingStatus, setEmbeddingStatus] = useState<EmbeddingProviderStatus | null>(null);
+  const [serverLlmConfigured, setServerLlmConfigured] = useState<boolean>(false);
   const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
   const [googleUser, setGoogleUser] = useState<GoogleUserProfile | null>(getStoredGoogleUser());
   const [hasGoogleAuth, setHasGoogleAuth] = useState<boolean>(Boolean(getStoredGoogleToken()));
@@ -99,13 +91,27 @@ export const McpChat: React.FC<McpChatProps> = ({
     scrollToBottom();
   }, [messages, isLoading]);
 
-  useEffect(() => {
+  const refreshAuthAndStatus = () => {
     setHasStoredApiKey(Boolean(getStoredApiKey()));
     setHasGoogleAuth(Boolean(getStoredGoogleToken()));
+    setGoogleUser(getStoredGoogleUser());
     setUserGeminiKey(getStoredGeminiApiKey());
-  }, [isGoogleModalOpen]);
+
+    // Check server LLM status
+    fetch('/api/llm/status')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.configured) {
+          setServerLlmConfigured(true);
+        } else {
+          setServerLlmConfigured(false);
+        }
+      })
+      .catch(() => {});
+  };
 
   useEffect(() => {
+    refreshAuthAndStatus();
     // Fetch live embedding provider status from backend
     fetch('/api/embedding/status')
       .then((res) => (res.ok ? res.json() : null))
@@ -113,7 +119,9 @@ export const McpChat: React.FC<McpChatProps> = ({
         if (data) setEmbeddingStatus(data);
       })
       .catch(() => {});
-  }, []);
+  }, [isGoogleModalOpen]);
+
+  const isGeminiActive = Boolean(userGeminiKey || serverLlmConfigured);
 
   const handleQuickGuestLogin = async () => {
     try {
@@ -139,7 +147,7 @@ export const McpChat: React.FC<McpChatProps> = ({
     const hasAuth = Boolean(storedApiKey || googleToken || currentGeminiKey);
 
     if (!hasAuth) {
-      onRequireKey?.('Чат с агентом требует авторизацию: подключите Google-аккаунт, укажите Gemini API ключ или войдите как гость.');
+      onRequireKey?.('Чат с агентом требует авторизацию: подключите Gemini API ключ, аккаунт Google или войдите как гость.');
       return;
     }
 
@@ -154,7 +162,7 @@ export const McpChat: React.FC<McpChatProps> = ({
     if (!textToSend) setInput('');
     setIsLoading(true);
 
-    const googleUser = getStoredGoogleUser();
+    const currentUser = getStoredGoogleUser();
     try {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -168,8 +176,8 @@ export const McpChat: React.FC<McpChatProps> = ({
       }
       if (googleToken) {
         headers['x-google-access-token'] = googleToken;
-        if (googleUser?.email) {
-          headers['x-google-user-id'] = googleUser.email;
+        if (currentUser?.email) {
+          headers['x-google-user-id'] = currentUser.email;
         }
       }
       if (currentGeminiKey) {
@@ -183,7 +191,7 @@ export const McpChat: React.FC<McpChatProps> = ({
           targetListingId: contextListing?.id || undefined,
           googleAccessToken: googleToken || undefined,
           geminiApiKey: currentGeminiKey || undefined,
-          googleUserId: googleUser?.email || undefined,
+          googleUserId: currentUser?.email || undefined,
           messages: [...messages, userMessage].map((m) => ({
             role: m.role,
             content: m.content,
@@ -198,7 +206,7 @@ export const McpChat: React.FC<McpChatProps> = ({
           clearGoogleAuth();
           setHasGoogleAuth(false);
           setGoogleUser(null);
-          onRequireKey?.('Срок действия сессии Google истёк. Войдите заново через Google или используйте API-ключ.');
+          onRequireKey?.('Срок действия сессии истёк. Войдите заново или используйте API-ключ.');
         } else {
           onRequireKey?.('Сервер отклонил ключ. Вставьте действующий ключ или войдите через Google (401).');
         }
@@ -211,7 +219,7 @@ export const McpChat: React.FC<McpChatProps> = ({
       const assistantMessage: ChatMessage = {
         id: 'msg-' + (Date.now() + 1),
         role: 'assistant',
-        content: data.text || 'Поручение принято и обработано.',
+        content: data.text || 'Сообщение принято и обработано.',
         timestamp: Date.now(),
         negotiation: data.negotiation,
         executedTools: data.executedTools || [],
@@ -235,7 +243,7 @@ export const McpChat: React.FC<McpChatProps> = ({
         {
           id: 'msg-' + (Date.now() + 1),
           role: 'assistant',
-          content: `⚠️ Ошибка: ${err.message || 'Сбой подключения'}. Пожалуйста, повторите запрос.`,
+          content: `⚠️ Ошибка: ${err.message || 'Сбой подключения'}. Пожалуйста, попробуйте ещё раз.`,
           timestamp: Date.now(),
         },
       ]);
@@ -246,39 +254,32 @@ export const McpChat: React.FC<McpChatProps> = ({
 
   const promptPresets = [
     {
-      category: 'real_estate',
-      label: '🏢 Снять офис / коворкинг в Казани',
-      text: 'Найди современный коворкинг или офис в центре Казани и согласуй просмотр на завтра',
+      label: '💬 Расскажи, чем ты можешь помочь?',
+      text: 'Привет! Расскажи подробно, как устроена площадка «Хочу · Предлагаю» и чем ты можешь мне помочь?',
     },
     {
-      category: 'communities',
-      label: '🏛️ Вступить в Парламент сообществ',
-      text: 'Найди открытую группу Парламента сообществ и согласуй участие в ближайшей координационной сессии',
+      label: '🏢 Найти коворкинг или офис в Казани',
+      text: 'Найди современный коворкинг или офис в центре Казани и покажи варианты',
     },
     {
-      category: 'biz',
-      label: '🤝 Найти партнёра в IT-стартап (B2B AI в Казани)',
-      text: 'Найди партнёра или кофаундера для B2B AI-стартапа в Казани, согласуй предварительный звонок',
+      label: '🤝 Найти партнёра в IT-стартап',
+      text: 'Найди партнёра или кофаундера для технологического проекта и помоги составить предложение',
     },
     {
-      category: 'services',
-      label: '🔧 Найти мастера на ремонт санузла (до 40 000 ₽)',
-      text: 'Найди исполнителя на комплексный ремонт санузла в Казани, уточни гарантию и согласуй замер на субботу',
+      label: '💼 Найти интересные вакансии и людей',
+      text: 'Найди специалистов по разработке или актуальные вакансии на площадке',
     },
     {
-      category: 'jobs',
-      label: '💼 Найти вакансию Senior TypeScript / Backend',
-      text: 'Найди вакансию Senior TypeScript разработчика с зарплатой от 300 000 руб и удалённым форматом',
+      label: '🔧 Найти мастера для ремонта под ключ',
+      text: 'Найди проверенного исполнителя для ремонта или бытовых услуг в Казани',
     },
     {
-      category: 'dating',
-      label: '🌲 Найти компанию для походов и веловыездов',
-      text: 'Найди компанию или единомышленников для походов в горы и веловыездов на выходных',
+      label: '🌲 Найти компанию для отдыха и спорта',
+      text: 'Найди единомышленников для совместных выездов, походов или настольных игр',
     },
     {
-      category: 'all',
-      label: '🚴 Найти городской велосипед с планетарной втулкой',
-      text: 'Найди городской велосипед в Казани и согласуй возможность самовывоза возле парка Горького',
+      label: '💡 Посоветуй идеи для полезного проекта',
+      text: 'Посоветуй интересные идеи для полезного сервиса или локального сообщества',
     },
   ];
 
@@ -287,54 +288,70 @@ export const McpChat: React.FC<McpChatProps> = ({
       {/* Top Header Card */}
       <div className="border border-[var(--line)] rounded-t-2xl p-4 bg-[var(--surface)] flex flex-wrap items-center justify-between gap-3 shadow-xs">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center text-2xl shadow-sm">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-600 to-purple-600 text-white flex items-center justify-center text-2xl shadow-sm">
             👼
           </div>
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-base md:text-lg font-black text-[var(--ink)] tracking-tight">
-                Агент-Ангел · Персональный ИИ-ассистент
+                Агент-Ангел · Ваш ИИ-помощник
               </h1>
               <span className="text-[11px] bg-[var(--greenbg)] text-[var(--green)] font-bold px-2.5 py-0.5 rounded-full">
                 SQLite БД + MCP
               </span>
-              {embeddingStatus?.isAvailable ? (
-                <span className="text-[11px] bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 font-semibold px-2 py-0.5 rounded-md" title={embeddingStatus.reason}>
-                  ✨ Google Embeddings API
+              {isGeminiActive ? (
+                <span className="text-[11px] bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1.5 border border-emerald-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>✨ Gemini на связи</span>
                 </span>
               ) : (
-                <span className="text-[11px] bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 font-semibold px-2 py-0.5 rounded-md" title={embeddingStatus?.reason || 'Fallback'}>
-                  ⚡ Лексический Fallback
-                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsGoogleModalOpen(true)}
+                  className="text-[11px] bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1.5 border border-amber-500/20 hover:opacity-90 cursor-pointer"
+                  title="Нажмите, чтобы подключить бесплатный Gemini"
+                >
+                  <span>💡 Локальный ассистент</span>
+                  <span className="underline">подключить Gemini ↗</span>
+                </button>
               )}
             </div>
             <p className="text-xs text-[var(--muted)]">
-              Подбор объявлений и демонстрационный сценарий переговоров; реальная комната открывается из карточки
+              Свободный диалог на любые темы, поиск людей, жилья, услуг и идей на площадке «Хочу · Предлагаю»
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {hasGoogleAuth || userGeminiKey ? (
+          {userGeminiKey ? (
             <button
               type="button"
               onClick={() => setIsGoogleModalOpen(true)}
-              className="flex items-center gap-1.5 text-xs text-emerald-400 border border-emerald-500/30 px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors cursor-pointer"
-              title="Google Gemini подключен"
+              className="flex items-center gap-1.5 text-xs text-emerald-500 border border-emerald-500/30 px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors cursor-pointer font-medium"
+              title="Личный Gemini API ключ подключен"
             >
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span className="hidden sm:inline font-medium">{googleUser?.email || (userGeminiKey ? 'Gemini API Key' : 'Google Gemini')}</span>
-              <span className="sm:hidden font-medium">Gemini</span>
+              <span className="font-semibold">✨ Gemini подключен</span>
+            </button>
+          ) : hasGoogleAuth ? (
+            <button
+              type="button"
+              onClick={() => setIsGoogleModalOpen(true)}
+              className="flex items-center gap-1.5 text-xs text-blue-500 border border-blue-500/30 px-3 py-1.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 transition-colors cursor-pointer font-medium"
+              title="Google-профиль подключен"
+            >
+              <span>👤</span>
+              <span className="font-semibold truncate max-w-[120px] sm:max-w-none">{googleUser?.email || 'Google'}</span>
             </button>
           ) : (
             <button
               type="button"
               onClick={() => setIsGoogleModalOpen(true)}
-              className="flex items-center gap-1.5 text-xs font-semibold text-white border border-blue-400/40 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 transition-colors cursor-pointer shadow-sm"
-              title="Подключить Google-аккаунт для вызовов Gemini"
+              className="flex items-center gap-1.5 text-xs font-bold text-white border border-blue-400/40 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 transition-colors cursor-pointer shadow-sm"
+              title="Подключить бесплатный Gemini или Google"
             >
-              <span>🌐</span>
-              <span>Войти с Google</span>
+              <span>✨</span>
+              <span>Подключить Gemini</span>
             </button>
           )}
 
@@ -346,12 +363,12 @@ export const McpChat: React.FC<McpChatProps> = ({
                   id: 'reset-' + Date.now(),
                   role: 'assistant',
                   content:
-                    'Диалог обновлён. Я готов принять новое поручение по поиску партнёров, специалистов, товаров или знакомств!',
+                    'Привет снова! История диалога обновлена. Я готов пообщаться на любую тему или помочь найти что-то полезное на площадке 😊',
                   timestamp: Date.now(),
                 },
               ])
             }
-            className="text-xs text-[var(--muted)] hover:text-[var(--ink)] border border-[var(--line)] px-3 py-1.5 rounded-lg bg-[var(--canvas)] hover:bg-[var(--raised)] transition-colors cursor-pointer"
+            className="text-xs text-[var(--muted)] hover:text-[var(--ink)] border border-[var(--line)] px-3 py-1.5 rounded-xl bg-[var(--canvas)] hover:bg-[var(--raised)] transition-colors cursor-pointer"
           >
             Очистить историю
           </button>
@@ -412,24 +429,24 @@ export const McpChat: React.FC<McpChatProps> = ({
           >
             <div className="flex items-center gap-1.5 mb-1 text-[11px] text-[var(--muted)] px-1">
               <span className="font-semibold">
-                {m.role === 'user' ? 'Вы (Владелец)' : 'Ваш Агент-Ангел 👼'}
+                {m.role === 'user' ? 'Вы' : 'Агент-Ангел 👼'}
               </span>
               <span>·</span>
               <span>{new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-              {m.authType === 'google_oauth' && (
+              {(m.authType === 'user_gemini_key' || m.authType === 'server_llm' || m.authType === 'google_oauth') && (
                 <span
-                  className="ml-1 px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 font-semibold"
-                  title="Ответ сгенерирован Gemini через персональный Google OAuth 2.0"
+                  className="ml-1 px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 font-semibold text-[10px]"
+                  title="Ответ сгенерирован нейросетью Google Gemini"
                 >
                   ✨ Google Gemini
                 </span>
               )}
               {m.degraded && (
                 <span
-                  className="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 font-semibold"
+                  className="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 font-semibold text-[10px]"
                   title={degradedTitle(m.degradedReason)}
                 >
-                  без модели
+                  базовый режим
                 </span>
               )}
             </div>
@@ -437,7 +454,7 @@ export const McpChat: React.FC<McpChatProps> = ({
             <div
               className={`max-w-[90%] md:max-w-[82%] rounded-2xl p-4 text-sm leading-relaxed whitespace-pre-wrap shadow-xs ${
                 m.role === 'user'
-                  ? 'bg-[var(--blue)] text-white font-medium rounded-br-xs'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-br-xs'
                   : 'bg-[var(--surface)] text-[var(--ink)] border border-[var(--line)] rounded-bl-xs'
               }`}
             >
@@ -459,7 +476,7 @@ export const McpChat: React.FC<McpChatProps> = ({
                         }`}
                       >
                         {m.negotiation.status === 'demo_preview'
-                          ? 'Демо · ничего не отправлено'
+                          ? 'Демо · автору ничего не отправлено'
                           : m.negotiation.status === 'no_match'
                           ? 'Совпадений нет'
                           : m.negotiation.status === 'in_progress'
@@ -521,7 +538,7 @@ export const McpChat: React.FC<McpChatProps> = ({
                               key={tIdx}
                               className={`p-3 rounded-xl border ${
                                 turn.sender === 'demo:angel'
-                                  ? 'bg-[var(--soft)] border-blue-200/60 dark:border-blue-900/50 mr-4'
+                                   ? 'bg-[var(--soft)] border-blue-200/60 dark:border-blue-900/50 mr-4'
                                   : 'bg-amber-50/60 dark:bg-amber-950/30 border-amber-200/60 dark:border-amber-800/40 ml-4'
                               }`}
                             >
@@ -541,7 +558,7 @@ export const McpChat: React.FC<McpChatProps> = ({
                   {m.negotiation.demoTerms && (
                     <div className="p-3 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl space-y-1.5 text-xs">
                       <strong className="text-amber-800 dark:text-amber-300 font-bold block">
-                        📝 Пример условий (не согласовано):
+                        📝 Пример условий (демо):
                       </strong>
                       <div className="text-[var(--ink)] space-y-1">
                         <div>• <strong>Тема:</strong> {m.negotiation.demoTerms.topic}</div>
@@ -577,16 +594,16 @@ export const McpChat: React.FC<McpChatProps> = ({
 
         {isLoading && (
           <div className="flex flex-col items-start space-y-2">
-            <div className="text-[11px] text-[var(--muted)] px-1 font-semibold">
-              Агент-Ангел выполняет поручение...
+            <div className="text-[11px] text-[var(--muted)] px-1 font-semibold flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[var(--blue)] animate-ping" />
+              <span>Агент-Ангел думает и готовит ответ...</span>
             </div>
-            <div className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-4 text-xs text-[var(--ink)] space-y-2 max-w-md shadow-xs">
-              <div className="flex items-center gap-2 font-medium">
-                <span className="w-2.5 h-2.5 rounded-full bg-[var(--blue)] animate-ping" />
-                <span>Автономная работа через протокол MCP...</span>
-              </div>
-              <p className="text-[var(--muted)] text-[11px] leading-relaxed">
-                1. Поиск в SQLite ➔ 2. Подбор карточки ➔ 3. Демо-сценарий переговоров (автору ничего не отправляется).
+            <div className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-3.5 text-xs text-[var(--muted)] space-y-1.5 max-w-md shadow-xs">
+              <p className="text-[var(--ink)] font-medium">
+                Анализирую ваш вопрос и подбираю наилучший ответ ✨
+              </p>
+              <p className="text-[11px] leading-relaxed">
+                Ищу информацию в базе данных SQLite и формулирую рекомендации.
               </p>
             </div>
           </div>
@@ -597,25 +614,25 @@ export const McpChat: React.FC<McpChatProps> = ({
 
       {/* Auth Guidance Banner if neither key nor Google is connected */}
       {!hasStoredApiKey && !hasGoogleAuth && !userGeminiKey && (
-        <div className="border-x border-t border-[var(--line)] bg-amber-500/10 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-800 dark:text-amber-300">
-          <div className="flex items-center gap-1.5 font-medium">
-            <span>💡</span>
-            <span>Для отправки поручений Ангелу подключите Google или войдите как гость:</span>
+        <div className="border-x border-t border-[var(--line)] bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-purple-500/10 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--ink)]">
+          <div className="flex items-center gap-2 font-medium">
+            <span>👋</span>
+            <span>Чтобы начать диалог с Ангелом, выберите удобный способ входа:</span>
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setIsGoogleModalOpen(true)}
-              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-md font-semibold cursor-pointer shadow-xs transition-colors"
+              className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-lg font-bold cursor-pointer shadow-xs transition-colors"
             >
-              🌐 Войти с Google
+              ✨ Подключить Gemini
             </button>
-            <span className="text-[var(--muted)]">или</span>
+            <span className="text-[var(--muted)] text-[11px]">или</span>
             <button
               type="button"
               disabled={isLoading}
               onClick={handleQuickGuestLogin}
-              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md font-semibold cursor-pointer transition-colors shadow-xs disabled:opacity-50"
+              className="px-3 py-1.5 bg-[var(--surface)] hover:bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] rounded-lg font-semibold cursor-pointer transition-colors shadow-xs disabled:opacity-50"
             >
               👤 Войти как Гость (1 клик)
             </button>
@@ -626,7 +643,7 @@ export const McpChat: React.FC<McpChatProps> = ({
       {/* Preset Chips */}
       <div className="border-x border-[var(--line)] bg-[var(--surface)] px-4 py-2.5 space-y-2">
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-          <span className="text-[var(--muted)] font-semibold shrink-0">Поручения:</span>
+          <span className="text-[var(--muted)] font-semibold shrink-0">💭 Темы для начала:</span>
           {promptPresets.map((preset, pIdx) => (
             <button
               key={pIdx}
@@ -654,17 +671,17 @@ export const McpChat: React.FC<McpChatProps> = ({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           disabled={isLoading}
-          placeholder="Дайте поручение Агенту-Ангелу (бизнес, ремонт, вакансии, знакомства, вещи)..."
+          placeholder="Напишите сообщение или спросите о чём угодно..."
           className="flex-1 h-11 px-4 border border-[var(--line)] rounded-xl bg-[var(--canvas)] text-[var(--ink)] text-sm outline-none focus:border-[var(--blue)] transition-colors disabled:opacity-50"
         />
         <button
           type="submit"
           disabled={isLoading || !input.trim()}
-          className="h-11 px-6 bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white font-bold text-sm rounded-xl transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+          className="h-11 px-5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm rounded-xl transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2 shadow-xs"
         >
-          <span>Поручить</span>
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+          <span>Отправить</span>
+          <svg className="w-4 h-4 -rotate-45 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
           </svg>
         </button>
       </form>
@@ -673,8 +690,7 @@ export const McpChat: React.FC<McpChatProps> = ({
         isOpen={isGoogleModalOpen}
         onClose={() => setIsGoogleModalOpen(false)}
         onAuthSuccess={(_token, user) => {
-          setHasGoogleAuth(true);
-          setGoogleUser(user || null);
+          refreshAuthAndStatus();
         }}
         onGuestLogin={async () => {
           setIsGoogleModalOpen(false);

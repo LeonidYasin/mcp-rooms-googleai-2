@@ -841,32 +841,16 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
   const userGeminiApiKey = (req.headers['x-gemini-api-key'] as string) || req.body?.geminiApiKey;
   let llmDegradedReason: string | null = null;
 
-  const systemInstruction = `Ты — персональный ИИ-ассистент («Агент-Ангел») автономной децентрализованной площадки объявлений «Хочу · Предлагаю» (MCP Rooms).
-На площадке пользователи и их ИИ-агенты взаимодействуют по протоколу Model Context Protocol (MCP).
-Категории площадки:
-- real_estate: Недвижимость (аренда, коворкинги, жилье, квартиры, офисы, поиск сожителей)
-- communities: Сообщества и команды (поиск единомышленников, проектные команды, Парламент сообществ, открытое самоуправление)
-- business: Бизнес и партнерство (кофаундеры, инвестиции, B2B)
-- jobs: Работа и вакансии (IT, разработка, резюме)
-- services: Услуги и ремонт (сантехника, отделка, бытовые услуги)
-- things: Вещи и товары (электроника, велосипеды, мебель)
-- dating: Знакомства и хобби (спорт, походы, настольные игры)
-- rides: Поездки и попутчики
-- delivery: Доставка и курьеры
+  const systemInstruction = `Ты — персональный ИИ-ассистент («Агент-Ангел») площадки объявлений, идей и совместных проектов «Хочу · Предлагаю» (MCP Rooms).
+Ты общаешься тепло, дружелюбно, с заботой, непринуждённо и на живом русском языке.
+Ты готов свободно поддержать беседу на абсолютно любые темы — обсудить идеи, проектные планы, технологии или просто приятно пообщаться.
 
-Доступные инструменты (MCP Tools):
-- search_listings: поиск объявлений в постоянной базе данных SQLite
-- match_listings: асимметричный семантический матчинг (Хочу <-> Предлагаю)
-- create_listing: публикация нового объявления в базу данных SQLite
-- negotiate_agreement: находит объявление и возвращает демонстрационный сценарий переговоров; ничего не отправляет автору и не фиксирует соглашение
-- get_room_history: просмотр истории переговоров и соглашений
-- get_profile: публичный профиль автора или компании
+Когда собеседник ищет возможности, людей, специалистов, жильё или товары:
+- Используй инструменты search_listings или match_listings, чтобы найти актуальные совпадения в базе данных SQLite.
+- Если просит договориться или подготовить условия сделки — вызови negotiate_agreement (демонстрационный сценарий переговоров).
+- Если хочет опубликовать объявление или предложить услугу — вызови create_listing.
 
-Всегда выполняй интент-анализ входящего сообщения:
-1. Если пользователь ищет объявления, партнеров, жилье, работу или команду — вызывай search_listings или match_listings.
-2. Если просит договориться или провести переговоры — вызывай negotiate_agreement, но всегда называй результат демонстрационным сценарием: комнату и реальные сообщения создаёт только пользователь через join_room/send_message.
-3. Если просит создать или опубликовать объявление — вызывай create_listing.
-4. Отвечай дружелюбно, структурированно, на русском языке, ссылайся на конкретные результаты из SQLite и предлагай следующий практический шаг.`;
+Отвечай естественно, легко, с открытостью к диалогу и искренним желанием помочь.`;
 
   const contents: any[] = messages.map((m: any) => ({
     role: m.role === 'assistant' ? 'model' : 'user',
@@ -883,8 +867,110 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
     }
   }
 
-  // 1. If user provided their own Google OAuth access token, call Gemini via user credentials
-  if (googleAccessToken) {
+  // 1. Priority: If user provided their own Gemini API key or server has LLM configured, call via GoogleGenAI SDK
+  const effectiveModel = configuredModel() || (userGeminiApiKey ? 'gemini-1.5-flash' : '');
+  const llm = resolveLlmClient(userGeminiApiKey);
+
+  const aiClient = llm.client;
+  if (aiClient) {
+    try {
+      const response = await aiClient.models.generateContent({
+        model: effectiveModel,
+        contents,
+        config: {
+          systemInstruction,
+          temperature: 0.7,
+          tools: [{ functionDeclarations: mcpGeminiTools }],
+        },
+      });
+
+      const functionCalls = response.functionCalls;
+      if (functionCalls && functionCalls.length > 0) {
+        const executedToolsLog: any[] = [];
+        let negotiationResult: any = null;
+        let createdListingResult: any = null;
+        const functionResponseParts: any[] = [];
+
+        for (const call of functionCalls) {
+          if (!call.name) continue;
+          const toolName = call.name;
+          try {
+            const result = await executeMcpToolCall(toolName, call.args || {}, { principalId });
+            executedToolsLog.push({ name: toolName, args: call.args, result });
+
+            if (call.name === 'negotiate_agreement' && result?.success) {
+              negotiationResult = result;
+            }
+            if (call.name === 'create_listing' && result?.created_listing) {
+              createdListingResult = result.created_listing;
+            }
+
+            functionResponseParts.push({
+              functionResponse: {
+                name: call.name,
+                response: { result },
+              },
+            });
+          } catch (toolErr: any) {
+            functionResponseParts.push({
+              functionResponse: {
+                name: call.name,
+                response: { error: toolErr.message },
+              },
+            });
+          }
+        }
+
+        const modelCandidate = response.candidates?.[0]?.content;
+        const followUpContents = [
+          ...contents,
+          modelCandidate || { role: 'model', parts: [{ text: 'Вызываю MCP инструменты...' }] },
+          {
+            role: 'user',
+            parts: functionResponseParts,
+          },
+        ];
+
+        const followUpResponse = await aiClient.models.generateContent({
+          model: effectiveModel,
+          contents: followUpContents,
+          config: {
+            systemInstruction,
+            temperature: 0.7,
+          },
+        });
+
+        res.json({
+          text: followUpResponse.text || 'Действие успешно выполнено через протокол MCP.',
+          model: effectiveModel,
+          degraded: false,
+          authType: userGeminiApiKey ? 'user_gemini_key' : 'server_llm',
+          executedTools: executedToolsLog,
+          negotiation: negotiationResult,
+          createdListing: createdListingResult,
+        });
+        return;
+      }
+
+      if (response.text) {
+        res.json({
+          text: response.text,
+          model: effectiveModel,
+          degraded: false,
+          authType: userGeminiApiKey ? 'user_gemini_key' : 'server_llm',
+          executedTools: [],
+        });
+        return;
+      }
+    } catch (geminiError: any) {
+      llmDegradedReason = recordLlmFailure(geminiError);
+    }
+  } else {
+    llmDegradedReason = llm.reason;
+  }
+
+  // 2. If no direct API key but Google OAuth token is present, attempt callGeminiWithOAuth
+  if (googleAccessToken && !userGeminiApiKey) {
     try {
       const oauthResp = await callGeminiWithOAuth({
         accessToken: googleAccessToken,
@@ -979,110 +1065,6 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
     }
   }
 
-  // 2. Try user-provided Gemini API key or server-configured Gemini model with autonomous MCP Function Calling
-  const effectiveModel = configuredModel() || (userGeminiApiKey ? 'gemini-1.5-flash' : '');
-  const llm = resolveLlmClient(userGeminiApiKey);
-  if (!llmDegradedReason) {
-    llmDegradedReason = llm.reason;
-  }
-  const aiClient = llm.client;
-  if (aiClient) {
-    try {
-      const response = await aiClient.models.generateContent({
-        model: effectiveModel,
-        contents,
-        config: {
-          systemInstruction,
-          temperature: 0.7,
-          tools: [{ functionDeclarations: mcpGeminiTools }],
-        },
-      });
-
-      const functionCalls = response.functionCalls;
-      if (functionCalls && functionCalls.length > 0) {
-        const executedToolsLog: any[] = [];
-        let negotiationResult: any = null;
-        let createdListingResult: any = null;
-        const functionResponseParts: any[] = [];
-
-        for (const call of functionCalls) {
-          if (!call.name) continue;
-          const toolName = call.name;
-          try {
-            const result = await executeMcpToolCall(toolName, call.args || {}, { principalId });
-            executedToolsLog.push({ name: toolName, args: call.args, result });
-
-            if (call.name === 'negotiate_agreement' && result?.success) {
-              negotiationResult = result;
-            }
-            if (call.name === 'create_listing' && result?.created_listing) {
-              createdListingResult = result.created_listing;
-            }
-
-            functionResponseParts.push({
-              functionResponse: {
-                name: call.name,
-                response: { result },
-              },
-            });
-          } catch (toolErr: any) {
-            functionResponseParts.push({
-              functionResponse: {
-                name: call.name,
-                response: { error: toolErr.message },
-              },
-            });
-          }
-        }
-
-        const modelCandidate = response.candidates?.[0]?.content;
-        const followUpContents = [
-          ...contents,
-          modelCandidate || { role: 'model', parts: [{ text: 'Вызываю MCP инструменты...' }] },
-          {
-            role: 'user',
-            parts: functionResponseParts,
-          },
-        ];
-
-        const followUpResponse = await aiClient.models.generateContent({
-          model: effectiveModel,
-          contents: followUpContents,
-          config: {
-            systemInstruction,
-            temperature: 0.7,
-          },
-        });
-
-        res.json({
-          text: followUpResponse.text || 'Действие успешно выполнено через протокол MCP.',
-          model: effectiveModel,
-          degraded: false,
-          authType: userGeminiApiKey ? 'user_gemini_key' : 'server_llm',
-          executedTools: executedToolsLog,
-          negotiation: negotiationResult,
-          createdListing: createdListingResult,
-        });
-        return;
-      }
-
-      if (response.text) {
-        res.json({
-          text: response.text,
-          model: effectiveModel,
-          degraded: false,
-          authType: userGeminiApiKey ? 'user_gemini_key' : 'server_llm',
-          executedTools: [],
-        });
-        return;
-      }
-    } catch (geminiError: any) {
-      // One log line per failure, then an explicit cooldown (server/llm.ts)
-      // instead of the old silent 30-second negative cache.
-      llmDegradedReason = recordLlmFailure(geminiError);
-    }
-  }
-
   if (!llmDegradedReason) {
     llmDegradedReason = 'model_error';
   }
@@ -1121,7 +1103,7 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
       });
       res.json({
         text:
-          '⚠️ Демонстрационный сценарий (модель не вызывалась, автору ничего не отправлено).\n\n' +
+          '✨ Вот предварительный вариант переговоров по вашему запросу (демонстрационный сценарий, автору пока ничего не отправлено):\n\n' +
           negotiationResult.summary,
         negotiation: negotiationResult,
         degraded: true,
@@ -1256,9 +1238,22 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
     return;
   }
 
-    // 5. Context-aware guidance with SQLite categories
+    // 5. Friendly conversational guidance
+    let greetingPrefix = 'Привет! Рад вас слышать 😊';
+    if (promptLower.includes('как дела') || promptLower.includes('как жизнь') || promptLower.includes('как поживаешь')) {
+      greetingPrefix = 'У меня всё отлично, спасибо за заботу! 🌟 Настроение прекрасное, готов общаться и помогать вам.';
+    } else if (promptLower.includes('кто ты') || promptLower.includes('расскажи о себе') || promptLower.includes('что ты умеешь')) {
+      greetingPrefix = 'Я Агент-Ангел — ваш дружелюбный персональный ИИ-ассистент на площадке «Хочу · Предлагаю» 👼';
+    }
+
     res.json({
-      text: `Я проанализировал ваш запрос «${userPrompt}». В базе данных SQLite площадки **MCP Rooms** доступны следующие направления:\n\n🏢 **Недвижимость** — аренда коворкингов, офисов и поиск сожителей;\n🏛️ **Сообщества и Парламент** — команды проектов, инициативы и открытое самоуправление;\n🤝 **Бизнес** — кофаундеры и B2B AI-партнёрства;\n💼 **Вакансии** — Senior инженеры и удалённые позиции;\n🔧 **Услуги** — мастера и ремонт;\n🌲 **Знакомства** — совместные походы и веловыезды.\n\nУкажите конкретную задачу (например: *«Снять коворкинг в Казани»* или *«Вступить в Парламент сообществ»*), и я найду совпадения в каталоге.`,
+      text: `${greetingPrefix}
+
+Сейчас я отвечаю в базовом режиме локального ассистента.
+
+Чтобы мы могли свободно общаться на абсолютно любые темы (от философии и стартапов до программирования и жизни) с помощью нейросети **Google Gemini**, подключите бесплатный Gemini API ключ (кнопка «✨ Подключить Gemini» вверху чата).
+
+А прямо сейчас я с радостью помогу вам найти нужные объявления, людей, жильё или услуги в каталоге — просто напишите, что вас интересует (например: *«Ищу коворкинг в Казани»*, *«Нужен мастер по ремонту»*, *«Ищу партнёра в стартап»*)!`,
       degraded: true,
       degradedReason: llmDegradedReason,
       executedTools: [],
