@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { McpRoom, Listing, ListingCategory, CATEGORY_LABELS } from '../types';
+import { McpRoom, McpMessage, Listing, ListingCategory, CATEGORY_LABELS } from '../types';
 import { getStoredApiKey } from '../lib/api';
 
 interface RoomsHubProps {
@@ -7,7 +7,7 @@ interface RoomsHubProps {
   listings: Listing[];
   selectedRoomId?: string;
   onSelectRoom?: (roomId: string) => void;
-  onSendMessage: (roomId: string, message: { text: string; role?: 'human' | 'agent' }) => Promise<void>;
+  onSendMessage: (roomId: string, message: McpMessage) => Promise<void>;
   onOpenListing: (listing: Listing) => void;
   onCreateRoom: (roomData: {
     listingId?: string;
@@ -158,8 +158,12 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
     setIsSending(true);
     try {
       await onSendMessage(activeRoom.id, {
-        text: inputText.trim(),
+        id: 'msg-' + Date.now(),
+        roomId: activeRoom.id,
+        sender: 'user:me',
         role: sendRole,
+        text: inputText.trim(),
+        timestamp: Date.now(),
       });
       setInputText('');
     } finally {

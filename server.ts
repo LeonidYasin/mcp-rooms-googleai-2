@@ -37,6 +37,7 @@ import {
   issueSseTicket,
   consumeSseTicket,
   issueApiKey,
+  Principal,
 } from './server/auth';
 import {
   JSON_BODY_LIMIT,
@@ -750,7 +751,11 @@ app.post('/api/rooms/:id/ticket', optionalAuth, (req, res) => {
     }
   }
 
-  const principal = req.principal || { principalId: `guest-${Date.now().toString(36)}`, scopes: '*' };
+  const principal: Principal = req.principal || {
+    principalId: `guest-${Date.now().toString(36)}`,
+    keyId: 'guest-key',
+    scopes: ['*'],
+  };
   const ticket = issueSseTicket(principal, roomId);
   res.status(201).json({ success: true, ticket, expires_in_seconds: 30 });
 });
