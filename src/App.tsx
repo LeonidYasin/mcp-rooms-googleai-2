@@ -18,7 +18,7 @@ import { PrinciplesBanner } from './components/PrinciplesBanner';
 import { McpChat } from './components/McpChat';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { RoomsHub } from './components/RoomsHub';
-import { useI18n, TranslationKey } from './i18n';
+import { useI18n, TranslationKey, getLocalizedListing, getLocalizedRoom } from './i18n';
 import {
   authHeaders,
   getStoredApiKey,
@@ -104,9 +104,26 @@ export const App: React.FC = () => {
     refreshDataFromDb();
   }, [refreshDataFromDb]);
 
+  // Localized listings and rooms based on active language
+  const localizedListings = useMemo(
+    () => listings.map((l) => getLocalizedListing(l, locale)),
+    [listings, locale]
+  );
+
+  const localizedRooms = useMemo(
+    () => rooms.map((r) => getLocalizedRoom(r, locale)),
+    [rooms, locale]
+  );
+
+  const activeSelectedListing = useMemo(() => {
+    if (!selectedListing) return null;
+    const found = localizedListings.find((l) => l.id === selectedListing.id);
+    return found || getLocalizedListing(selectedListing, locale);
+  }, [selectedListing, localizedListings, locale]);
+
   // Filtered listings
   const filteredListings = useMemo(() => {
-    return listings.filter((item) => {
+    return localizedListings.filter((item) => {
       // Category filter
       if (currentCategory !== 'all' && item.content.category !== currentCategory) {
         return false;
@@ -128,17 +145,20 @@ export const App: React.FC = () => {
         const q = searchQuery.toLowerCase().trim();
         const inTitle = item.content.title.toLowerCase().includes(q);
         const inDesc = item.content.description.toLowerCase().includes(q);
-        const inCat = CATEGORY_LABELS[item.content.category]?.toLowerCase().includes(q);
+        const inCat =
+          CATEGORY_LABELS[item.content.category]?.toLowerCase().includes(q) ||
+          t(`cat.${item.content.category}` as TranslationKey).toLowerCase().includes(q);
         const inSubcat = item.content.subcategory?.toLowerCase().includes(q);
         const inLoc = item.content.locality?.toLowerCase().includes(q);
         return Boolean(inTitle || inDesc || inCat || inSubcat || inLoc);
       }
       return true;
     });
-  }, [listings, currentCategory, filterKind, selectedLocality, searchQuery]);
+  }, [localizedListings, currentCategory, filterKind, selectedLocality, searchQuery, t]);
 
   const handleOpenListing = (listing: Listing) => {
-    setSelectedListing(listing);
+    const raw = listings.find((l) => l.id === listing.id) || listing;
+    setSelectedListing(raw);
     setCurrentTab('catalog');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -393,8 +413,8 @@ export const App: React.FC = () => {
       <main className="flex-1">
         {currentTab === 'rooms' ? (
           <RoomsHub
-            rooms={rooms}
-            listings={listings}
+            rooms={localizedRooms}
+            listings={localizedListings}
             selectedRoomId={selectedRoomId}
             onSelectRoom={(id) => setSelectedRoomId(id)}
             onSendMessage={handleSendMessageToRoom}
@@ -404,8 +424,8 @@ export const App: React.FC = () => {
           />
         ) : currentTab === 'chat' ? (
           <McpChat
-            listings={listings}
-            rooms={rooms}
+            listings={localizedListings}
+            rooms={localizedRooms}
             onOpenListing={handleOpenListing}
             onOpenRoom={(roomId) => handleOpenRoom(roomId || '')}
             onListingCreated={(newListing) => {
@@ -419,18 +439,18 @@ export const App: React.FC = () => {
           />
         ) : currentTab === 'mcp' ? (
           <McpConsole
-            listings={listings}
-            rooms={rooms}
+            listings={localizedListings}
+            rooms={localizedRooms}
             onAddListing={handlePublishListing}
             onSendMessageToRoom={handleSendMessageToRoom}
             onOpenListing={handleOpenListing}
           />
         ) : currentTab === 'principles' ? (
           <PrinciplesBanner />
-        ) : selectedListing ? (
+        ) : activeSelectedListing ? (
           <ListingDetail
-            listing={selectedListing}
-            rooms={rooms}
+            listing={activeSelectedListing}
+            rooms={localizedRooms}
             onBack={() => setSelectedListing(null)}
             onContactSeller={handleContactSeller}
             onAgentDiscuss={handleAgentDiscuss}
@@ -577,14 +597,14 @@ export const App: React.FC = () => {
 
       <ContactModal
         isOpen={Boolean(contactModalListing)}
-        listing={contactModalListing}
+        listing={contactModalListing ? getLocalizedListing(contactModalListing, locale) : null}
         onClose={() => setContactModalListing(null)}
         onSendMessage={handleSendSellerMessage}
       />
 
       <AgentModal
         isOpen={Boolean(agentModalListing)}
-        listing={agentModalListing}
+        listing={agentModalListing ? getLocalizedListing(agentModalListing, locale) : null}
         onClose={() => setAgentModalListing(null)}
         onOpenConsole={() => {
           setSelectedListing(null);
