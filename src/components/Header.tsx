@@ -9,8 +9,8 @@ interface HeaderProps {
   onSearchSubmit: () => void;
   onOpenPublish: () => void;
   onGoHome: () => void;
-  currentTab: 'catalog' | 'mcp' | 'principles' | 'chat';
-  onChangeTab: (tab: 'catalog' | 'mcp' | 'principles' | 'chat') => void;
+  currentTab: 'catalog' | 'rooms' | 'mcp' | 'principles' | 'chat';
+  onChangeTab: (tab: 'catalog' | 'rooms' | 'mcp' | 'principles' | 'chat') => void;
   selectedLocality: string;
   onLocalityChange: (loc: string) => void;
   hasApiKey: boolean;
@@ -62,6 +62,15 @@ export const Header: React.FC<HeaderProps> = ({
             </span>
           </div>
           <div className="flex items-center gap-4 text-xs">
+            <button
+              type="button"
+              onClick={() => onChangeTab('rooms')}
+              className={`hover:underline cursor-pointer flex items-center gap-1 font-bold ${
+                currentTab === 'rooms' ? 'text-[var(--blue)]' : 'text-[var(--ink)]'
+              }`}
+            >
+              <span>🤝 Переговоры и темы</span>
+            </button>
             <button
               type="button"
               onClick={() => onChangeTab('chat')}
@@ -125,6 +134,18 @@ export const Header: React.FC<HeaderProps> = ({
                   <option value="Санкт-Петербург">Санкт-Петербург</option>
                 </select>
               </div>
+
+              <button
+                type="button"
+                onClick={() => onChangeTab('rooms')}
+                className={`font-semibold text-sm px-3.5 py-2 rounded-lg border transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  currentTab === 'rooms'
+                    ? 'bg-[var(--soft)] border-[var(--blue)] text-[var(--blue)] font-bold'
+                    : 'bg-[var(--surface)] border-[var(--line)] text-[var(--ink)] hover:bg-[var(--raised)]'
+                }`}
+              >
+                <span>🤝 Комнаты (Rooms)</span>
+              </button>
 
               <button
                 type="button"

@@ -1,20 +1,24 @@
 import React, { useState } from 'react';
-import { Listing, CATEGORY_LABELS, MODE_LABELS } from '../types';
+import { Listing, McpRoom, CATEGORY_LABELS, MODE_LABELS } from '../types';
 import { formatPrice } from './ListingCard';
 
 interface ListingDetailProps {
   listing: Listing;
+  rooms?: McpRoom[];
   onBack: () => void;
   onContactSeller: (listing: Listing) => void;
   onAgentDiscuss: (listing: Listing) => void;
+  onOpenRoom?: (roomId: string) => void;
   onAddPhoto?: (listingId: string, photoDataUrl: string) => void;
 }
 
 export const ListingDetail: React.FC<ListingDetailProps> = ({
   listing,
+  rooms = [],
   onBack,
   onContactSeller,
   onAgentDiscuss,
+  onOpenRoom,
   onAddPhoto,
 }) => {
   const { content, photos, author_name, revision } = listing;
@@ -279,6 +283,56 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
             >
               <span>👼 Поручить Агенту-Ангелу</span>
             </button>
+
+            {/* Attached Rooms Section */}
+            {(() => {
+              const relatedRooms = rooms.filter((r) => r.listingId === listing.id);
+              return (
+                <div className="border-t border-[var(--line)] pt-3.5 mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-[var(--ink)] uppercase tracking-wider">
+                      💬 Комнаты и темы ({relatedRooms.length})
+                    </span>
+                    {onOpenRoom && (
+                      <button
+                        type="button"
+                        onClick={() => onContactSeller(listing)}
+                        className="text-xs text-[var(--blue)] hover:underline font-semibold cursor-pointer"
+                      >
+                        + Открыть тему
+                      </button>
+                    )}
+                  </div>
+
+                  {relatedRooms.length > 0 ? (
+                    <div className="space-y-2 mt-2">
+                      {relatedRooms.map((r) => (
+                        <div
+                          key={r.id}
+                          onClick={() => onOpenRoom && onOpenRoom(r.id)}
+                          className="p-2.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-blue-50/50 dark:hover:bg-blue-950/20 flex items-center justify-between gap-2 text-xs cursor-pointer transition-colors"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 font-semibold text-[var(--ink)] truncate">
+                              <span>{r.visibility === 'public' ? '🌐' : '🔒'}</span>
+                              <span className="truncate">{r.listingTitle || 'Обсуждение'}</span>
+                            </div>
+                            <span className="text-[11px] text-[var(--muted)]">
+                              💬 {r.messages.length} сообщ. · {r.participants.length} участн.
+                            </span>
+                          </div>
+                          <span className="text-[var(--blue)] font-bold text-xs shrink-0">Войти ↗</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-[var(--muted)] mt-1">
+                      Открытых обсуждений пока нет. Нажмите «Написать продавцу», чтобы начать публичный диалог или приватные переговоры.
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
 
             <div className="border-t border-[var(--line)] pt-4 space-y-3 text-sm">
               <div>

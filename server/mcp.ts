@@ -8,6 +8,7 @@ import {
   getRoomsFromDb,
   getRoomByIdFromDb,
   createRoomInDb,
+  addParticipantToRoomInDb,
   addMessageToRoomInDb,
   getProfilesFromDb,
   getProfileByIdFromDb,
@@ -137,12 +138,17 @@ export const MCP_TOOLS_MANIFEST = [
   {
     name: 'join_room',
     description:
-      'Создаёт или присоединяется к комнате переговоров (Shared Room) для обсуждения конкретного объявления. Участник комнаты — владелец ключа; передавать чужой идентификатор нельзя.',
+      'Создаёт или присоединяется к комнате переговоров (Shared Room) для обсуждения конкретного объявления. Поддерживает visibility: "public" (открытое обсуждение темы в общем каталоге) или "private" (конфиденциальные переговоры 1-на-1). Участник комнаты — владелец ключа.',
     inputSchema: {
       type: 'object',
       properties: {
         listing_id: { type: 'string', description: 'Идентификатор обсуждаемого объявления' },
         initial_message: { type: 'string', description: 'Первичное обращение к контрагенту' },
+        visibility: {
+          type: 'string',
+          enum: ['public', 'private'],
+          description: 'Тип комнаты: public (открытая тема в каталоге) или private (приватные 1-на-1 переговоры). По умолчанию private.',
+        },
       },
       required: ['listing_id'],
     },
@@ -383,20 +389,33 @@ export async function executeMcpToolCall(
         return { error: 'Нельзя открыть переговоры по собственному объявлению' };
       }
 
-      // A room is visible only to its participants, so the caller can only ever
-      // rejoin a room they already belong to.
+      const visibility: 'public' | 'private' = args.visibility === 'public' ? 'public' : 'private';
       const rooms = getRoomsFromDb();
-      let room: any = rooms.find(
-        (r) => r.listingId === args.listing_id && r.participants.includes(buyer)
-      );
+      let room: any;
+
+      if (visibility === 'public') {
+        // Look for existing public room for this listing
+        room = rooms.find((r) => r.listingId === args.listing_id && r.visibility === 'public');
+        if (room && !room.participants.includes(buyer)) {
+          addParticipantToRoomInDb(room.id, buyer);
+          room = getRoomByIdFromDb(room.id);
+        }
+      } else {
+        // Private room: must belong to buyer and seller
+        room = rooms.find(
+          (r) => r.listingId === args.listing_id && r.visibility === 'private' && r.participants.includes(buyer)
+        );
+      }
 
       if (!room) {
-        const roomId = `room-${args.listing_id}-${Date.now().toString(36).substring(4)}`;
+        const roomId = `room-${args.listing_id}-${visibility}-${Date.now().toString(36).substring(4)}`;
         room = createRoomInDb({
           id: roomId,
           listingId: listing.id,
           listingTitle: listing.content.title,
+          category: listing.content.category,
           participants: [buyer, listing.owner],
+          visibility,
         });
 
         if (args.initial_message) {
@@ -419,6 +438,7 @@ export async function executeMcpToolCall(
         listing_id: listing.id,
         listing_title: listing.content.title,
         counterpart_owner: listing.owner,
+        visibility: room?.visibility || visibility,
         room,
       };
     }
@@ -475,12 +495,14 @@ export async function executeMcpToolCall(
       if (!room) {
         return { error: `Комната ${args.room_id} не найдена` };
       }
-      if (!isRoomParticipant(room, ctx.principalId)) {
+      if (room.visibility !== 'public' && !isRoomParticipant(room, ctx.principalId)) {
         return { error: 'forbidden', message: 'Вы не участник этой комнаты' };
       }
       return {
         room_id: room.id,
         title: room.listingTitle,
+        category: room.category,
+        visibility: room.visibility,
         participants: room.participants,
         messages_count: room.messages.length,
         messages: room.messages,

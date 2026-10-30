@@ -119,9 +119,11 @@ export interface McpMessage {
 
 export interface McpRoom {
   id: string;
-  title: string;
+  title?: string;
   listingId?: string;
   listingTitle?: string;
+  category?: ListingCategory | string;
+  visibility?: 'public' | 'private';
   participants: string[];
   messages: McpMessage[];
   status: 'active' | 'closed';

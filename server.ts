@@ -15,6 +15,8 @@ import {
   withdrawListingInDb,
   getRoomsFromDb,
   getRoomByIdFromDb,
+  createRoomInDb,
+  addParticipantToRoomInDb,
   addMessageToRoomInDb,
   getNegotiationsFromDb,
   getProfilesFromDb,
@@ -35,6 +37,7 @@ import {
   issueSseTicket,
   consumeSseTicket,
   issueApiKey,
+  Principal,
 } from './server/auth';
 import {
   JSON_BODY_LIMIT,
@@ -605,18 +608,99 @@ app.post('/api/listings/:id/withdraw', requireAuth, (req, res) => {
   }
 });
 
+// -------------------------------------------------------------
+// Unified Rooms & Negotiation Catalog Endpoints
+// -------------------------------------------------------------
+
+// Public rooms catalog: available without authentication to everyone
+app.get('/api/public/rooms', (req, res) => {
+  try {
+    const allRooms = getRoomsFromDb();
+    let publicRooms = allRooms.filter((r: any) => r.visibility === 'public');
+
+    const category = typeof req.query?.category === 'string' ? req.query.category.trim() : '';
+    if (category && category !== 'all') {
+      publicRooms = publicRooms.filter((r: any) => r.category === category);
+    }
+
+    const listingId = typeof req.query?.listing_id === 'string' ? req.query.listing_id.trim() : '';
+    if (listingId) {
+      publicRooms = publicRooms.filter((r: any) => r.listingId === listingId);
+    }
+
+    const q = typeof req.query?.query === 'string' ? req.query.query.trim().toLowerCase() : '';
+    if (q) {
+      publicRooms = publicRooms.filter(
+        (r: any) =>
+          (r.listingTitle || '').toLowerCase().includes(q) ||
+          (r.category || '').toLowerCase().includes(q) ||
+          r.messages.some((m: any) => (m.text || '').toLowerCase().includes(q))
+      );
+    }
+
+    res.json(publicRooms);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/rooms', requireAuth, (req, res) => {
   try {
     const principalId = req.principal!.principalId;
-    // Only the rooms this key belongs to, never the whole table.
-    const rooms = getRoomsFromDb().filter((room: any) => isRoomParticipant(room, principalId));
+    const includePublic = req.query?.include_public === 'true';
+    // By default, returns the participant's rooms (strictly maintaining F-01/rest-api.test.ts contract).
+    // With ?include_public=true, also includes all open public rooms.
+    const rooms = getRoomsFromDb().filter((room: any) =>
+      includePublic
+        ? room.visibility === 'public' || isRoomParticipant(room, principalId)
+        : isRoomParticipant(room, principalId)
+    );
     res.json(rooms);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/api/rooms/:id', requireAuth, (req, res) => {
+app.post('/api/rooms', requireAuth, (req, res) => {
+  try {
+    const principalId = req.principal!.principalId;
+    const { listingId, title, category, visibility, initialMessage } = req.body || {};
+    let listing: any = null;
+    if (listingId) {
+      listing = getListingByIdFromDb(listingId);
+    }
+    const roomId = `room-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+    const participants = [principalId];
+    if (listing && listing.owner && listing.owner !== principalId) {
+      participants.push(listing.owner);
+    }
+    const newRoom = createRoomInDb({
+      id: roomId,
+      listingId: listing?.id || listingId || undefined,
+      listingTitle: listing?.content?.title || title || 'Новая переговорная комната',
+      category: category || listing?.content?.category || undefined,
+      participants,
+      visibility: visibility === 'public' ? 'public' : 'private',
+    });
+
+    if (initialMessage && typeof initialMessage === 'string' && initialMessage.trim()) {
+      addMessageToRoomInDb({
+        id: 'msg-' + Date.now(),
+        roomId,
+        sender: principalId,
+        role: 'human',
+        text: initialMessage.trim(),
+        timestamp: Date.now(),
+      });
+    }
+
+    res.status(201).json(getRoomByIdFromDb(roomId));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/rooms/:id', optionalAuth, (req, res) => {
   try {
     const roomId = String(req.params.id);
     const room = getRoomByIdFromDb(roomId);
@@ -624,7 +708,17 @@ app.get('/api/rooms/:id', requireAuth, (req, res) => {
       res.status(404).json({ error: 'Room not found' });
       return;
     }
-    if (!isRoomParticipant(room, req.principal!.principalId)) {
+    // Public room is viewable by anyone
+    if (room.visibility === 'public') {
+      res.json(room);
+      return;
+    }
+    // Private room requires authentication and participant membership
+    if (!req.principal) {
+      res.status(401).json({ error: 'unauthorized', message: 'Необходим действующий Bearer токен' });
+      return;
+    }
+    if (!isRoomParticipant(room, req.principal.principalId)) {
       res.status(403).json({ error: 'forbidden', message: 'Вы не участник этой комнаты' });
       return;
     }
@@ -639,19 +733,30 @@ app.get('/api/rooms/:id', requireAuth, (req, res) => {
 // -------------------------------------------------------------
 
 // Ticket generation endpoint for secure SSE connections without exposing Bearer tokens in URLs
-app.post('/api/rooms/:id/ticket', requireAuth, (req, res) => {
+app.post('/api/rooms/:id/ticket', optionalAuth, (req, res) => {
   const roomId = String(req.params.id);
   const room = getRoomByIdFromDb(roomId);
   if (!room) {
     res.status(404).json({ error: 'Room not found' });
     return;
   }
-  if (!isRoomParticipant(room, req.principal!.principalId)) {
-    res.status(403).json({ error: 'forbidden', message: 'Вы не участник этой комнаты' });
-    return;
+  if (room.visibility !== 'public') {
+    if (!req.principal) {
+      res.status(401).json({ error: 'unauthorized', message: 'Необходим действующий Bearer токен' });
+      return;
+    }
+    if (!isRoomParticipant(room, req.principal.principalId)) {
+      res.status(403).json({ error: 'forbidden', message: 'Вы не участник этой комнаты' });
+      return;
+    }
   }
 
-  const ticket = issueSseTicket(req.principal!, roomId);
+  const principal: Principal = req.principal || {
+    principalId: `guest-${Date.now().toString(36)}`,
+    keyId: 'guest-key',
+    scopes: ['*'],
+  };
+  const ticket = issueSseTicket(principal, roomId);
   res.status(201).json({ success: true, ticket, expires_in_seconds: 30 });
 });
 
@@ -666,18 +771,21 @@ app.get('/api/rooms/:id/stream', optionalAuth, (req, res) => {
     }
   }
 
-  if (!streamPrincipal) {
-    res.status(401).json({ error: 'unauthorized', message: 'Необходим действующий ticket или Bearer токен' });
-    return;
-  }
   const room = getRoomByIdFromDb(roomId);
   if (!room) {
     res.status(404).json({ error: `Комната ${roomId} не найдена` });
     return;
   }
-  if (!isRoomParticipant(room, streamPrincipal.principalId)) {
-    res.status(403).json({ error: 'forbidden', message: 'Вы не участник этой комнаты' });
-    return;
+
+  if (room.visibility !== 'public') {
+    if (!streamPrincipal) {
+      res.status(401).json({ error: 'unauthorized', message: 'Необходим действующий ticket или Bearer токен' });
+      return;
+    }
+    if (!isRoomParticipant(room, streamPrincipal.principalId)) {
+      res.status(403).json({ error: 'forbidden', message: 'Вы не участник этой комнаты' });
+      return;
+    }
   }
 
   // PR-8: Enforce max 50 concurrent SSE subscribers per room
@@ -768,9 +876,15 @@ app.post('/api/rooms/:id/messages', requireAuth, rateLimit('messages', 'RATE_LIM
       return;
     }
     const principalId = req.principal!.principalId;
-    if (!isRoomParticipant(room, principalId)) {
-      res.status(403).json({ error: 'forbidden', message: 'Вы не участник этой комнаты' });
-      return;
+    if (room.visibility === 'public') {
+      if (!isRoomParticipant(room, principalId)) {
+        addParticipantToRoomInDb(roomId, principalId);
+      }
+    } else {
+      if (!isRoomParticipant(room, principalId)) {
+        res.status(403).json({ error: 'forbidden', message: 'Вы не участник этой комнаты' });
+        return;
+      }
     }
     const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
     if (!text) {

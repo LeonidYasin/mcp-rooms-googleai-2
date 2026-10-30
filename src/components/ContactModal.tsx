@@ -5,7 +5,12 @@ interface ContactModalProps {
   isOpen: boolean;
   listing: Listing | null;
   onClose: () => void;
-  onSendMessage: (listingId: string, messageText: string, contactInfo: string) => void;
+  onSendMessage: (
+    listingId: string,
+    messageText: string,
+    contactInfo: string,
+    visibility?: 'public' | 'private'
+  ) => void;
 }
 
 export const ContactModal: React.FC<ContactModalProps> = ({
@@ -16,6 +21,7 @@ export const ContactModal: React.FC<ContactModalProps> = ({
 }) => {
   const [message, setMessage] = useState('');
   const [contactInfo, setContactInfo] = useState('');
+  const [visibility, setVisibility] = useState<'public' | 'private'>('private');
   const [sentSuccess, setSentSuccess] = useState(false);
 
   if (!isOpen || !listing) return null;
@@ -23,7 +29,7 @@ export const ContactModal: React.FC<ContactModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim()) return;
-    onSendMessage(listing.id, message, contactInfo);
+    onSendMessage(listing.id, message, contactInfo, visibility);
     setSentSuccess(true);
     setTimeout(() => {
       setSentSuccess(false);
@@ -68,8 +74,59 @@ export const ContactModal: React.FC<ContactModalProps> = ({
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4 text-sm">
+            <div>
+              <label className="block text-xs font-semibold text-[var(--muted)] uppercase mb-1.5">
+                Формат общения
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <label
+                  className={`p-3 border rounded-xl cursor-pointer flex flex-col gap-1 transition-colors ${
+                    visibility === 'private'
+                      ? 'border-[var(--blue)] bg-blue-50/40 dark:bg-blue-950/20'
+                      : 'border-[var(--line)] bg-[var(--surface)]'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-[var(--ink)]">
+                    <input
+                      type="radio"
+                      name="modal_visibility"
+                      value="private"
+                      checked={visibility === 'private'}
+                      onChange={() => setVisibility('private')}
+                    />
+                    <span>🔒 Приватная</span>
+                  </div>
+                  <span className="text-[11px] text-[var(--muted)] leading-tight">
+                    Конфиденциально 1-на-1 с автором
+                  </span>
+                </label>
+
+                <label
+                  className={`p-3 border rounded-xl cursor-pointer flex flex-col gap-1 transition-colors ${
+                    visibility === 'public'
+                      ? 'border-[var(--blue)] bg-blue-50/40 dark:bg-blue-950/20'
+                      : 'border-[var(--line)] bg-[var(--surface)]'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-[var(--ink)]">
+                    <input
+                      type="radio"
+                      name="modal_visibility"
+                      value="public"
+                      checked={visibility === 'public'}
+                      onChange={() => setVisibility('public')}
+                    />
+                    <span>🌐 Открытая тема</span>
+                  </div>
+                  <span className="text-[11px] text-[var(--muted)] leading-tight">
+                    Видна всем в общем каталоге тем
+                  </span>
+                </label>
+              </div>
+            </div>
+
             <div className="p-3 bg-[var(--surface)] border border-[var(--line)] rounded-lg text-xs text-[var(--muted)]">
-              🔒 <strong>Принцип приватности MCP Rooms:</strong> точный домашний адрес и телефон не публикуются на сайте. Первичное общение проходит в изолированной комнате между участниками.
+              🔒 <strong>Принцип безопасности:</strong> телефон и точный адрес не публикуются автоматически. Общение начинается в защищённой комнате протокола MCP.
             </div>
 
             <div>
