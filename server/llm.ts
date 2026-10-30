@@ -70,9 +70,9 @@ export function configuredModel(): string {
   return (process.env.GEMINI_MODEL || '').trim();
 }
 
-function missingConfigReason(apiKey: string): LlmDegradedReason | null {
+function missingConfigReason(apiKey: string, isOverride: boolean = false): LlmDegradedReason | null {
   if (!apiKey) return 'missing_api_key';
-  if (!configuredModel()) return 'model_not_configured';
+  if (!configuredModel() && !isOverride) return 'model_not_configured';
   return null;
 }
 
@@ -116,7 +116,7 @@ export function resolveLlmClient(apiKeyOverride?: string, now: number = Date.now
   const apiKey = (apiKeyOverride || readApiKey()).trim();
   const model = configuredModel() || (apiKeyOverride ? 'gemini-1.5-flash' : '');
 
-  const missing = missingConfigReason(apiKey);
+  const missing = missingConfigReason(apiKey, Boolean(apiKeyOverride));
   if (missing) return { client: null, reason: missing };
 
   const cooling = activeCooldown(apiKey, model, now);
