@@ -4,10 +4,12 @@ import express from 'express';
 import { Type, FunctionDeclaration } from '@google/genai';
 import {
   initDatabase,
+  db,
   getRoomEventsSinceInDb,
   getListingsFromDb,
   getListingByIdFromDb,
   createListingInDb,
+  updateListingInDb,
   publishListingInDb,
   withdrawListingInDb,
   getRoomsFromDb,
@@ -269,6 +271,30 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+app.get('/healthz', (_req, res) => {
+  res.json({
+    status: 'ok',
+    uptime: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get('/readyz', (_req, res) => {
+  try {
+    db.prepare('SELECT 1').get();
+    res.json({
+      status: 'ready',
+      database: 'connected',
+    });
+  } catch (err: any) {
+    res.status(503).json({
+      status: 'not_ready',
+      database: 'disconnected',
+      error: err.message,
+    });
+  }
+});
+
 app.post('/api/match', rateLimit('match', 'RATE_LIMIT_MATCH_PER_MINUTE', 60), async (req, res) => {
   try {
     const { query, query_kind, category, locality, limit } = req.body;
@@ -420,6 +446,30 @@ app.post('/api/listings', requireAuth, rateLimit('listings', 'RATE_LIMIT_LISTING
   try {
     const created = createListingInDb(normalized.listing);
     res.status(201).json(created);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/listings/:id', requireAuth, (req, res) => {
+  try {
+    const listingId = String(req.params.id);
+    const listing = getListingByIdFromDb(listingId);
+    if (!listing) {
+      res.status(404).json({ error: 'not_found', message: 'Listing not found' });
+      return;
+    }
+    if (listing.owner !== req.principal!.principalId) {
+      res.status(403).json({ error: 'forbidden', message: 'Не являетесь владельцем объявления' });
+      return;
+    }
+
+    const updated = updateListingInDb(listingId, req.body || {}, req.principal!.principalId);
+    if (!updated) {
+      res.status(400).json({ error: 'update_failed', message: 'Could not update listing' });
+      return;
+    }
+    res.json(updated);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
