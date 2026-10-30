@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Listing, McpRoom, NegotiationResult, EmbeddingProviderStatus } from '../types';
 import { authHeaders, getStoredApiKey } from '../lib/api';
+import { GoogleAuthModal } from './GoogleAuthModal';
+import { getStoredGoogleToken, getStoredGoogleUser, GoogleUserProfile } from '../lib/googleAuth';
 
 export interface ChatMessage {
   id: string;
@@ -16,6 +18,7 @@ export interface ChatMessage {
   createdListing?: any;
   degraded?: boolean;
   degradedReason?: string;
+  authType?: string;
 }
 
 interface McpChatProps {
@@ -40,6 +43,7 @@ const DEGRADED_REASON_LABELS: Record<string, string> = {
   model_not_configured: 'GEMINI_MODEL не задан — ответ построен правилами',
   invalid_api_key: 'ключ Gemini отклонён — ответ построен правилами',
   model_error: 'ошибка вызова модели — ответ построен правилами',
+  google_token_expired: 'срок действия токена Google истёк — войдите заново',
 };
 
 function degradedTitle(reason?: string): string {
@@ -72,6 +76,9 @@ export const McpChat: React.FC<McpChatProps> = ({
   const [activeTabPrompt, setActiveTabPrompt] = useState<'all' | 'biz' | 'services' | 'jobs' | 'dating'>('all');
   const [expandedDialogueId, setExpandedDialogueId] = useState<string | null>(null);
   const [embeddingStatus, setEmbeddingStatus] = useState<EmbeddingProviderStatus | null>(null);
+  const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
+  const [googleUser, setGoogleUser] = useState<GoogleUserProfile | null>(getStoredGoogleUser());
+  const [hasGoogleAuth, setHasGoogleAuth] = useState<boolean>(Boolean(getStoredGoogleToken()));
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -116,12 +123,17 @@ export const McpChat: React.FC<McpChatProps> = ({
 
     // All chat goes through POST /api/chat. Negotiation results come back as an
     // explicit demo_preview; there is no live SSE negotiation stream.
+    const googleToken = getStoredGoogleToken();
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        headers: authHeaders({
+          'Content-Type': 'application/json',
+          ...(googleToken ? { 'x-google-access-token': googleToken } : {}),
+        }),
         body: JSON.stringify({
           targetListingId: contextListing?.id || undefined,
+          googleAccessToken: googleToken || undefined,
           messages: [...messages, userMessage].map((m) => ({
             role: m.role,
             content: m.content,
@@ -149,6 +161,7 @@ export const McpChat: React.FC<McpChatProps> = ({
         createdListing: data.createdListing,
         degraded: data.degraded === true,
         degradedReason: data.degradedReason,
+        authType: data.authType,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -245,6 +258,29 @@ export const McpChat: React.FC<McpChatProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {hasGoogleAuth ? (
+            <button
+              type="button"
+              onClick={() => setIsGoogleModalOpen(true)}
+              className="flex items-center gap-1.5 text-xs text-emerald-400 border border-emerald-500/30 px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors cursor-pointer"
+              title="Google Gemini OAuth 2.0 подключен"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="hidden sm:inline font-medium">{googleUser?.email || 'Google Gemini'}</span>
+              <span className="sm:hidden font-medium">Gemini</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsGoogleModalOpen(true)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-white border border-blue-400/40 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 transition-colors cursor-pointer shadow-sm"
+              title="Подключить Google-аккаунт для вызовов Gemini"
+            >
+              <span>🌐</span>
+              <span>Войти с Google</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() =>
@@ -323,6 +359,14 @@ export const McpChat: React.FC<McpChatProps> = ({
               </span>
               <span>·</span>
               <span>{new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              {m.authType === 'google_oauth' && (
+                <span
+                  className="ml-1 px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 font-semibold"
+                  title="Ответ сгенерирован Gemini через персональный Google OAuth 2.0"
+                >
+                  ✨ Google Gemini
+                </span>
+              )}
               {m.degraded && (
                 <span
                   className="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 font-semibold"
@@ -539,6 +583,15 @@ export const McpChat: React.FC<McpChatProps> = ({
           </svg>
         </button>
       </form>
+
+      <GoogleAuthModal
+        isOpen={isGoogleModalOpen}
+        onClose={() => setIsGoogleModalOpen(false)}
+        onAuthSuccess={(_token, user) => {
+          setHasGoogleAuth(true);
+          setGoogleUser(user || null);
+        }}
+      />
     </div>
   );
 };

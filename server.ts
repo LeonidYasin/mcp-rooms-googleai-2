@@ -35,7 +35,7 @@ import {
   rateLimit,
   securityHeaders,
 } from './server/http-guard';
-import { configuredModel, llmStatus, recordLlmFailure, resolveLlmClient } from './server/llm';
+import { configuredModel, llmStatus, recordLlmFailure, resolveLlmClient, callGeminiWithOAuth } from './server/llm';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -813,17 +813,9 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
 
   const userPrompt = messages[messages.length - 1]?.content || '';
   const promptLower = userPrompt.toLowerCase();
+  const googleAccessToken = (req.headers['x-google-access-token'] as string) || req.body?.googleAccessToken;
 
-  // Try the configured Gemini model with autonomous MCP Function Calling.
-  // Every response below declares whether a model was actually used: the UI must
-  // never present rule-based answers as model-driven work. When no call is made,
-  // `degradedReason` is one of the stable codes from server/llm.ts.
-  const llm = resolveLlmClient();
-  let llmDegradedReason: string | null = llm.reason;
-  const aiClient = llm.client;
-  if (aiClient) {
-    try {
-      const systemInstruction = `Ты — персональный ИИ-ассистент («Агент-Ангел») автономной децентрализованной площадки объявлений «Хочу · Предлагаю» (MCP Rooms).
+  const systemInstruction = `Ты — персональный ИИ-ассистент («Агент-Ангел») автономной децентрализованной площадки объявлений «Хочу · Предлагаю» (MCP Rooms).
 На площадке пользователи и их ИИ-агенты взаимодействуют по протоколу Model Context Protocol (MCP).
 Категории площадки:
 - real_estate: Недвижимость (аренда, коворкинги, жилье, квартиры, офисы, поиск сожителей)
@@ -850,21 +842,123 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
 3. Если просит создать или опубликовать объявление — вызывай create_listing.
 4. Отвечай дружелюбно, структурированно, на русском языке, ссылайся на конкретные результаты из SQLite и предлагай следующий практический шаг.`;
 
-      const contents: any[] = messages.map((m: any) => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }],
-      }));
+  const contents: any[] = messages.map((m: any) => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }));
 
-      // If explicit targetListingId is passed from card context, append context info
-      if (targetListingId) {
-        const targetListing = getListingByIdFromDb(targetListingId);
-        if (targetListing) {
-          contents[contents.length - 1].parts.push({
-            text: `\n[Контекст карточки объявления: ID=${targetListing.id}, Название=«${targetListing.content.title}», Категория=${targetListing.content.category}, Автор=${targetListing.author_name}, Цена=${targetListing.content.price_minor ? targetListing.content.price_minor / 100 : 'Договорная'} ₽, Город=${targetListing.content.locality}]`,
-          });
+  // If explicit targetListingId is passed from card context, append context info
+  if (targetListingId) {
+    const targetListing = getListingByIdFromDb(targetListingId);
+    if (targetListing) {
+      contents[contents.length - 1].parts.push({
+        text: `\n[Контекст карточки объявления: ID=${targetListing.id}, Название=«${targetListing.content.title}», Категория=${targetListing.content.category}, Автор=${targetListing.author_name}, Цена=${targetListing.content.price_minor ? targetListing.content.price_minor / 100 : 'Договорная'} ₽, Город=${targetListing.content.locality}]`,
+      });
+    }
+  }
+
+  // 1. If user provided their own Google OAuth access token, call Gemini via user credentials
+  if (googleAccessToken) {
+    try {
+      const oauthResp = await callGeminiWithOAuth({
+        accessToken: googleAccessToken,
+        contents,
+        systemInstruction,
+        tools: [{ functionDeclarations: mcpGeminiTools }],
+      });
+
+      if (oauthResp.functionCalls && oauthResp.functionCalls.length > 0) {
+        const executedToolsLog: any[] = [];
+        let negotiationResult: any = null;
+        let createdListingResult: any = null;
+        const functionResponseParts: any[] = [];
+
+        for (const call of oauthResp.functionCalls) {
+          if (!call.name) continue;
+          try {
+            const result = await executeMcpToolCall(call.name, call.args || {}, { principalId });
+            executedToolsLog.push({ name: call.name, args: call.args, result });
+
+            if (call.name === 'negotiate_agreement' && result?.success) {
+              negotiationResult = result;
+            }
+            if (call.name === 'create_listing' && result?.created_listing) {
+              createdListingResult = result.created_listing;
+            }
+
+            functionResponseParts.push({
+              functionResponse: {
+                name: call.name,
+                response: { result },
+              },
+            });
+          } catch (toolErr: any) {
+            functionResponseParts.push({
+              functionResponse: {
+                name: call.name,
+                response: { error: toolErr.message },
+              },
+            });
+          }
         }
+
+        const followUpContents = [
+          ...contents,
+          oauthResp.candidateContent || {
+            role: 'model',
+            parts: oauthResp.functionCalls.map((fc) => ({
+              functionCall: { name: fc.name, args: fc.args },
+            })),
+          },
+          {
+            role: 'user',
+            parts: functionResponseParts,
+          },
+        ];
+
+        const followUpResponse = await callGeminiWithOAuth({
+          accessToken: googleAccessToken,
+          contents: followUpContents,
+          systemInstruction,
+        });
+
+        res.json({
+          text: followUpResponse.text || 'Действие успешно выполнено через протокол MCP.',
+          model: configuredModel() || 'gemini-1.5-flash',
+          degraded: false,
+          authType: 'google_oauth',
+          executedTools: executedToolsLog,
+          negotiation: negotiationResult,
+          createdListing: createdListingResult,
+        });
+        return;
       }
 
+      if (oauthResp.text) {
+        res.json({
+          text: oauthResp.text,
+          model: configuredModel() || 'gemini-1.5-flash',
+          degraded: false,
+          authType: 'google_oauth',
+          executedTools: [],
+        });
+        return;
+      }
+    } catch (oauthErr: any) {
+      logger.warn('Google OAuth Gemini call failed, falling back to server LLM/rules', {
+        error: oauthErr.message,
+        status: oauthErr.status,
+      });
+      llmDegradedReason = oauthErr.status === 401 ? 'google_token_expired' : 'model_error';
+    }
+  }
+
+  // 2. Try the server-configured Gemini model with autonomous MCP Function Calling
+  const llm = resolveLlmClient();
+  let llmDegradedReason: string | null = llm.reason;
+  const aiClient = llm.client;
+  if (aiClient) {
+    try {
       const response = await aiClient.models.generateContent({
         model: configuredModel(),
         contents,

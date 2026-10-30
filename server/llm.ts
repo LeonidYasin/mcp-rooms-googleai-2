@@ -173,3 +173,96 @@ export function resetLlmState() {
   metrics.modelFailures = 0;
   metrics.suppressedCalls = 0;
 }
+
+export interface OAuthGeminiParams {
+  accessToken: string;
+  model?: string;
+  contents: any[];
+  systemInstruction?: string;
+  tools?: any[];
+  temperature?: number;
+}
+
+export interface OAuthGeminiResult {
+  text: string;
+  functionCalls: Array<{ name: string; args: any }>;
+  candidateContent?: any;
+}
+
+/**
+ * Executes a Gemini model call directly via Google Generative Language REST API
+ * using a user-provided Google OAuth 2.0 Access Token.
+ */
+export async function callGeminiWithOAuth(params: OAuthGeminiParams): Promise<OAuthGeminiResult> {
+  const model = params.model || configuredModel() || 'gemini-1.5-flash';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+
+  const payload: any = {
+    contents: params.contents,
+    generationConfig: {
+      temperature: params.temperature ?? 0.7,
+    },
+  };
+
+  if (params.systemInstruction) {
+    payload.systemInstruction = {
+      parts: [{ text: params.systemInstruction }],
+    };
+  }
+
+  if (params.tools && params.tools.length > 0) {
+    payload.tools = params.tools;
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.accessToken}`,
+      'User-Agent': 'mcp-rooms',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    let parsed: any;
+    try {
+      parsed = JSON.parse(errorBody);
+    } catch {
+      parsed = { message: errorBody };
+    }
+    const errMessage = parsed?.error?.message || errorBody || `HTTP ${response.status}`;
+    const errStatus = parsed?.error?.status || `HTTP_${response.status}`;
+    const error = new Error(`Google Gemini OAuth API Error (${errStatus}): ${errMessage}`);
+    (error as any).status = response.status;
+    (error as any).code = errStatus;
+    throw error;
+  }
+
+  const data: any = await response.json();
+  const candidate = data.candidates?.[0];
+  const candidateContent = candidate?.content;
+  const parts: any[] = candidateContent?.parts || [];
+
+  let text = '';
+  const functionCalls: Array<{ name: string; args: any }> = [];
+
+  for (const part of parts) {
+    if (part.text) {
+      text += part.text;
+    }
+    if (part.functionCall) {
+      functionCalls.push({
+        name: part.functionCall.name,
+        args: part.functionCall.args || {},
+      });
+    }
+  }
+
+  return {
+    text,
+    functionCalls,
+    candidateContent,
+  };
+}
