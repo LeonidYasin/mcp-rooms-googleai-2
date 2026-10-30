@@ -836,12 +836,18 @@ export function updateListingInDb(id: string, updates: any, owner: string) {
   const description = updates.description || updates.content?.description || existing.content.description;
   const category = updates.category || updates.content?.category || existing.content.category;
   const locality = updates.locality || updates.content?.locality || existing.content.locality;
+  const rawPrice = updates.price_rubles !== undefined
+    ? Number(updates.price_rubles)
+    : (updates.content?.price_minor ? updates.content.price_minor / 100 : undefined);
+  const priceMinor = rawPrice !== undefined
+    ? (rawPrice > 0 ? Math.floor(rawPrice * 100) : null)
+    : existing.content.price_minor;
 
   db.prepare(`
     UPDATE listings
-    SET title = ?, description = ?, category = ?, locality = ?, revision = revision + 1, updated_at = ?
+    SET title = ?, description = ?, category = ?, locality = ?, price_minor = ?, revision = revision + 1, updated_at = ?
     WHERE id = ? AND owner = ?
-  `).run(title, description, category, locality, now, id, owner);
+  `).run(title, description, category, locality, priceMinor, now, id, owner);
 
   return getListingByIdFromDb(id);
 }

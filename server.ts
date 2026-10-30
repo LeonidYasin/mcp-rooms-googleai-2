@@ -4,10 +4,12 @@ import express from 'express';
 import { Type, FunctionDeclaration } from '@google/genai';
 import {
   initDatabase,
+  db,
   getRoomEventsSinceInDb,
   getListingsFromDb,
   getListingByIdFromDb,
   createListingInDb,
+  updateListingInDb,
   publishListingInDb,
   withdrawListingInDb,
   getRoomsFromDb,
@@ -269,6 +271,30 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+app.get('/healthz', (_req, res) => {
+  res.json({
+    status: 'ok',
+    uptime: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get('/readyz', (_req, res) => {
+  try {
+    db.prepare('SELECT 1').get();
+    res.json({
+      status: 'ready',
+      database: 'connected',
+    });
+  } catch (err: any) {
+    res.status(503).json({
+      status: 'not_ready',
+      database: 'disconnected',
+      error: err.message,
+    });
+  }
+});
+
 app.post('/api/match', rateLimit('match', 'RATE_LIMIT_MATCH_PER_MINUTE', 60), async (req, res) => {
   try {
     const { query, query_kind, category, locality, limit } = req.body;
@@ -354,11 +380,12 @@ function normalizeListingInput(
   const errors: string[] = [];
   const text = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
 
-  const title = text(body.title);
-  const description = text(body.description);
-  const category = text(body.category);
-  const kind = text(body.kind);
-  const locality = text(body.locality);
+  const content = body.content && typeof body.content === 'object' ? body.content : {};
+  const title = text(body.title ?? content.title);
+  const description = text(body.description ?? content.description);
+  const category = text(body.category ?? content.category);
+  const kind = text(body.kind ?? content.kind);
+  const locality = text(body.locality ?? content.locality);
 
   if (title.length < 3 || title.length > 200) errors.push('title: 3..200 characters');
   if (description.length < 3 || description.length > 5000) errors.push('description: 3..5000 characters');
@@ -366,10 +393,11 @@ function normalizeListingInput(
   if (!['offer', 'request'].includes(kind)) errors.push('kind: offer|request');
   if (!locality) errors.push('locality: required');
 
-  const priceRubles = body.price_rubles === undefined || body.price_rubles === null ? 0 : Number(body.price_rubles);
+  const rawPrice = body.price_rubles ?? (content.price_minor ? content.price_minor / 100 : undefined);
+  const priceRubles = rawPrice === undefined || rawPrice === null ? 0 : Number(rawPrice);
   if (!Number.isFinite(priceRubles) || priceRubles < 0) errors.push('price_rubles: non-negative number');
 
-  const rawModes = body.modes === undefined ? ['pickup', 'online'] : body.modes;
+  const rawModes = body.modes ?? content.modes ?? ['pickup', 'online'];
   const modes = Array.isArray(rawModes) ? rawModes.filter((m: unknown) => LISTING_MODES.includes(String(m))) : [];
   if (!Array.isArray(rawModes) || modes.length !== rawModes.length) errors.push(`modes: subset of ${LISTING_MODES.join(', ')}`);
 
@@ -381,18 +409,20 @@ function normalizeListingInput(
     listing: {
       id: 'listing-' + now + '-' + Math.random().toString(36).substring(2, 8),
       owner: ownerPrincipalId,
-      author_name: text(body.author_name) || ownerPrincipalId,
+      author_name: text(body.author_name ?? content.author_name) || ownerPrincipalId,
       content: {
         title,
         description,
         category,
-        subcategory: text(body.subcategory) || undefined,
+        subcategory: text(body.subcategory ?? content.subcategory) || undefined,
         kind,
         modes,
         locality,
+        region: text(body.region ?? content.region) || undefined,
+        country: text(body.country ?? content.country) || undefined,
         price_minor: priceRubles > 0 ? Math.floor(priceRubles * 100) : null,
         currency: 'RUB',
-        condition: text(body.condition) || 'Указано в описании',
+        condition: text(body.condition ?? content.condition) || 'Указано в описании',
       },
       status: 'draft',
       visibility: 'private',
@@ -416,6 +446,30 @@ app.post('/api/listings', requireAuth, rateLimit('listings', 'RATE_LIMIT_LISTING
   try {
     const created = createListingInDb(normalized.listing);
     res.status(201).json(created);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/listings/:id', requireAuth, (req, res) => {
+  try {
+    const listingId = String(req.params.id);
+    const listing = getListingByIdFromDb(listingId);
+    if (!listing) {
+      res.status(404).json({ error: 'not_found', message: 'Listing not found' });
+      return;
+    }
+    if (listing.owner !== req.principal!.principalId) {
+      res.status(403).json({ error: 'forbidden', message: 'Не являетесь владельцем объявления' });
+      return;
+    }
+
+    const updated = updateListingInDb(listingId, req.body || {}, req.principal!.principalId);
+    if (!updated) {
+      res.status(400).json({ error: 'update_failed', message: 'Could not update listing' });
+      return;
+    }
+    res.json(updated);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

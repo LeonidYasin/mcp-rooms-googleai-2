@@ -24,19 +24,42 @@ jobs:
           script: |
             set -e
             echo "🚀 Starting automated deployment..."
-            
-            # Navigate to project root on VPS
+
+            # 1. Install Docker & Docker Compose if not installed on VPS
+            if ! command -v docker &> /dev/null; then
+              echo "📦 Installing Docker on VPS..."
+              curl -fsSL https://get.docker.com | sh || sudo curl -fsSL https://get.docker.com | sh
+            fi
+
+            # 2. Add current user to docker group if needed
+            if ! groups $USER | grep -q docker; then
+              sudo usermod -aG docker $USER || true
+            fi
+
+            # 3. Create project working directories
+            sudo mkdir -p /opt/mcp-rooms
+            sudo chown -R $USER:$USER /opt/mcp-rooms
             cd /opt/mcp-rooms
-            
-            # Fetch and reset to latest main commit
-            git fetch origin main
-            git reset --hard origin/main
-            
-            # Ensure persistent directories and permissions
-            mkdir -p ./data ./uploads/thumbnails
-            sudo chown -R 1000:1000 ./data ./uploads || true
-            
-            # Restart production Docker stack
+
+            # 4. Clone or update repository to latest main commit
+            if [ ! -d ".git" ]; then
+              git clone https://github.com/LeonidYasin/mcp-rooms-googleai-2.git .
+            else
+              git fetch origin main
+              git reset --hard origin/main
+            fi
+
+            # 5. Bootstrap default .env if missing
+            if [ ! -f ".env" ]; then
+              cp .env.example .env
+              echo "DOMAIN=${{ secrets.VPS_HOST }}" >> .env
+            fi
+
+            # 6. Ensure persistent database and upload directories with non-root UID 1000
+            mkdir -p ./data/uploads ./data/thumbnails
+            sudo chown -R 1000:1000 ./data || true
+
+            # 7. Restart production Docker stack
             docker compose -f docker-compose.prod.yml up -d --build
-            
+
             echo "✅ Deployment completed successfully!"

@@ -55,8 +55,8 @@ Connect to your VPS via SSH and run this single command:
 ```bash
 git clone https://github.com/LeonidYasin/mcp-rooms-googleai-2.git /opt/mcp-rooms && \
 cd /opt/mcp-rooms && \
-mkdir -p ./data ./uploads/thumbnails && \
-sudo chown -R 1000:1000 ./data ./uploads && \
+mkdir -p ./data/uploads ./data/thumbnails && \
+sudo chown -R 1000:1000 ./data && \
 cp .env.example .env && \
 docker compose -f docker-compose.prod.yml up -d --build
 ```
@@ -127,8 +127,8 @@ git clone https://github.com/LeonidYasin/mcp-rooms-googleai-2.git /opt/mcp-rooms
 cd /opt/mcp-rooms
 
 # Create persistent storage directories and assign permissions (UID 1000 for non-root container)
-mkdir -p ./data ./uploads/thumbnails
-sudo chown -R 1000:1000 ./data ./uploads
+mkdir -p ./data/uploads ./data/thumbnails
+sudo chown -R 1000:1000 ./data
 ```
 
 ### 2. Configure Environment Variables
