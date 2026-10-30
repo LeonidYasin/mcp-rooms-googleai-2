@@ -55,12 +55,17 @@ export function initDatabase() {
       id TEXT PRIMARY KEY,
       listing_id TEXT,
       listing_title TEXT,
+      category TEXT,
       participants_json TEXT NOT NULL, -- JSON array of principal strings
+      visibility TEXT NOT NULL DEFAULT 'private', -- 'public' or 'private'
       status TEXT NOT NULL DEFAULT 'active', -- 'active' or 'closed'
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY(listing_id) REFERENCES listings(id) ON DELETE SET NULL
     );
+
+    CREATE INDEX IF NOT EXISTS idx_rooms_visibility ON rooms(visibility);
+    CREATE INDEX IF NOT EXISTS idx_rooms_category ON rooms(category);
 
     CREATE TABLE IF NOT EXISTS messages (
       id TEXT PRIMARY KEY,
@@ -189,6 +194,20 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     const keyColNames = keyColumns.map((c) => c.name);
     if (!keyColNames.includes('scopes')) {
       db.exec(`ALTER TABLE api_keys ADD COLUMN scopes TEXT NOT NULL DEFAULT '*';`);
+    }
+  } catch {
+    // Column already exists or table freshly initialized
+  }
+
+  // Safe migration for rooms table (visibility flag & category)
+  try {
+    const roomColumns = db.prepare(`PRAGMA table_info(rooms)`).all() as any[];
+    const roomColNames = roomColumns.map((c) => c.name);
+    if (!roomColNames.includes('visibility')) {
+      db.exec(`ALTER TABLE rooms ADD COLUMN visibility TEXT NOT NULL DEFAULT 'private';`);
+    }
+    if (!roomColNames.includes('category')) {
+      db.exec(`ALTER TABLE rooms ADD COLUMN category TEXT;`);
     }
   } catch {
     // Column already exists or table freshly initialized
@@ -691,14 +710,16 @@ function seedInitialData() {
 
   // Seed sample rooms and messages
   const insertRoom = db.prepare(`
-    INSERT INTO rooms (id, listing_id, listing_title, participants_json, status, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO rooms (id, listing_id, listing_title, category, participants_json, visibility, status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   insertRoom.run(
     'room-bike-negotiation-01',
     'bike-kazan-demo-01',
     'Городской велосипед, размер M',
+    'things',
     JSON.stringify(['user:buyer-77', 'user:kazan-cyclist', 'agent:mcp-angel']),
+    'private',
     'active',
     now - 3600000 * 5,
     now - 3600000 * 1
@@ -734,6 +755,88 @@ function seedInitialData() {
     'Агент-Ангел: Проверил параметры объявления. Самовывоз в Казани подтверждён обеими сторонами. Напоминаю: безопасная встреча в публичном месте рекомендуется правилами площадки.',
     null,
     now - 3600000 * 2
+  );
+
+  // 1. Публичная комната / открытая тема по B2B AI-стартапу
+  insertRoom.run(
+    'room-biz-ai-public-01',
+    'biz-partner-ai-01',
+    'Ищу кофаундера / бизнес-партнёра в B2B AI-стартап (MCP & автоматизация)',
+    'business',
+    JSON.stringify(['user:founder-alex', 'user:investor-vlad', 'agent:mcp-angel']),
+    'public',
+    'active',
+    now - 3600000 * 12,
+    now - 3600000 * 2
+  );
+
+  insertMessage.run(
+    'msg-biz-1',
+    'room-biz-ai-public-01',
+    'user:founder-alex',
+    'human',
+    'Приветствую всех в открытой переговорной комнате стартапа! Здесь обсуждаем партнёрство, стек MCP и планы масштабирования пилотов.',
+    null,
+    now - 3600000 * 12
+  );
+  insertMessage.run(
+    'msg-biz-2',
+    'room-biz-ai-public-01',
+    'user:investor-vlad',
+    'human',
+    'Алексей, добрый день! Интересует текущая юнит-экономика и метрики 3 запущенных пилотов. Есть ли уже готовая интеграция с 1С?',
+    null,
+    now - 3600000 * 8
+  );
+  insertMessage.run(
+    'msg-biz-3',
+    'room-biz-ai-public-01',
+    'agent:mcp-angel',
+    'agent',
+    'Агент-Ангел: В карточке подтверждён статус MVP с пилотами. Публичная комната открыта для знакомства с проектом. Конкретные доли и условия NDA можно зафиксировать в приватной комнате.',
+    null,
+    now - 3600000 * 2
+  );
+
+  // 2. Публичная комната / открытая тема по сантехническим услугам
+  insertRoom.run(
+    'room-services-public-02',
+    'service-plumbing-bath-03',
+    'Комплексный ремонт санузлов, замена сантехники и труб под ключ',
+    'services',
+    JSON.stringify(['user:master-marat', 'user:customer-elena', 'agent:mcp-angel']),
+    'public',
+    'active',
+    now - 3600000 * 20,
+    now - 3600000 * 1
+  );
+
+  insertMessage.run(
+    'msg-serv-1',
+    'room-services-public-02',
+    'user:customer-elena',
+    'human',
+    'Марат, здравствуйте! Делаете ли скрытую разводку для отдельностоящей ванны и работаете ли с системами защиты Нептун/Аквасторож?',
+    null,
+    now - 3600000 * 20
+  );
+  insertMessage.run(
+    'msg-serv-2',
+    'room-services-public-02',
+    'user:master-marat',
+    'human',
+    'Здравствуйте, Елена! Да, устанавливаем Нептун и Аквасторож, штробление и опрессовка по ГОСТу. Гарантия по договору 3 года.',
+    null,
+    now - 3600000 * 10
+  );
+  insertMessage.run(
+    'msg-serv-3',
+    'room-services-public-02',
+    'agent:mcp-angel',
+    'agent',
+    'Агент-Ангел: Публичный диалог позволяет уточнить квалификацию мастера. Для согласования точного адреса замера откройте приватные переговоры.',
+    null,
+    now - 3600000 * 1
   );
 }
 
@@ -900,6 +1003,8 @@ export function getRoomsFromDb() {
       id: r.id,
       listingId: r.listing_id,
       listingTitle: r.listing_title,
+      category: r.category || null,
+      visibility: (r.visibility as 'public' | 'private') || 'private',
       participants: JSON.parse(r.participants_json || '[]'),
       status: r.status,
       created_at: r.created_at,
@@ -929,6 +1034,8 @@ export function getRoomByIdFromDb(id: string) {
     id: r.id,
     listingId: r.listing_id,
     listingTitle: r.listing_title,
+    category: r.category || null,
+    visibility: (r.visibility as 'public' | 'private') || 'private',
     participants: JSON.parse(r.participants_json || '[]'),
     status: r.status,
     created_at: r.created_at,
@@ -949,29 +1056,60 @@ export function createRoomInDb(room: {
   id: string;
   listingId?: string;
   listingTitle?: string;
+  category?: string;
   participants: string[];
+  visibility?: 'public' | 'private';
+  status?: 'active' | 'closed';
 }) {
   const existing = getRoomByIdFromDb(room.id);
   if (existing) {
     return existing;
   }
+  let cat = room.category;
+  if (!cat && room.listingId) {
+    const listing = getListingByIdFromDb(room.listingId);
+    if (listing?.content?.category) {
+      cat = listing.content.category;
+    }
+  }
+  const visibility = room.visibility || 'private';
+  const status = room.status || 'active';
   const now = Date.now();
   db.prepare(`
-    INSERT INTO rooms (id, listing_id, listing_title, participants_json, status, created_at, updated_at)
-    VALUES (?, ?, ?, ?, 'active', ?, ?)
+    INSERT INTO rooms (id, listing_id, listing_title, category, participants_json, visibility, status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       listing_id = COALESCE(excluded.listing_id, rooms.listing_id),
       listing_title = COALESCE(excluded.listing_title, rooms.listing_title),
+      category = COALESCE(excluded.category, rooms.category),
+      visibility = COALESCE(excluded.visibility, rooms.visibility),
+      status = COALESCE(excluded.status, rooms.status),
       updated_at = excluded.updated_at
   `).run(
     room.id,
     room.listingId || null,
     room.listingTitle || null,
+    cat || null,
     JSON.stringify(room.participants),
+    visibility,
+    status,
     now,
     now
   );
   return getRoomByIdFromDb(room.id);
+}
+
+export function addParticipantToRoomInDb(roomId: string, principalId: string): boolean {
+  const room = getRoomByIdFromDb(roomId);
+  if (!room) return false;
+  if (room.participants.includes(principalId)) return true;
+  const updatedParticipants = [...room.participants, principalId];
+  db.prepare('UPDATE rooms SET participants_json = ?, updated_at = ? WHERE id = ?').run(
+    JSON.stringify(updatedParticipants),
+    Date.now(),
+    roomId
+  );
+  return true;
 }
 
 export type MessageInsertFailure = 'room_not_found' | 'duplicate_message_id';

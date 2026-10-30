@@ -17,6 +17,7 @@ import { McpConsole } from './components/McpConsole';
 import { PrinciplesBanner } from './components/PrinciplesBanner';
 import { McpChat } from './components/McpChat';
 import { ApiKeyModal } from './components/ApiKeyModal';
+import { RoomsHub } from './components/RoomsHub';
 import {
   authHeaders,
   getStoredApiKey,
@@ -39,7 +40,8 @@ export const App: React.FC = () => {
   }, []);
 
   // Navigation and filters
-  const [currentTab, setCurrentTab] = useState<'catalog' | 'mcp' | 'principles' | 'chat'>('catalog');
+  const [currentTab, setCurrentTab] = useState<'catalog' | 'rooms' | 'mcp' | 'principles' | 'chat'>('catalog');
+  const [selectedRoomId, setSelectedRoomId] = useState<string>('');
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [currentCategory, setCurrentCategory] = useState<ListingCategory | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -52,13 +54,21 @@ export const App: React.FC = () => {
   const [agentModalListing, setAgentModalListing] = useState<Listing | null>(null);
   const [contextListing, setContextListing] = useState<Listing | null>(null);
 
+  const handleOpenRoom = useCallback((roomId: string) => {
+    setSelectedRoomId(roomId);
+    setSelectedListing(null);
+    setCurrentTab('rooms');
+  }, []);
+
   // Fetch real listings and rooms from SQLite server database
   const refreshDataFromDb = useCallback(async () => {
     try {
       const hasKey = Boolean(getStoredApiKey());
       const [listingsRes, roomsRes] = await Promise.all([
         fetch('/api/listings'),
-        hasKey ? fetch('/api/rooms', { headers: authHeaders() }) : Promise.resolve(null),
+        hasKey
+          ? fetch('/api/rooms?include_public=true', { headers: authHeaders() })
+          : fetch('/api/public/rooms'),
       ]);
       if (listingsRes.ok) {
         const data = await listingsRes.json();
@@ -71,8 +81,14 @@ export const App: React.FC = () => {
           const rData = await roomsRes.json();
           if (Array.isArray(rData)) setRooms(rData);
         } else if (roomsRes.status === 401 || roomsRes.status === 403) {
-          // A stale key must not leave someone else's rooms on screen.
-          setRooms([]);
+          // A stale key must not leave someone else's rooms on screen, fall back to public rooms.
+          const pubRes = await fetch('/api/public/rooms');
+          if (pubRes.ok) {
+            const pubData = await pubRes.json();
+            if (Array.isArray(pubData)) setRooms(pubData);
+          } else {
+            setRooms([]);
+          }
         }
       } else {
         setRooms([]);
@@ -236,7 +252,8 @@ export const App: React.FC = () => {
   const handleSendSellerMessage = async (
     listingId: string,
     messageText: string,
-    contactInfo: string
+    contactInfo: string,
+    visibility: 'public' | 'private' = 'private'
   ) => {
     if (!getStoredApiKey()) {
       openApiKeyModal(
@@ -245,7 +262,9 @@ export const App: React.FC = () => {
       return;
     }
 
-    const existingRoom = rooms.find((r) => r.listingId === listingId);
+    const existingRoom = rooms.find(
+      (r) => r.listingId === listingId && (r.visibility || 'private') === visibility
+    );
     const text = contactInfo
       ? `${messageText}\n\nКонтакт для ответа: ${contactInfo}`
       : messageText;
@@ -271,7 +290,7 @@ export const App: React.FC = () => {
             method: 'tools/call',
             params: {
               name: 'join_room',
-              arguments: { listing_id: listingId, initial_message: text },
+              arguments: { listing_id: listingId, initial_message: text, visibility },
             },
           }),
         });
@@ -307,6 +326,31 @@ export const App: React.FC = () => {
         prev ? { ...prev, responses_count: prev.responses_count + 1 } : prev
       );
     }
+  };
+
+  const handleCreateRoom = async (roomData: {
+    listingId?: string;
+    title: string;
+    category?: string;
+    visibility: 'public' | 'private';
+    initialMessage?: string;
+  }) => {
+    if (!getStoredApiKey()) {
+      openApiKeyModal('Создание комнаты требует API-ключ.');
+      return;
+    }
+    const res = await fetch('/api/rooms', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(roomData),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || err.error || 'Не удалось создать комнату');
+    }
+    const created = await res.json();
+    setRooms((prev) => [created, ...prev.filter((r) => r.id !== created.id)]);
+    setSelectedRoomId(created.id);
   };
 
   return (
@@ -345,15 +389,23 @@ export const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1">
-        {currentTab === 'chat' ? (
+        {currentTab === 'rooms' ? (
+          <RoomsHub
+            rooms={rooms}
+            listings={listings}
+            selectedRoomId={selectedRoomId}
+            onSelectRoom={(id) => setSelectedRoomId(id)}
+            onSendMessage={handleSendMessageToRoom}
+            onOpenListing={handleOpenListing}
+            onCreateRoom={handleCreateRoom}
+            onRequireKey={(reason) => openApiKeyModal(reason)}
+          />
+        ) : currentTab === 'chat' ? (
           <McpChat
             listings={listings}
             rooms={rooms}
             onOpenListing={handleOpenListing}
-            onOpenRoom={() => {
-              setSelectedListing(null);
-              setCurrentTab('mcp');
-            }}
+            onOpenRoom={(roomId) => handleOpenRoom(roomId || '')}
             onListingCreated={(newListing) => {
               setListings((prev) => [newListing, ...prev.filter((l) => l.id !== newListing.id)]);
               handleOpenListing(newListing);
@@ -376,9 +428,11 @@ export const App: React.FC = () => {
         ) : selectedListing ? (
           <ListingDetail
             listing={selectedListing}
+            rooms={rooms}
             onBack={() => setSelectedListing(null)}
             onContactSeller={handleContactSeller}
             onAgentDiscuss={handleAgentDiscuss}
+            onOpenRoom={handleOpenRoom}
             onAddPhoto={handleAddPhotoToListing}
           />
         ) : (
@@ -545,6 +599,16 @@ export const App: React.FC = () => {
             <strong>MCP Rooms</strong> · Серверный бэкенд на SQLite + Model Context Protocol (JSON-RPC 2.0).
           </div>
           <div className="flex gap-4">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedListing(null);
+                setCurrentTab('rooms');
+              }}
+              className="hover:underline cursor-pointer font-bold text-[var(--ink)]"
+            >
+              🤝 Переговоры и темы
+            </button>
             <button
               type="button"
               onClick={() => {
