@@ -1,5 +1,6 @@
 import path from 'path';
 import fs from 'fs';
+import crypto from 'node:crypto';
 import express from 'express';
 import { Type, FunctionDeclaration } from '@google/genai';
 import {
@@ -27,7 +28,14 @@ import { handleMcpJsonRpcRequest, executeMcpToolCall, MCP_TOOLS_MANIFEST } from 
 import { runAutonomousNegotiation } from './server/negotiator';
 import { getEmbeddingProviderStatus, matchListingAsymmetric } from './server/embeddings';
 import { roomEventBus } from './server/events';
-import { isRoomParticipant, optionalAuth, requireAuth, issueSseTicket, consumeSseTicket } from './server/auth';
+import {
+  isRoomParticipant,
+  optionalAuth,
+  requireAuth,
+  issueSseTicket,
+  consumeSseTicket,
+  issueApiKey,
+} from './server/auth';
 import {
   JSON_BODY_LIMIT,
   corsPolicy,
@@ -236,6 +244,21 @@ app.post('/mcp', optionalAuth, rateLimit('mcp', 'RATE_LIMIT_MCP_PER_MINUTE', 240
 // -------------------------------------------------------------
 // 2. Real REST API Endpoints with SQLite Persistence
 // -------------------------------------------------------------
+app.post('/api/auth/guest', rateLimit('guest_auth', 'RATE_LIMIT_CHAT_PER_MINUTE', 20), (_req, res) => {
+  try {
+    const slug = 'guest-' + crypto.randomBytes(4).toString('hex');
+    const issued = issueApiKey(`user:${slug}`, 'Гостевой аккаунт', ['*']);
+    addAuditLog('auth.guest_issue', issued.principalId, issued.id);
+    res.status(201).json({
+      key: issued.key,
+      principalId: issued.principalId,
+      name: issued.name,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/embedding/status', (_req, res) => {
   try {
     const status = getEmbeddingProviderStatus();

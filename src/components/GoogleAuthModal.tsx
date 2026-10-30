@@ -13,14 +13,14 @@ interface GoogleAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAuthSuccess?: (token: string, user?: GoogleUserProfile) => void;
-  onUseFounderKey?: () => void;
+  onGuestLogin?: () => void;
 }
 
 export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
   isOpen,
   onClose,
   onAuthSuccess,
-  onUseFounderKey,
+  onGuestLogin,
 }) => {
   const [clientId, setClientId] = useState('');
   const [user, setUser] = useState<GoogleUserProfile | null>(null);
@@ -148,22 +148,22 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
               </p>
             </div>
 
-            {onUseFounderKey && (
-              <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 rounded-xl flex items-center justify-between gap-3">
+            {onGuestLogin && (
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 rounded-xl flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold text-blue-700 dark:text-blue-400">
+                  <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
                     ⚡ Нет Google Client ID?
                   </p>
                   <p className="text-[11px] text-[var(--muted)]">
-                    Войдите мгновенно по ключу создателя площадки
+                    Войдите мгновенно как гость (изолированный профиль)
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={onUseFounderKey}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg cursor-pointer transition shadow-xs whitespace-nowrap"
+                  onClick={onGuestLogin}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg cursor-pointer transition shadow-xs whitespace-nowrap"
                 >
-                  Использовать Founder Key
+                  Войти как Гость
                 </button>
               </div>
             )}

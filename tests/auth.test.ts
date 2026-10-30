@@ -86,6 +86,24 @@ describe('API keys, room isolation and public read-only catalogue', () => {
   });
 
   describe('authentication', () => {
+    it('issues a fresh isolated guest key via POST /api/auth/guest', async () => {
+      const res = await fetch(`${baseUrl}/api/auth/guest`, { method: 'POST' });
+      expect(res.status).toBe(201);
+      const data = await res.json();
+      expect(data.key).toMatch(/^mcr_/);
+      expect(data.principalId).toMatch(/^user:guest-/);
+
+      // Verifying guest key can authenticate
+      const roomsRes = await fetch(`${baseUrl}/api/rooms`, {
+        headers: { Authorization: `Bearer ${data.key}` },
+      });
+      expect(roomsRes.status).toBe(200);
+      const rooms = await roomsRes.json();
+      expect(Array.isArray(rooms)).toBe(true);
+      // Fresh guest does not see other users' private rooms
+      expect(rooms.length).toBe(0);
+    });
+
     it('rejects room and write endpoints without a key', async () => {
       const requests: Array<[string, string, any?]> = [
         ['GET', '/api/rooms'],

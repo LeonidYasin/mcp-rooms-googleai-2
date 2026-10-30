@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Listing, McpRoom, NegotiationResult, EmbeddingProviderStatus } from '../types';
-import { authHeaders, getStoredApiKey, storeApiKey } from '../lib/api';
+import { authHeaders, getStoredApiKey, storeApiKey, createGuestSession } from '../lib/api';
 import { GoogleAuthModal } from './GoogleAuthModal';
 import {
   getStoredGoogleToken,
@@ -110,6 +110,19 @@ export const McpChat: React.FC<McpChatProps> = ({
       })
       .catch(() => {});
   }, []);
+
+  const handleQuickGuestLogin = async () => {
+    try {
+      setIsLoading(true);
+      await createGuestSession();
+      setHasStoredApiKey(true);
+      if (onRefreshData) onRefreshData();
+    } catch (err: any) {
+      alert(err.message || 'Ошибка создания гостевой сессии');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || input).trim();
@@ -576,7 +589,7 @@ export const McpChat: React.FC<McpChatProps> = ({
         <div className="border-x border-t border-[var(--line)] bg-amber-500/10 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-800 dark:text-amber-300">
           <div className="flex items-center gap-1.5 font-medium">
             <span>💡</span>
-            <span>Для отправки поручений Ангелу подключите Google или активируйте ключ:</span>
+            <span>Для отправки поручений Ангелу подключите Google или войдите как гость:</span>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -589,10 +602,11 @@ export const McpChat: React.FC<McpChatProps> = ({
             <span className="text-[var(--muted)]">или</span>
             <button
               type="button"
-              onClick={() => onRequireKey?.('Быстрый вход по ключу создателя')}
-              className="px-2.5 py-1 bg-[var(--surface)] hover:bg-[var(--raised)] border border-[var(--line)] rounded-md font-semibold text-[var(--ink)] cursor-pointer transition-colors"
+              disabled={isLoading}
+              onClick={handleQuickGuestLogin}
+              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md font-semibold cursor-pointer transition-colors shadow-xs disabled:opacity-50"
             >
-              ⚡ Ключ Создателя
+              👤 Войти как Гость (1 клик)
             </button>
           </div>
         </div>
@@ -651,12 +665,9 @@ export const McpChat: React.FC<McpChatProps> = ({
           setHasGoogleAuth(true);
           setGoogleUser(user || null);
         }}
-        onUseFounderKey={() => {
-          const founderKey = 'mcr_5SiuxQaWs7jiKqxb0cCFtO5aKP6Ho0mzLsoFi5d_6A8';
-          storeApiKey(founderKey);
-          setHasStoredApiKey(true);
+        onGuestLogin={async () => {
           setIsGoogleModalOpen(false);
-          if (onRefreshData) onRefreshData();
+          await handleQuickGuestLogin();
         }}
       />
     </div>
