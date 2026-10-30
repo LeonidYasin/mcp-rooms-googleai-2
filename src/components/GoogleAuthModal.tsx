@@ -118,55 +118,44 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
           </div>
         ) : (
           <div className="space-y-4">
-            <p className="text-sm text-[var(--muted)] leading-relaxed">
-              Подключите свой Google-аккаунт через официальный протокол <strong>Google Identity Services (OAuth 2.0)</strong>, чтобы отправлять запросы напрямую в Gemini.
-            </p>
-
-            <div>
-              <label className="block text-xs font-semibold text-[var(--ink)] uppercase tracking-wider mb-1">
-                Google Client ID (из Google Cloud Console)
-              </label>
-              <input
-                type="text"
-                value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
-                placeholder="например: 123456789-xyz.apps.googleusercontent.com"
-                className="w-full px-3 py-2 text-sm bg-[var(--surface)] border border-[var(--line)] rounded-lg text-[var(--ink)] focus:outline-none focus:border-[var(--tint)]"
-              />
-              <p className="text-xs text-[var(--muted)] mt-1.5 leading-relaxed">
-                Получить Client ID можно в{' '}
-                <a
-                  href="https://console.cloud.google.com/apis/credentials"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-500 hover:underline font-medium"
-                >
-                  Google Cloud Console Credentials ↗
-                </a>
-                . В настройках Client ID добавьте в Authorized JavaScript origins ваш домен:{' '}
-                <code className="text-xs text-sky-400">https://leonid-mcp.duckdns.org</code>
+            <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🤖</span>
+                <h4 className="font-semibold text-[var(--ink)] text-sm">Персональный Google Gemini</h4>
+              </div>
+              <p className="text-xs text-[var(--muted)] leading-relaxed">
+                Нажмите кнопку ниже, чтобы авторизоваться через Google. Запросы к Агенту-Ангелу будут обрабатываться моделью <strong>Google Gemini</strong> от имени вашего аккаунта.
               </p>
             </div>
 
-            {onGuestLogin && (
-              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 rounded-xl flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-                    ⚡ Нет Google Client ID?
-                  </p>
-                  <p className="text-[11px] text-[var(--muted)]">
-                    Войдите мгновенно как гость (изолированный профиль)
-                  </p>
-                </div>
+            <div className="flex flex-col gap-2 pt-1">
+              <button
+                type="button"
+                disabled={isLoading}
+                onClick={handleSignIn}
+                className="w-full flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-500 transition disabled:opacity-50 cursor-pointer shadow-md"
+              >
+                {isLoading ? (
+                  <span>Подключение к Google...</span>
+                ) : (
+                  <>
+                    <span>🌐</span>
+                    <span>Войти через Google</span>
+                  </>
+                )}
+              </button>
+
+              {onGuestLogin && (
                 <button
                   type="button"
                   onClick={onGuestLogin}
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg cursor-pointer transition shadow-xs whitespace-nowrap"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] hover:bg-[var(--raised)] transition cursor-pointer"
                 >
-                  Войти как Гость
+                  <span>👤</span>
+                  <span>Продолжить как Гость (без Google)</span>
                 </button>
-              </div>
-            )}
+              )}
+            </div>
 
             {error && (
               <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-xs text-red-400">
@@ -174,28 +163,35 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
               </div>
             )}
 
-            <div className="flex justify-end gap-3 pt-3">
+            <details className="text-xs text-[var(--muted)] pt-2 border-t border-[var(--line)]">
+              <summary className="cursor-pointer hover:text-[var(--ink)] select-none">
+                ⚙️ Настройки Client ID (для администраторов)
+              </summary>
+              <div className="mt-2 space-y-2 pt-1">
+                <label className="block text-[11px] font-semibold text-[var(--ink)] uppercase tracking-wider">
+                  Google Client ID
+                </label>
+                <input
+                  type="text"
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                  placeholder="Client ID..."
+                  className="w-full px-3 py-1.5 text-xs font-mono bg-[var(--surface)] border border-[var(--line)] rounded-lg text-[var(--ink)] focus:outline-none focus:border-[var(--tint)]"
+                />
+                <p className="text-[11px] text-[var(--muted)] leading-relaxed">
+                  Домен в Authorized JavaScript origins:{' '}
+                  <code className="text-sky-400">https://leonid-mcp.duckdns.org</code>
+                </p>
+              </div>
+            </details>
+
+            <div className="flex justify-end pt-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-sm rounded-lg border border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)] cursor-pointer"
+                className="px-4 py-1.5 text-xs rounded-lg border border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)] cursor-pointer"
               >
-                Отмена
-              </button>
-              <button
-                type="button"
-                disabled={isLoading}
-                onClick={handleSignIn}
-                className="flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition disabled:opacity-50 cursor-pointer shadow-md"
-              >
-                {isLoading ? (
-                  <span>Подключение...</span>
-                ) : (
-                  <>
-                    <span>🔑</span>
-                    <span>Войти через Google</span>
-                  </>
-                )}
+                Закрыть
               </button>
             </div>
           </div>
