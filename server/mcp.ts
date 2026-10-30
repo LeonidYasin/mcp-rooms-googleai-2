@@ -557,7 +557,7 @@ export async function handleMcpJsonRpcRequest(
           jsonrpc: '2.0',
           id,
           result: {
-            protocolVersion: '2024-11-05',
+            protocolVersion: clientVersion,
             capabilities: {
               tools: {},
               resources: {},

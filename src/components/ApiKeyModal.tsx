@@ -143,6 +143,18 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSav
               spellCheck={false}
               className="flex-1 h-10 px-3 border border-[var(--line)] rounded-lg bg-[var(--surface)] text-sm font-mono outline-none"
             />
+            {value && (
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(value);
+                  alert('API-ключ скопирован в буфер обмена!');
+                }}
+                className="px-3 h-10 border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--raised)] rounded-lg text-xs font-semibold text-[var(--blue)] cursor-pointer"
+              >
+                Копировать
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setShowValue((v) => !v)}
