@@ -1174,7 +1174,7 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
       });
       res.json({
         text:
-          '✨ Вот предварительный вариант переговоров по вашему запросу (демонстрационный сценарий, автору пока ничего не отправлено):\n\n' +
+          '✨ Демонстрационный сценарий переговоров по вашему запросу (автору пока ничего не отправлено):\n\n' +
           negotiationResult.summary,
         negotiation: negotiationResult,
         degraded: true,

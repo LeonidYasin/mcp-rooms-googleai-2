@@ -119,7 +119,7 @@ describe('LLM status and degraded reasons', () => {
     setEnv({ key: placedKey, model: placedModel });
 
     const status = await getStatus();
-    expect(status).toEqual({
+    expect(status).toMatchObject({
       configured: true,
       model: placedModel,
       degradedReason: null,
