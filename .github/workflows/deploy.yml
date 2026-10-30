@@ -117,4 +117,7 @@ jobs:
             curl -sS http://127.0.0.1:3000/api/health || true
             echo ""
 
+            echo "🚀 Executing Live E2E MCP & Room Scenarios inside container..."
+            docker exec mcp_rooms_marketplace node --import tsx scripts/run-live-scenarios.ts
+
             echo "✅ Deployment completed successfully!"
