@@ -1,5 +1,6 @@
 import React from 'react';
 import { Listing } from '../types';
+import { useI18n, TranslationKey } from '../i18n';
 
 interface AgentModalProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ export const AgentModal: React.FC<AgentModalProps> = ({
   onOpenConsole,
   onOpenChat,
 }) => {
+  const { t, locale } = useI18n();
   if (!isOpen) return null;
 
   return (
@@ -25,13 +27,13 @@ export const AgentModal: React.FC<AgentModalProps> = ({
           <div className="flex items-center gap-2">
             <span className="text-2xl">🤖</span>
             <h2 className="text-xl font-bold text-[var(--ink)]">
-              Обсуждение через MCP-агента
+              {locale === 'en' ? 'Discuss via MCP Agent' : 'Обсуждение через MCP-агента'}
             </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-[var(--muted)] hover:text-[var(--ink)] p-1 text-lg"
+            className="text-[var(--muted)] hover:text-[var(--ink)] p-1 text-lg cursor-pointer"
           >
             ✕
           </button>
@@ -40,34 +42,65 @@ export const AgentModal: React.FC<AgentModalProps> = ({
         <div className="space-y-4 text-sm text-[var(--ink)]">
           {listing && (
             <div className="p-3 bg-[var(--soft)] border border-blue-200/50 rounded-lg text-xs">
-              Карточка: <strong>{listing.content.title}</strong>
+              {locale === 'en' ? 'Listing:' : 'Карточка:'} <strong>{listing.content.title}</strong>
               <div className="text-[var(--muted)] mt-0.5">
-                Категория: {listing.content.category} · Локация: {listing.content.locality || 'Любая'}
+                {locale === 'en' ? 'Category:' : 'Категория:'} {t(`cat.${listing.content.category}` as TranslationKey)} · {locale === 'en' ? 'Location:' : 'Локация:'} {listing.content.locality || (locale === 'en' ? 'Any' : 'Любая')}
               </div>
             </div>
           )}
 
           <p className="leading-relaxed">
-            В концепции <strong>MCP Rooms</strong> люди и AI-агенты работают на одной площадке по единым правилам. Ваш личный агент (в Claude, Qwen, Cursor или на локальном сервере) может:
+            {locale === 'en' ? (
+              <>
+                In the <strong>MCP Rooms</strong> architecture, humans and autonomous AI agents operate on the same playground under identical rules. Your personal agent (in Claude, Qwen, Cursor, or a local server) can:
+              </>
+            ) : (
+              <>
+                В концепции <strong>MCP Rooms</strong> люди и AI-агенты работают на одной площадке по единым правилам. Ваш личный агент (в Claude, Qwen, Cursor или на локальном сервере) может:
+              </>
+            )}
           </p>
 
           <ul className="space-y-2 text-xs list-disc pl-4 text-[var(--muted)]">
             <li>
-              <strong className="text-[var(--ink)]">Искать и фильтровать объявления:</strong> вызывать <code>list_active_listings</code> по категориям и городам.
+              <strong className="text-[var(--ink)]">
+                {locale === 'en' ? 'Search and filter listings:' : 'Искать и фильтровать объявления:'}
+              </strong>{' '}
+              {locale === 'en'
+                ? 'call list_active_listings by categories, keywords, and cities.'
+                : 'вызывать list_active_listings по категориям и городам.'}
             </li>
             <li>
-              <strong className="text-[var(--ink)]">Согласовывать условия:</strong> вести диалог в приватных изолированных комнатах (<code>send_message</code>, <code>inspect_room</code>).
+              <strong className="text-[var(--ink)]">
+                {locale === 'en' ? 'Negotiate terms:' : 'Согласовывать условия:'}
+              </strong>{' '}
+              {locale === 'en'
+                ? 'participate in private isolated rooms (send_message, inspect_room).'
+                : 'вести диалог в приватных изолированных комнатах (send_message, inspect_room).'}
             </li>
             <li>
-              <strong className="text-[var(--ink)]">Проверять безопасность:</strong> аудит соответствия самовывоза, доставки и отсутствия передачи паролей.
+              <strong className="text-[var(--ink)]">
+                {locale === 'en' ? 'Verify security:' : 'Проверять безопасность:'}
+              </strong>{' '}
+              {locale === 'en'
+                ? 'audit delivery/pickup parameters and prevent leaking confidential credentials.'
+                : 'аудит соответствия самовывоза, доставки и отсутствия передачи паролей.'}
             </li>
             <li>
-              <strong className="text-[var(--ink)]">Создавать и публиковать:</strong> автоматизировать драфты и предпросмотры для автора.
+              <strong className="text-[var(--ink)]">
+                {locale === 'en' ? 'Create and publish:' : 'Создавать и публиковать:'}
+              </strong>{' '}
+              {locale === 'en'
+                ? 'automate drafts and previews on behalf of the authenticated author.'
+                : 'автоматизировать драфты и предпросмотры для автора.'}
             </li>
           </ul>
 
           <div className="p-3 bg-[var(--surface)] border border-[var(--line)] rounded-lg text-xs text-[var(--muted)]">
-            🛡️ <strong>Безопасность:</strong> личный агент не может самостоятельно совершать неавторизованные платежи или раскрывать секреты. Все действия фиксируются в протоколе.
+            🛡️ <strong>{locale === 'en' ? 'Security:' : 'Безопасность:'}</strong>{' '}
+            {locale === 'en'
+              ? 'Agents cannot perform unauthorized monetary transfers or expose private keys. All operations are recorded in the audit log.'
+              : 'личный агент не может самостоятельно совершать неавторизованные платежи или раскрывать секреты. Все действия фиксируются в протоколе.'}
           </div>
         </div>
 
@@ -77,7 +110,7 @@ export const AgentModal: React.FC<AgentModalProps> = ({
             onClick={onClose}
             className="px-3.5 py-2 border border-[var(--line)] rounded-lg text-sm text-[var(--ink)] hover:bg-[var(--surface)] cursor-pointer"
           >
-            Закрыть
+            {t('modal.close')}
           </button>
           <button
             type="button"
@@ -87,7 +120,7 @@ export const AgentModal: React.FC<AgentModalProps> = ({
             }}
             className="px-3.5 py-2 border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--raised)] text-[var(--ink)] text-sm font-semibold rounded-lg transition-colors cursor-pointer"
           >
-            MCP Консоль
+            {locale === 'en' ? 'MCP Console' : 'MCP Консоль'}
           </button>
           {onOpenChat && (
             <button
@@ -98,7 +131,7 @@ export const AgentModal: React.FC<AgentModalProps> = ({
               }}
               className="px-4 py-2 bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
             >
-              <span>💬 Спросить в AI Чате →</span>
+              <span>{locale === 'en' ? '💬 Ask in AI Chat →' : '💬 Спросить в AI Чате →'}</span>
             </button>
           )}
         </div>

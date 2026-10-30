@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { McpRoom, McpMessage, Listing, ListingCategory, CATEGORY_LABELS } from '../types';
+import { McpRoom, McpMessage, Listing, ListingCategory } from '../types';
 import { getStoredApiKey } from '../lib/api';
+import { useI18n, TranslationKey } from '../i18n';
 
 interface RoomsHubProps {
   rooms: McpRoom[];
@@ -29,6 +30,7 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
   onCreateRoom,
   onRequireKey,
 }) => {
+  const { t, locale } = useI18n();
   const [activeTab, setActiveTab] = useState<'public' | 'private'>('public');
   const [selectedCategory, setSelectedCategory] = useState<ListingCategory | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -151,7 +153,7 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
     if (!inputText.trim() || !activeRoom) return;
 
     if (!getStoredApiKey()) {
-      onRequireKey('Для отправки сообщений в комнату необходим API-ключ.');
+      onRequireKey(locale === 'en' ? 'API Key required to send messages to a room.' : 'Для отправки сообщений в комнату необходим API-ключ.');
       return;
     }
 
@@ -176,7 +178,7 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
     if (!newTitle.trim()) return;
 
     if (!getStoredApiKey()) {
-      onRequireKey('Создание комнаты требует API-ключ.');
+      onRequireKey(locale === 'en' ? 'API Key required to create a room.' : 'Создание комнаты требует API-ключ.');
       return;
     }
 
@@ -193,12 +195,25 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
       setNewInitialMessage('');
       setActiveTab(newVisibility);
     } catch (err: any) {
-      alert(`Ошибка создания: ${err.message}`);
+      alert(locale === 'en' ? `Creation error: ${err.message}` : `Ошибка создания: ${err.message}`);
     }
   };
 
   const publicCount = rooms.filter((r) => r.visibility === 'public').length;
   const privateCount = rooms.filter((r) => (r.visibility || 'private') === 'private').length;
+
+  const allCategories: ListingCategory[] = [
+    'business',
+    'jobs',
+    'services',
+    'real_estate',
+    'communities',
+    'things',
+    'dating',
+    'rides',
+    'delivery',
+    'other',
+  ];
 
   return (
     <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-6">
@@ -208,11 +223,13 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
           <div className="flex items-center gap-2 mb-1">
             <span className="text-2xl">🤝</span>
             <h1 className="text-2xl md:text-3xl font-black text-[var(--ink)] tracking-tight">
-              Каталог переговорных комнат и тем
+              {locale === 'en' ? 'Negotiation Rooms & Topics Catalog' : 'Каталог переговорных комнат и тем'}
             </h1>
           </div>
           <p className="text-sm text-[var(--muted)]">
-            Единое пространство взаимодействия: открытые темы для обсуждения предложений маркетплейса и приватные 1-на-1 переговоры людей с AI-агентами.
+            {locale === 'en'
+              ? 'Unified interaction space: open topics for marketplace offer discussions and private 1-on-1 human and AI-agent negotiations.'
+              : 'Единое пространство взаимодействия: открытые темы для обсуждения предложений маркетплейса и приватные 1-на-1 переговоры людей с AI-агентами.'}
           </p>
         </div>
 
@@ -220,7 +237,7 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
           type="button"
           onClick={() => {
             if (!getStoredApiKey()) {
-              onRequireKey('Создание комнаты требует API-ключ.');
+              onRequireKey(locale === 'en' ? 'API Key required to create a room.' : 'Создание комнаты требует API-ключ.');
             } else {
               setShowCreateModal(true);
             }
@@ -228,7 +245,7 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
           className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white font-semibold text-sm shadow-xs transition-colors self-start md:self-auto cursor-pointer"
         >
           <span>➕</span>
-          <span>Открыть новую тему / комнату</span>
+          <span>{locale === 'en' ? 'Open New Topic / Room' : 'Открыть новую тему / комнату'}</span>
         </button>
       </div>
 
@@ -247,8 +264,8 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
               : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
           }`}
         >
-          <span>🌐 Все открытые темы (Публичные)</span>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-[var(--blue)]">
+          <span>{locale === 'en' ? '🌐 All Open Topics (Public)' : '🌐 Все открытые темы (Публичные)'}</span>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-[var(--blue)] font-bold">
             {publicCount}
           </span>
         </button>
@@ -266,8 +283,8 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
               : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
           }`}
         >
-          <span>🔒 Мои приватные переговоры</span>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-200 dark:bg-zinc-800 text-[var(--ink)]">
+          <span>{locale === 'en' ? '🔒 My Private Negotiations' : '🔒 Мои приватные переговоры'}</span>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-200 dark:bg-zinc-800 text-[var(--ink)] font-bold">
             {privateCount}
           </span>
         </button>
@@ -286,20 +303,9 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
                 : 'bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--ink)] border border-[var(--line)]'
             }`}
           >
-            Все темы
+            {locale === 'en' ? 'All Topics' : 'Все темы'}
           </button>
-          {(
-            [
-              'business',
-              'jobs',
-              'services',
-              'real_estate',
-              'things',
-              'dating',
-              'rides',
-              'delivery',
-            ] as ListingCategory[]
-          ).map((cat) => (
+          {allCategories.map((cat) => (
             <button
               key={cat}
               type="button"
@@ -310,7 +316,7 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
                   : 'bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--ink)] border border-[var(--line)]'
               }`}
             >
-              {CATEGORY_LABELS[cat]}
+              {t(`cat.${cat}` as TranslationKey)}
             </button>
           ))}
         </div>
@@ -319,7 +325,7 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
         <div className="relative min-w-[260px]">
           <input
             type="text"
-            placeholder="Поиск по теме или сообщению..."
+            placeholder={locale === 'en' ? 'Search by topic or message...' : 'Поиск по теме или сообщению...'}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full h-9 pl-9 pr-3 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-sm text-[var(--ink)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--blue)]"
@@ -337,13 +343,13 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
               <span className="text-3xl block mb-2">📭</span>
               <p className="font-semibold text-[var(--ink)]">
                 {activeTab === 'public'
-                  ? 'В этой категории пока нет открытых тем'
-                  : 'У вас пока нет приватных комнат'}
+                  ? (locale === 'en' ? 'No open topics in this category yet' : 'В этой категории пока нет открытых тем')
+                  : (locale === 'en' ? 'You have no private rooms yet' : 'У вас пока нет приватных комнат')}
               </p>
               <p className="text-xs mt-1">
                 {activeTab === 'public'
-                  ? 'Будьте первым — создайте открытое обсуждение для интересующего объявления или вопроса.'
-                  : 'Приватные комнаты создаются при отклике на объявление через кнопку «Написать продавцу».'}
+                  ? (locale === 'en' ? 'Be the first — create an open discussion for any listing or question.' : 'Будьте первым — создайте открытое обсуждение для интересующего объявления или вопроса.')
+                  : (locale === 'en' ? 'Private rooms are created when responding to a listing via "Contact Author".' : 'Приватные комнаты создаются при отклике на объявление через кнопку «Написать продавцу».')}
               </p>
             </div>
           ) : (
@@ -370,17 +376,17 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[var(--soft)] text-[var(--blue)]">
-                        {CATEGORY_LABELS[roomCategory as ListingCategory] || 'Общая тема'}
+                        {t(`cat.${roomCategory}` as TranslationKey) || (locale === 'en' ? 'General Topic' : 'Общая тема')}
                       </span>
                       {room.visibility === 'public' ? (
                         <span className="text-[11px] font-medium text-emerald-700 bg-emerald-100 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded flex items-center gap-1">
                           <span>🌐</span>
-                          <span>Публичная</span>
+                          <span>{locale === 'en' ? 'Public' : 'Публичная'}</span>
                         </span>
                       ) : (
                         <span className="text-[11px] font-medium text-zinc-700 bg-zinc-200 dark:bg-zinc-800 px-1.5 py-0.5 rounded flex items-center gap-1">
                           <span>🔒</span>
-                          <span>Приватная</span>
+                          <span>{locale === 'en' ? 'Private' : 'Приватная'}</span>
                         </span>
                       )}
                     </div>
@@ -390,7 +396,7 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
                   </div>
 
                   <h3 className="text-sm font-bold text-[var(--ink)] line-clamp-2 mb-1.5">
-                    {room.listingTitle || room.title || 'Тема переговоров'}
+                    {room.listingTitle || room.title || (locale === 'en' ? 'Negotiation Topic' : 'Тема переговоров')}
                   </h3>
 
                   {lastMsg && (
@@ -404,7 +410,7 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
 
                   <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--muted)] border-t border-[var(--line)] pt-2 mt-2">
                     <span className="truncate">
-                      👥 {room.participants.length} участн.
+                      👥 {room.participants.length} {locale === 'en' ? 'participants' : 'участн.'}
                     </span>
                     {relatedListing && (
                       <button
@@ -415,7 +421,7 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
                         }}
                         className="text-[var(--blue)] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
                       >
-                        <span>🔗 Карточка</span>
+                        <span>🔗 {locale === 'en' ? 'Card' : 'Карточка'}</span>
                       </button>
                     )}
                   </div>
@@ -434,19 +440,17 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[var(--soft)] text-[var(--blue)]">
-                      {CATEGORY_LABELS[
-                        (activeRoom.category ||
-                          listings.find((l) => l.id === activeRoom.listingId)?.content?.category ||
-                          'other') as ListingCategory
-                      ]}
+                      {t(`cat.${(activeRoom.category ||
+                        listings.find((l) => l.id === activeRoom.listingId)?.content?.category ||
+                        'other')}` as TranslationKey)}
                     </span>
                     {activeRoom.visibility === 'public' ? (
                       <span className="text-xs text-emerald-700 bg-emerald-100 dark:bg-emerald-950/50 px-2 py-0.5 rounded font-medium">
-                        🌐 Публичная тема
+                        🌐 {locale === 'en' ? 'Public Topic' : 'Публичная тема'}
                       </span>
                     ) : (
                       <span className="text-xs text-zinc-700 bg-zinc-200 dark:bg-zinc-800 px-2 py-0.5 rounded font-medium">
-                        🔒 Приватная комната (1-на-1)
+                        🔒 {locale === 'en' ? 'Private Room (1-on-1)' : 'Приватная комната (1-на-1)'}
                       </span>
                     )}
                     <span
@@ -455,11 +459,11 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
                       }`}
                     >
                       <span>●</span>
-                      <span>{sseConnected ? 'SSE Live' : 'Офлайн'}</span>
+                      <span>{sseConnected ? 'SSE Live' : (locale === 'en' ? 'Offline' : 'Офлайн')}</span>
                     </span>
                   </div>
                   <h2 className="text-base font-bold text-[var(--ink)] truncate">
-                    {activeRoom.listingTitle || activeRoom.title || 'Переговорная комната'}
+                    {activeRoom.listingTitle || activeRoom.title || (locale === 'en' ? 'Negotiation Room' : 'Переговорная комната')}
                   </h2>
                 </div>
 
@@ -472,7 +476,7 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
                     }}
                     className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[var(--line)] bg-[var(--canvas)] hover:bg-[var(--surface)] text-[var(--ink)] shrink-0 cursor-pointer"
                   >
-                    Посмотреть объявление ↗
+                    {locale === 'en' ? 'View Listing ↗' : 'Посмотреть объявление ↗'}
                   </button>
                 )}
               </div>
@@ -480,7 +484,7 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
               {/* Participants Bar */}
               <div className="px-4 py-2 border-b border-[var(--line)] bg-[var(--soft)]/30 text-xs text-[var(--muted)] flex items-center justify-between gap-2">
                 <span className="truncate">
-                  <strong>Участники:</strong>{' '}
+                  <strong>{locale === 'en' ? 'Participants:' : 'Участники:'}</strong>{' '}
                   {activeRoom.participants
                     .map((p) => p.replace('user:', '').replace('agent:', '👼 '))
                     .join(' · ')}
@@ -496,9 +500,11 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
                   <div className="h-full flex items-center justify-center text-center text-sm text-[var(--muted)]">
                     <div>
                       <span className="text-3xl block mb-2">💬</span>
-                      <p>Сообщений пока нет.</p>
+                      <p>{locale === 'en' ? 'No messages yet.' : 'Сообщений пока нет.'}</p>
                       <p className="text-xs mt-1">
-                        Задайте первый вопрос или поручите агенту вступить в диалог!
+                        {locale === 'en'
+                          ? 'Ask the first question or delegate an agent to enter negotiation!'
+                          : 'Задайте первый вопрос или поручите агенту вступить в диалог!'}
                       </p>
                     </div>
                   </div>
@@ -557,7 +563,7 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
               <form onSubmit={handleSend} className="p-3 border-t border-[var(--line)] bg-[var(--surface)]">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <div className="flex items-center gap-1 text-xs">
-                    <span className="text-[var(--muted)]">Отправить как:</span>
+                    <span className="text-[var(--muted)]">{locale === 'en' ? 'Send as:' : 'Отправить как:'}</span>
                     <button
                       type="button"
                       onClick={() => setSendRole('human')}
@@ -567,7 +573,7 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
                           : 'text-[var(--muted)] hover:text-[var(--ink)]'
                       }`}
                     >
-                      👤 Человек
+                      👤 {locale === 'en' ? 'Human' : 'Человек'}
                     </button>
                     <button
                       type="button"
@@ -578,7 +584,7 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
                           : 'text-[var(--muted)] hover:text-[var(--ink)]'
                       }`}
                     >
-                      🤖 MCP-Агент
+                      🤖 {locale === 'en' ? 'MCP Agent' : 'MCP-Агент'}
                     </button>
                   </div>
                 </div>
@@ -590,8 +596,8 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
                     onChange={(e) => setInputText(e.target.value)}
                     placeholder={
                       sendRole === 'agent'
-                        ? 'Сообщение от лица автономного агента...'
-                        : 'Напишите сообщение...'
+                        ? (locale === 'en' ? 'Message on behalf of autonomous agent...' : 'Сообщение от лица автономного агента...')
+                        : (locale === 'en' ? 'Type a message...' : 'Напишите сообщение...')
                     }
                     className="flex-1 h-10 px-3.5 rounded-xl border border-[var(--line)] bg-[var(--canvas)] text-sm text-[var(--ink)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--blue)]"
                   />
@@ -600,7 +606,7 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
                     disabled={isSending || !inputText.trim()}
                     className="h-10 px-5 rounded-xl bg-[var(--blue)] hover:bg-[var(--blue-hover)] disabled:opacity-50 text-white font-semibold text-sm transition-colors cursor-pointer"
                   >
-                    {isSending ? '...' : 'Отправить'}
+                    {isSending ? '...' : (locale === 'en' ? 'Send' : 'Отправить')}
                   </button>
                 </div>
               </form>
@@ -609,9 +615,13 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
             <div className="h-full flex items-center justify-center p-8 text-center text-[var(--muted)]">
               <div>
                 <span className="text-4xl block mb-3">💬</span>
-                <p className="font-bold text-base text-[var(--ink)]">Выберите комнату для диалога</p>
+                <p className="font-bold text-base text-[var(--ink)]">
+                  {locale === 'en' ? 'Select a room to begin conversation' : 'Выберите комнату для диалога'}
+                </p>
                 <p className="text-xs mt-1 max-w-sm">
-                  Выберите открытую тему из каталога слева или создайте новое обсуждение.
+                  {locale === 'en'
+                    ? 'Select an open topic from catalog on the left or create a new discussion.'
+                    : 'Выберите открытую тему из каталога слева или создайте новое обсуждение.'}
                 </p>
               </div>
             </div>
@@ -625,7 +635,7 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
           <div className="bg-[var(--canvas)] border border-[var(--line)] rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl my-auto max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-[var(--ink)]">
-                Новая переговорная комната / тема
+                {locale === 'en' ? 'New Negotiation Room / Topic' : 'Новая переговорная комната / тема'}
               </h3>
               <button
                 type="button"
@@ -639,12 +649,16 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
             <form onSubmit={handleCreateSubmit} className="space-y-4 text-sm">
               <div>
                 <label className="block text-xs font-semibold text-[var(--muted)] uppercase mb-1">
-                  Название темы / обсуждения
+                  {locale === 'en' ? 'Topic / Discussion title' : 'Название темы / обсуждения'}
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="Например: Обсуждение условий поставки оборудования"
+                  placeholder={
+                    locale === 'en'
+                      ? 'E.g.: Discussion on equipment delivery terms'
+                      : 'Например: Обсуждение условий поставки оборудования'
+                  }
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   className="w-full h-10 px-3 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] outline-none"
@@ -653,27 +667,24 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-[var(--muted)] uppercase mb-1">
-                  Категория
+                  {locale === 'en' ? 'Category' : 'Категория'}
                 </label>
                 <select
                   value={newCategory}
                   onChange={(e) => setNewCategory(e.target.value as ListingCategory)}
-                  className="w-full h-10 px-3 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] outline-none"
+                  className="w-full h-10 px-3 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] outline-none cursor-pointer"
                 >
-                  <option value="business">Бизнес и стартапы</option>
-                  <option value="jobs">Вакансии</option>
-                  <option value="services">Услуги</option>
-                  <option value="real_estate">Недвижимость</option>
-                  <option value="things">Товары</option>
-                  <option value="dating">Знакомства</option>
-                  <option value="rides">Поездки</option>
-                  <option value="delivery">Доставка</option>
+                  {allCategories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {t(`cat.${cat}` as TranslationKey)}
+                    </option>
+                  ))}
                 </select>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-[var(--muted)] uppercase mb-1">
-                  Тип видимости
+                  {locale === 'en' ? 'Visibility Type' : 'Тип видимости'}
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <label
@@ -691,10 +702,12 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
                         checked={newVisibility === 'public'}
                         onChange={() => setNewVisibility('public')}
                       />
-                      <span>🌐 Публичная</span>
+                      <span>🌐 {locale === 'en' ? 'Public' : 'Публичная'}</span>
                     </div>
                     <span className="text-[11px] text-[var(--muted)] leading-tight">
-                      Видна всем в общем каталоге тем
+                      {locale === 'en'
+                        ? 'Visible to everyone in public topics catalog'
+                        : 'Видна всем в общем каталоге тем'}
                     </span>
                   </label>
 
@@ -713,10 +726,12 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
                         checked={newVisibility === 'private'}
                         onChange={() => setNewVisibility('private')}
                       />
-                      <span>🔒 Приватная</span>
+                      <span>🔒 {locale === 'en' ? 'Private' : 'Приватная'}</span>
                     </div>
                     <span className="text-[11px] text-[var(--muted)] leading-tight">
-                      Только для участников 1-на-1
+                      {locale === 'en'
+                        ? 'Only for 1-on-1 participants'
+                        : 'Только для участников 1-на-1'}
                     </span>
                   </label>
                 </div>
@@ -724,7 +739,7 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-[var(--muted)] uppercase mb-1">
-                  Связать с объявлением (по желанию)
+                  {locale === 'en' ? 'Link to listing (optional)' : 'Связать с объявлением (по желанию)'}
                 </label>
                 <select
                   value={newListingId}
@@ -736,9 +751,9 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
                       setNewCategory(chosen.content.category);
                     }
                   }}
-                  className="w-full h-10 px-3 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] outline-none"
+                  className="w-full h-10 px-3 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] outline-none cursor-pointer"
                 >
-                  <option value="">Без привязки к объявлению</option>
+                  <option value="">{locale === 'en' ? 'Without listing link' : 'Без привязки к объявлению'}</option>
                   {listings.map((l) => (
                     <option key={l.id} value={l.id}>
                       {l.content.title}
@@ -749,13 +764,13 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-[var(--muted)] uppercase mb-1">
-                  Первое сообщение (по желанию)
+                  {locale === 'en' ? 'Initial message (optional)' : 'Первое сообщение (по желанию)'}
                 </label>
                 <textarea
                   rows={3}
                   value={newInitialMessage}
                   onChange={(e) => setNewInitialMessage(e.target.value)}
-                  placeholder="Приветственное сообщение или вопрос..."
+                  placeholder={locale === 'en' ? 'Welcome message or question...' : 'Приветственное сообщение или вопрос...'}
                   className="w-full p-2.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] outline-none text-xs"
                 />
               </div>
@@ -766,13 +781,13 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
                   onClick={() => setShowCreateModal(false)}
                   className="px-4 py-2 border border-[var(--line)] rounded-lg text-sm text-[var(--ink)] hover:bg-[var(--surface)] cursor-pointer"
                 >
-                  Отмена
+                  {t('modal.cancel')}
                 </button>
                 <button
                   type="submit"
                   className="px-5 py-2 bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white font-semibold rounded-lg text-sm cursor-pointer"
                 >
-                  Создать комнату
+                  {locale === 'en' ? 'Create Room' : 'Создать комнату'}
                 </button>
               </div>
             </form>

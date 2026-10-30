@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Listing, McpRoom, CATEGORY_LABELS, MODE_LABELS } from '../types';
+import { Listing, McpRoom, CATEGORY_LABELS } from '../types';
 import { formatPrice } from './ListingCard';
 import { useI18n, TranslationKey } from '../i18n';
 
@@ -51,7 +51,7 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
   return (
     <div className="max-w-[1120px] mx-auto px-4 md:px-8 py-6">
       {/* Breadcrumb Navigation */}
-      <nav aria-label="Хлебные крошки" className="text-sm text-[var(--muted)] mb-6 flex items-center gap-2">
+      <nav aria-label={locale === 'en' ? 'Breadcrumbs' : 'Хлебные крошки'} className="text-sm text-[var(--muted)] mb-6 flex items-center gap-2">
         <button
           type="button"
           onClick={onBack}
@@ -90,20 +90,24 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
           </h1>
 
           <div className="flex flex-wrap items-center gap-4 text-sm text-[var(--muted)] mb-4">
-            <span>{locationText || 'Локация: не указана'}</span>
+            <span>{locationText || (locale === 'en' ? 'Location: not specified' : 'Локация: не указана')}</span>
             <span>·</span>
-            <span>Ревизия #{revision}</span>
+            <span>{locale === 'en' ? 'Revision' : 'Ревизия'} #{revision}</span>
             <span>·</span>
-            <span className="text-[var(--green)] font-medium">Статус: активно</span>
+            <span className="text-[var(--green)] font-medium">
+              {locale === 'en' ? 'Status: Active' : 'Статус: активно'}
+            </span>
           </div>
 
           {/* Mobile Price View */}
           <div className="block lg:hidden my-4 p-4 border border-[var(--line)] rounded-xl bg-[var(--surface)]">
             <div className="text-3xl font-extrabold text-[var(--ink)]">
-              {formatPrice(content.price_minor, content.currency)}
+              {formatPrice(content.price_minor, content.currency, t('card.free'))}
             </div>
             <div className="text-xs text-[var(--muted)] mt-1">
-              {content.price_minor ? 'Цена указана автором' : 'Условия договорные'}
+              {content.price_minor
+                ? (locale === 'en' ? 'Price specified by author' : 'Цена указана автором')
+                : (locale === 'en' ? 'Terms negotiable' : 'Условия договорные')}
             </div>
           </div>
 
@@ -114,7 +118,7 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
                 <div className="relative aspect-4/3 bg-[var(--surface)] flex items-center justify-center overflow-hidden">
                   <img
                     src={photos[selectedPhotoIndex]?.dataUrl}
-                    alt={`Фото ${selectedPhotoIndex + 1} объявления`}
+                    alt={locale === 'en' ? `Photo ${selectedPhotoIndex + 1} of listing` : `Фото ${selectedPhotoIndex + 1} объявления`}
                     className="max-h-full max-w-full object-contain"
                   />
                   {photos.length > 1 && (
@@ -128,7 +132,7 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
                         }
                         className="bg-black/60 hover:bg-black/80 text-white rounded-full p-2 text-xs backdrop-blur-xs"
                       >
-                        ← Назад
+                        {locale === 'en' ? '← Prev' : '← Назад'}
                       </button>
                       <button
                         type="button"
@@ -139,7 +143,7 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
                         }
                         className="bg-black/60 hover:bg-black/80 text-white rounded-full p-2 text-xs backdrop-blur-xs"
                       >
-                        Вперёд →
+                        {locale === 'en' ? 'Next →' : 'Вперёд →'}
                       </button>
                     </div>
                   )}
@@ -160,7 +164,7 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
                     >
                       <img
                         src={p.dataUrl}
-                        alt={`Миниатюра ${idx + 1}`}
+                        alt={locale === 'en' ? `Thumbnail ${idx + 1}` : `Миниатюра ${idx + 1}`}
                         className="w-full h-full object-cover"
                       />
                     </button>
@@ -170,9 +174,9 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
                       type="button"
                       onClick={() => setShowPhotoUploadModal(true)}
                       className="w-16 h-16 rounded-md border border-dashed border-[var(--line)] hover:border-[var(--blue)] flex items-center justify-center text-xs text-[var(--muted)] shrink-0 hover:bg-[var(--surface)] transition-colors"
-                      title="Добавить фото"
+                      title={locale === 'en' ? 'Add photo' : 'Добавить фото'}
                     >
-                      + Фото
+                      {locale === 'en' ? '+ Photo' : '+ Фото'}
                     </button>
                   )}
                 </div>
@@ -183,35 +187,45 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
                 className="aspect-4/3 flex items-center justify-center text-center p-8 cursor-pointer group"
                 onClick={() => setShowPhotoUploadModal(true)}
                 role="img"
-                aria-label="Фотографии не загружены. Для реальной продажи нужны настоящие фото вещи."
+                aria-label={
+                  locale === 'en'
+                    ? 'No photos uploaded. Real sales require genuine photos of the item.'
+                    : 'Фотографии не загружены. Для реальной продажи нужны настоящие фото вещи.'
+                }
               >
                 <div>
                   <div className="text-xs md:text-sm tracking-widest text-[var(--blue)] font-bold mb-3 uppercase">
-                    ВАША ВЕЩЬ В ГЛАВНОЙ РОЛИ
+                    {locale === 'en' ? 'YOUR ITEM IN THE SPOTLIGHT' : 'ВАША ВЕЩЬ В ГЛАВНОЙ РОЛИ'}
                   </div>
                   <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-[var(--ink)] max-w-xs mx-auto mb-3 leading-snug">
-                    Здесь будут настоящие фотографии
+                    {locale === 'en' ? 'Real photos will be here' : 'Здесь будут настоящие фотографии'}
                   </h2>
                   <p className="max-w-sm text-xs md:text-sm text-[var(--muted)] mx-auto leading-relaxed">
-                    Без картинок из интернета и AI-подмены. Покажите вещь, её детали и состояние.
+                    {locale === 'en'
+                      ? 'No stock images or AI fakes. Show the real item, its details and condition.'
+                      : 'Без картинок из интернета и AI-подмены. Покажите вещь, её детали и состояние.'}
                   </p>
                   <div className="mt-4 inline-flex items-center gap-1.5 text-xs text-[var(--blue)] font-semibold border border-[var(--line)] px-3 py-1.5 rounded-lg bg-[var(--canvas)] group-hover:bg-[var(--raised)] transition-colors">
-                    <span>+ Прикрепить фото (до 8)</span>
+                    <span>{locale === 'en' ? '+ Attach photos (up to 8)' : '+ Прикрепить фото (до 8)'}</span>
                   </div>
                 </div>
               </div>
             )}
 
             <div className="border-t border-[var(--line)] px-5 py-3.5 flex justify-between items-center text-xs md:text-sm text-[var(--muted)] bg-[var(--surface)]">
-              <span>{photos?.length ? `Загружено ${photos.length} из 8 фото` : 'Фото не добавлены'}</span>
-              <span>До 8 фотографий · план</span>
+              <span>
+                {photos?.length
+                  ? (locale === 'en' ? `Uploaded ${photos.length} of 8 photos` : `Загружено ${photos.length} из 8 фото`)
+                  : (locale === 'en' ? 'No photos added' : 'Фото не добавлены')}
+              </span>
+              <span>{locale === 'en' ? 'Up to 8 photos · plan' : 'До 8 фотографий · план'}</span>
             </div>
           </div>
 
           {/* Description */}
           <section className="my-8">
             <h2 className="text-2xl font-bold tracking-tight text-[var(--ink)] mb-3">
-              О вещи / Описание
+              {locale === 'en' ? 'About Item / Description' : 'О вещи / Описание'}
             </h2>
             <div className="text-[var(--ink)] text-base leading-relaxed whitespace-pre-wrap">
               {content.description}
@@ -221,42 +235,44 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
           {/* Specs Details */}
           <section className="my-8">
             <h2 className="text-2xl font-bold tracking-tight text-[var(--ink)] mb-4">
-              Коротко о главном
+              {locale === 'en' ? 'Key Details' : 'Коротко о главном'}
             </h2>
             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-0 text-sm">
               <div className="py-3 border-b border-[var(--line)]">
-                <dt className="text-[var(--muted)]">Тип объявления</dt>
+                <dt className="text-[var(--muted)]">{locale === 'en' ? 'Listing Type' : 'Тип объявления'}</dt>
                 <dd className="font-semibold text-[var(--ink)] mt-0.5">
-                  {content.kind === 'offer' ? 'Предлагаю' : 'Ищу / Запрос'}
+                  {content.kind === 'offer'
+                    ? (locale === 'en' ? 'Offering' : 'Предлагаю')
+                    : (locale === 'en' ? 'Seeking / Request' : 'Ищу / Запрос')}
                 </dd>
               </div>
               <div className="py-3 border-b border-[var(--line)]">
-                <dt className="text-[var(--muted)]">Категория</dt>
+                <dt className="text-[var(--muted)]">{locale === 'en' ? 'Category' : 'Категория'}</dt>
                 <dd className="font-semibold text-[var(--ink)] mt-0.5">
-                  {CATEGORY_LABELS[content.category]}
+                  {t(`cat.${content.category}` as TranslationKey)}
                   {content.subcategory ? ` → ${content.subcategory}` : ''}
                 </dd>
               </div>
               <div className="py-3 border-b border-[var(--line)]">
-                <dt className="text-[var(--muted)]">Состояние</dt>
+                <dt className="text-[var(--muted)]">{locale === 'en' ? 'Condition' : 'Состояние'}</dt>
                 <dd className="font-semibold text-[var(--ink)] mt-0.5">
-                  {content.condition || 'Укажет продавец'}
+                  {content.condition || (locale === 'en' ? 'To be specified by seller' : 'Укажет продавец')}
                 </dd>
               </div>
               <div className="py-3 border-b border-[var(--line)]">
-                <dt className="text-[var(--muted)]">Передача / получение</dt>
+                <dt className="text-[var(--muted)]">{locale === 'en' ? 'Delivery / Fulfilment' : 'Передача / получение'}</dt>
                 <dd className="font-semibold text-[var(--ink)] mt-0.5">
-                  {modesText || 'Самовывоз / доставка'}
+                  {modesText || (locale === 'en' ? 'Pickup / delivery' : 'Самовывоз / доставка')}
                 </dd>
               </div>
               <div className="py-3 border-b border-[var(--line)]">
-                <dt className="text-[var(--muted)]">Местонахождение</dt>
+                <dt className="text-[var(--muted)]">{locale === 'en' ? 'Location' : 'Местонахождение'}</dt>
                 <dd className="font-semibold text-[var(--ink)] mt-0.5">
-                  {locationText || 'Не указано'}
+                  {locationText || (locale === 'en' ? 'Not specified' : 'Не указано')}
                 </dd>
               </div>
               <div className="py-3 border-b border-[var(--line)]">
-                <dt className="text-[var(--muted)]">Автор</dt>
+                <dt className="text-[var(--muted)]">{locale === 'en' ? 'Author' : 'Автор'}</dt>
                 <dd className="font-semibold text-[var(--ink)] mt-0.5">
                   {author_name}
                 </dd>
@@ -266,16 +282,16 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
         </article>
 
         {/* Right Sidebar */}
-        <aside aria-label="Цена и связь с продавцом" className="space-y-5">
+        <aside aria-label={locale === 'en' ? 'Price and contact seller' : 'Цена и связь с продавцом'} className="space-y-5">
           {/* Buy / Action Box */}
           <section className="border border-[var(--line)] rounded-xl p-6 bg-[var(--canvas)] shadow-xs">
             <div className="text-3xl lg:text-4xl font-extrabold text-[var(--ink)] tracking-tight">
-              {formatPrice(content.price_minor, content.currency)}
+              {formatPrice(content.price_minor, content.currency, t('card.free'))}
             </div>
             <p className="text-sm text-[var(--muted)] mt-1 mb-5">
               {content.price_minor
-                ? 'Цена указана продавцом, без скрытых сборов'
-                : 'Демонстрационная цена, не предложение о продаже'}
+                ? (locale === 'en' ? 'Price specified by seller, no hidden fees' : 'Цена указана продавцом, без скрытых сборов')
+                : (locale === 'en' ? 'Demo price, not a sales offer' : 'Демонстрационная цена, не предложение о продаже')}
             </p>
 
             <button
@@ -301,7 +317,7 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
                 <div className="border-t border-[var(--line)] pt-3.5 mb-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-[var(--ink)] uppercase tracking-wider">
-                      💬 Комнаты и темы ({relatedRooms.length})
+                      💬 {locale === 'en' ? 'Rooms & Topics' : 'Комнаты и темы'} ({relatedRooms.length})
                     </span>
                     {onOpenRoom && (
                       <button
@@ -309,7 +325,7 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
                         onClick={() => onContactSeller(listing)}
                         className="text-xs text-[var(--blue)] hover:underline font-semibold cursor-pointer"
                       >
-                        + Открыть тему
+                        {locale === 'en' ? '+ Open topic' : '+ Открыть тему'}
                       </button>
                     )}
                   </div>
@@ -325,19 +341,21 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5 font-semibold text-[var(--ink)] truncate">
                               <span>{r.visibility === 'public' ? '🌐' : '🔒'}</span>
-                              <span className="truncate">{r.listingTitle || 'Обсуждение'}</span>
+                              <span className="truncate">{r.listingTitle || (locale === 'en' ? 'Discussion' : 'Обсуждение')}</span>
                             </div>
                             <span className="text-[11px] text-[var(--muted)]">
-                              💬 {r.messages.length} сообщ. · {r.participants.length} участн.
+                              💬 {r.messages.length} {locale === 'en' ? 'msgs' : 'сообщ.'} · {r.participants.length} {locale === 'en' ? 'participants' : 'участн.'}
                             </span>
                           </div>
-                          <span className="text-[var(--blue)] font-bold text-xs shrink-0">Войти ↗</span>
+                          <span className="text-[var(--blue)] font-bold text-xs shrink-0">{locale === 'en' ? 'Enter ↗' : 'Войти ↗'}</span>
                         </div>
                       ))}
                     </div>
                   ) : (
                     <p className="text-xs text-[var(--muted)] mt-1">
-                      Открытых обсуждений пока нет. Нажмите «Написать продавцу», чтобы начать публичный диалог или приватные переговоры.
+                      {locale === 'en'
+                        ? 'No active discussions yet. Click "Contact Author" to start a public dialog or private negotiation.'
+                        : 'Открытых обсуждений пока нет. Нажмите «Написать продавцу», чтобы начать публичный диалог или приватные переговоры.'}
                     </p>
                   )}
                 </div>
@@ -347,25 +365,33 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
             <div className="border-t border-[var(--line)] pt-4 space-y-3 text-sm">
               <div>
                 <strong className="block text-[var(--ink)] font-semibold">
-                  Самовывоз в {content.locality || 'городе'}
+                  {locale === 'en'
+                    ? `Pickup in ${content.locality || 'city'}`
+                    : `Самовывоз в ${content.locality || 'городе'}`}
                 </strong>
                 <p className="text-xs text-[var(--muted)] mt-0.5">
-                  Точный адрес не публикуется в открытом доступе. Его сообщают участники после взаимной договорённости в защищённой комнате.
+                  {locale === 'en'
+                    ? 'Exact address is not published openly. Shared after mutual agreement inside a secure negotiation room.'
+                    : 'Точный адрес не публикуется в открытом доступе. Его сообщают участники после взаимной договорённости в защищённой комнате.'}
                 </p>
               </div>
 
               <div>
                 <strong className="block text-[var(--ink)] font-semibold">
-                  Доставка — по согласованию
+                  {locale === 'en' ? 'Delivery by arrangement' : 'Доставка — по согласованию'}
                 </strong>
                 <p className="text-xs text-[var(--muted)] mt-0.5">
-                  Местонахождение не ограничивает доступ покупателей к площадке.
+                  {locale === 'en'
+                    ? 'Location does not restrict buyer access to the platform.'
+                    : 'Местонахождение не ограничивает доступ покупателей к площадке.'}
                 </p>
               </div>
             </div>
 
             <div className="text-xs text-[var(--muted)] p-3.5 bg-[var(--surface)] rounded-lg mt-4 border border-[var(--line)]">
-              Не переводите деньги по просьбе незнакомца. Оплата и гарантии сделки в этот прототип не входят.
+              {locale === 'en'
+                ? 'Do not transfer money at the request of strangers. Escrow and payment guarantees are not part of this prototype.'
+                : 'Не переводите деньги по просьбе незнакомца. Оплата и гарантии сделки в этот прототип не входят.'}
             </div>
           </section>
 
@@ -373,11 +399,13 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
           <section className="border border-[var(--line)] rounded-xl p-5 bg-[var(--canvas)]">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs text-[var(--muted)] uppercase font-semibold tracking-wider">
-                {listing.profile?.type === 'company' ? 'Компания / Организация' : 'Автор объявления'}
+                {listing.profile?.type === 'company'
+                  ? (locale === 'en' ? 'Company / Organization' : 'Компания / Организация')
+                  : (locale === 'en' ? 'Listing Author' : 'Автор объявления')}
               </span>
               {listing.profile?.verified && (
                 <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
-                  ✓ Верифицирован
+                  ✓ {locale === 'en' ? 'Verified' : 'Верифицирован'}
                 </span>
               )}
             </div>
@@ -399,19 +427,21 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
             )}
 
             <div className="flex items-center gap-3 text-xs text-[var(--muted)] border-t border-[var(--line)] pt-2.5">
-              <span>★ Репутация: <strong>{listing.profile?.reputation_score?.toFixed(1) || '5.0'}</strong></span>
+              <span>★ {locale === 'en' ? 'Reputation:' : 'Репутация:'} <strong>{listing.profile?.reputation_score?.toFixed(1) || '5.0'}</strong></span>
               <span>·</span>
-              <span>Протокол: MCP Room</span>
+              <span>{locale === 'en' ? 'Protocol: MCP Room' : 'Протокол: MCP Room'}</span>
             </div>
           </section>
 
           {/* Agent Information Card */}
           <section className="bg-[var(--soft)] border border-blue-200/50 rounded-xl p-5">
             <h2 className="text-base font-bold text-[var(--ink)] mb-1">
-              Человек или агент — решаете вы
+              {locale === 'en' ? 'Human or Agent — Your Choice' : 'Человек или агент — решаете вы'}
             </h2>
             <p className="text-xs text-[var(--ink)]/80 leading-relaxed">
-              План архитектуры: читать, публиковать и отвечать через веб или MCP-протокол. Одна карточка и одни условия для обоих способов взаимодействия.
+              {locale === 'en'
+                ? 'Architectural blueprint: read, publish, and negotiate via Web UI or Model Context Protocol (MCP). Identical cards and conditions for both interaction modes.'
+                : 'План архитектуры: читать, публиковать и отвечать через веб или MCP-протокол. Одна карточка и одни условия для обоих способов взаимодействия.'}
             </p>
           </section>
         </aside>
@@ -421,26 +451,32 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
       <section className="border-t border-[var(--line)] pt-8 mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
         <div>
           <strong className="block text-[var(--ink)] font-semibold mb-1">
-            Открыта для всех
+            {locale === 'en' ? 'Open to Everyone' : 'Открыта для всех'}
           </strong>
           <p className="text-xs text-[var(--muted)] leading-relaxed">
-            Город — фильтр, не условие регистрации. Вещи, услуги, доставка и онлайн-предложения доступны для людей и MCP-агентов.
+            {locale === 'en'
+              ? 'City is a filter, not a registration barrier. Items, services, rides, and online proposals are equally accessible to humans and autonomous MCP agents.'
+              : 'Город — фильтр, не условие регистрации. Вещи, услуги, доставка и онлайн-предложения доступны для людей и MCP-агентов.'}
           </p>
         </div>
         <div>
           <strong className="block text-[var(--ink)] font-semibold mb-1">
-            Публикуете осознанно
+            {locale === 'en' ? 'Mindful Publishing' : 'Публикуете осознанно'}
           </strong>
           <p className="text-xs text-[var(--muted)] leading-relaxed">
-            Сначала черновик и предпросмотр. Публичность не распространяется на старую переписку и внутренние заметки.
+            {locale === 'en'
+              ? 'Draft and preview first. Public catalog exposure does not expose previous correspondence or private notes.'
+              : 'Сначала черновик и предпросмотр. Публичность не распространяется на старую переписку и внутренние заметки.'}
           </p>
         </div>
         <div>
           <strong className="block text-[var(--ink)] font-semibold mb-1">
-            Личные данные — не витрина
+            {locale === 'en' ? 'Personal Data Stays Private' : 'Личные данные — не витрина'}
           </strong>
           <p className="text-xs text-[var(--muted)] leading-relaxed">
-            Телефон и домашний адрес не появляются на странице автоматически. Только защищённый обмен контактами по обоюдному согласию.
+            {locale === 'en'
+              ? 'Phone numbers and private addresses never appear automatically. Only protected exchange of contact information upon mutual agreement in a room.'
+              : 'Телефон и домашний адрес не появляются на странице автоматически. Только защищённый обмен контактами по обоюдному согласию.'}
           </p>
         </div>
       </section>
@@ -450,10 +486,12 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
           <div className="bg-[var(--canvas)] border border-[var(--line)] rounded-xl max-w-md w-full p-6 shadow-xl my-auto max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-[var(--ink)] mb-2">
-              Прикрепить фотографию
+              {locale === 'en' ? 'Attach Photo' : 'Прикрепить фотографию'}
             </h3>
             <p className="text-xs text-[var(--muted)] mb-4">
-              Выберите реальную фотографию вещи со своего устройства (JPEG, PNG). До 8 фото.
+              {locale === 'en'
+                ? 'Choose a real photo of the item from your device (JPEG, PNG). Up to 8 photos.'
+                : 'Выберите реальную фотографию вещи со своего устройства (JPEG, PNG). До 8 фото.'}
             </p>
             <input
               type="file"
@@ -467,7 +505,7 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
                 onClick={() => setShowPhotoUploadModal(false)}
                 className="px-4 py-2 text-sm border border-[var(--line)] rounded-lg hover:bg-[var(--surface)] text-[var(--ink)]"
               >
-                Отмена
+                {t('modal.cancel')}
               </button>
             </div>
           </div>

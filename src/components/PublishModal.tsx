@@ -4,8 +4,6 @@ import {
   ListingCategory,
   ListingKind,
   FulfilmentMode,
-  CATEGORY_LABELS,
-  MODE_LABELS,
   ListingPhoto,
 } from '../types';
 import { formatPrice } from './ListingCard';
@@ -31,12 +29,12 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const [isPriceNegotiable, setIsPriceNegotiable] = useState(false);
   const [priceRubles, setPriceRubles] = useState<string>('25000');
   const [modes, setModes] = useState<FulfilmentMode[]>(['pickup', 'shipping']);
-  const [locality, setLocality] = useState('Казань');
-  const [region, setRegion] = useState('Татарстан');
-  const [country, setCountry] = useState('Россия');
-  const [condition, setCondition] = useState('Отличное состояние');
+  const [locality, setLocality] = useState(locale === 'en' ? 'Kazan' : 'Казань');
+  const [region, setRegion] = useState(locale === 'en' ? 'Tatarstan' : 'Татарстан');
+  const [country, setCountry] = useState(locale === 'en' ? 'Russia' : 'Россия');
+  const [condition, setCondition] = useState(locale === 'en' ? 'Excellent condition' : 'Отличное состояние');
   const [description, setDescription] = useState('');
-  const [authorName, setAuthorName] = useState('Пользователь площадки');
+  const [authorName, setAuthorName] = useState(locale === 'en' ? 'Platform User' : 'Пользователь площадки');
   const [photos, setPhotos] = useState<ListingPhoto[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -84,19 +82,19 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const validateAndSubmit = () => {
     setErrorMsg(null);
     if (!title.trim()) {
-      setErrorMsg('Пожалуйста, введите название объявления');
+      setErrorMsg(locale === 'en' ? 'Please enter a title for the listing' : 'Пожалуйста, введите название объявления');
       return;
     }
     if (title.length > 120) {
-      setErrorMsg('Длина названия не должна превышать 120 символов');
+      setErrorMsg(locale === 'en' ? 'Title length must not exceed 120 characters' : 'Длина названия не должна превышать 120 символов');
       return;
     }
     if (!description.trim()) {
-      setErrorMsg('Пожалуйста, добавьте описание');
+      setErrorMsg(locale === 'en' ? 'Please add a description' : 'Пожалуйста, добавьте описание');
       return;
     }
     if (modes.includes('pickup') && !locality.trim()) {
-      setErrorMsg('Для способа «Самовывоз» необходимо указать город/локацию');
+      setErrorMsg(locale === 'en' ? 'For pickup fulfilment mode, location is required' : 'Для способа «Самовывоз» необходимо указать город/локацию');
       return;
     }
 
@@ -105,7 +103,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
     const newListing: Listing = {
       id: 'listing-' + Date.now(),
       owner: 'user:local-agent-' + Math.random().toString(36).substring(2, 6),
-      author_name: authorName.trim() || 'Пользователь площадки',
+      author_name: authorName.trim() || (locale === 'en' ? 'Platform User' : 'Пользователь площадки'),
       content: {
         title: title.trim(),
         description: description.trim(),
@@ -135,6 +133,19 @@ export const PublishModal: React.FC<PublishModalProps> = ({
     onClose();
   };
 
+  const allCategories: ListingCategory[] = [
+    'business',
+    'jobs',
+    'services',
+    'real_estate',
+    'communities',
+    'things',
+    'dating',
+    'rides',
+    'delivery',
+    'other',
+  ];
+
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
       <div className="bg-[var(--canvas)] border border-[var(--line)] rounded-2xl max-w-2xl w-full my-auto shadow-2xl flex flex-col max-h-[92vh] overflow-hidden">
@@ -142,16 +153,16 @@ export const PublishModal: React.FC<PublishModalProps> = ({
         <div className="px-6 py-4 border-b border-[var(--line)] flex items-center justify-between">
           <div>
             <h2 className="text-xl font-bold text-[var(--ink)]">
-              Подать объявление (MCP Rooms)
+              {t('publish.title')}
             </h2>
             <p className="text-xs text-[var(--muted)] mt-0.5">
-              Сначала черновик и предпросмотр — публикация выполняется осознанно.
+              {t('publish.subtitle')}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-[var(--muted)] hover:text-[var(--ink)] text-xl p-1 rounded-md"
+            className="text-[var(--muted)] hover:text-[var(--ink)] text-xl p-1 rounded-md cursor-pointer"
           >
             ✕
           </button>
@@ -168,7 +179,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                 : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
             }`}
           >
-            1. Заполнение черновика
+            {t('publish.tab_edit')}
           </button>
           <button
             type="button"
@@ -179,7 +190,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                 : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
             }`}
           >
-            2. Предпросмотр карточки
+            {t('publish.tab_preview')}
           </button>
         </div>
 
@@ -196,30 +207,30 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               {/* Kind selector */}
               <div>
                 <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5">
-                  Тип объявления
+                  {t('publish.kind_label')}
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => setKind('offer')}
-                    className={`py-2.5 px-4 rounded-lg font-semibold text-center border transition-all ${
+                    className={`py-2.5 px-4 rounded-lg font-semibold text-center border transition-all cursor-pointer ${
                       kind === 'offer'
                         ? 'border-[var(--blue)] bg-[var(--soft)] text-[var(--blue)] shadow-xs'
                         : 'border-[var(--line)] text-[var(--ink)] hover:bg-[var(--surface)]'
                     }`}
                   >
-                    📦 Предлагаю (продажа / услуга)
+                    📦 {locale === 'en' ? 'Offer (item / service)' : 'Предлагаю (продажа / услуга)'}
                   </button>
                   <button
                     type="button"
                     onClick={() => setKind('request')}
-                    className={`py-2.5 px-4 rounded-lg font-semibold text-center border transition-all ${
+                    className={`py-2.5 px-4 rounded-lg font-semibold text-center border transition-all cursor-pointer ${
                       kind === 'request'
                         ? 'border-[var(--blue)] bg-[var(--soft)] text-[var(--blue)] shadow-xs'
                         : 'border-[var(--line)] text-[var(--ink)] hover:bg-[var(--surface)]'
                     }`}
                   >
-                    🔍 {locale === 'en' ? 'Seeking (request / buying)' : 'Ищу (запрос / покупка)'}
+                    🔍 {locale === 'en' ? 'Seeking (request / buy)' : 'Ищу (запрос / покупка)'}
                   </button>
                 </div>
               </div>
@@ -228,35 +239,30 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5">
-                    Категория
+                    {t('publish.category_label')}
                   </label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value as ListingCategory)}
-                    className="w-full h-10 px-3 border border-[var(--line)] rounded-lg bg-[var(--surface)] text-[var(--ink)] text-sm outline-none"
+                    className="w-full h-10 px-3 border border-[var(--line)] rounded-lg bg-[var(--surface)] text-[var(--ink)] text-sm outline-none cursor-pointer"
                   >
-                    <option value="business">Бизнес и стартапы</option>
-                    <option value="jobs">Работа и вакансии</option>
-                    <option value="services">Услуги и мастера</option>
-                    <option value="real_estate">Недвижимость и аренда</option>
-                    <option value="communities">Сообщества и команды (Парламент)</option>
-                    <option value="things">Вещи и товары</option>
-                    <option value="dating">Знакомства и хобби</option>
-                    <option value="rides">Поездки</option>
-                    <option value="delivery">Доставка</option>
-                    <option value="other">Другое</option>
+                    {allCategories.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {t(`cat.${cat}` as TranslationKey)}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5">
-                    Подкатегория / Направление
+                    {locale === 'en' ? 'Subcategory / Direction' : 'Подкатегория / Направление'}
                   </label>
                   <input
                     type="text"
                     value={subcategory}
                     onChange={(e) => setSubcategory(e.target.value)}
-                    placeholder="Например: Велосипеды, Электроника"
+                    placeholder={locale === 'en' ? 'E.g.: Bicycles, Electronics' : 'Например: Велосипеды, Электроника'}
                     className="w-full h-10 px-3 border border-[var(--line)] rounded-lg bg-[var(--surface)] text-[var(--ink)] text-sm outline-none"
                   />
                 </div>
@@ -265,14 +271,14 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               {/* Title */}
               <div>
                 <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5">
-                  Название объявления (макс. 120 символов)
+                  {locale === 'en' ? 'Title (max 120 characters)' : 'Название объявления (макс. 120 символов)'}
                 </label>
                 <input
                   type="text"
                   maxLength={120}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Например: Шоссейный велосипед Merida Scultura"
+                  placeholder={locale === 'en' ? 'E.g.: City commuter bicycle, Size M' : 'Например: Шоссейный велосипед Merida Scultura'}
                   className="w-full h-10 px-3 border border-[var(--line)] rounded-lg bg-[var(--surface)] text-[var(--ink)] text-sm outline-none"
                 />
                 <div className="text-right text-xs text-[var(--muted)] mt-1">
@@ -283,7 +289,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               {/* Price */}
               <div>
                 <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5">
-                  Цена
+                  {t('publish.price_label')}
                 </label>
                 <div className="flex items-center gap-3">
                   <input
@@ -302,7 +308,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                       onChange={(e) => setIsPriceNegotiable(e.target.checked)}
                       className="rounded"
                     />
-                    <span>По договорённости</span>
+                    <span>{locale === 'en' ? 'Negotiable' : 'По договорённости'}</span>
                   </label>
                 </div>
               </div>
@@ -310,7 +316,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               {/* Modes */}
               <div>
                 <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5">
-                  Способы передачи (выберите хотя бы один)
+                  {locale === 'en' ? 'Fulfilment methods (select at least one)' : 'Способы передачи (выберите хотя бы один)'}
                 </label>
                 <div className="flex flex-wrap gap-4">
                   {(['pickup', 'shipping', 'online'] as FulfilmentMode[]).map((m) => (
@@ -320,7 +326,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                         checked={modes.includes(m)}
                         onChange={() => handleModeToggle(m)}
                       />
-                      <span>{MODE_LABELS[m]}</span>
+                      <span>{t(`mode.${m}` as TranslationKey)}</span>
                     </label>
                   ))}
                 </div>
@@ -330,25 +336,25 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5">
-                    Город / Населённый пункт {modes.includes('pickup') && '*'}
+                    {locale === 'en' ? 'City / Locality' : 'Город / Населённый пункт'} {modes.includes('pickup') && '*'}
                   </label>
                   <input
                     type="text"
                     value={locality}
                     onChange={(e) => setLocality(e.target.value)}
-                    placeholder="Казань"
+                    placeholder={locale === 'en' ? 'Kazan' : 'Казань'}
                     className="w-full h-10 px-3 border border-[var(--line)] rounded-lg bg-[var(--surface)] text-[var(--ink)] text-sm outline-none"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5">
-                    Состояние
+                    {locale === 'en' ? 'Condition' : 'Состояние'}
                   </label>
                   <input
                     type="text"
                     value={condition}
                     onChange={(e) => setCondition(e.target.value)}
-                    placeholder="Новое / Отличное / Б/У"
+                    placeholder={locale === 'en' ? 'New / Excellent / Used' : 'Новое / Отличное / Б/У'}
                     className="w-full h-10 px-3 border border-[var(--line)] rounded-lg bg-[var(--surface)] text-[var(--ink)] text-sm outline-none"
                   />
                 </div>
@@ -357,13 +363,17 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               {/* Description */}
               <div>
                 <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5">
-                  Описание и честные условия
+                  {locale === 'en' ? 'Description & honest conditions' : 'Описание и честные условия'}
                 </label>
                 <textarea
                   rows={4}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Опишите вещь или услугу, характеристики, причину продажи и дефекты при их наличии..."
+                  placeholder={
+                    locale === 'en'
+                      ? 'Describe the item or service, specifications, reason for selling and any known defects...'
+                      : 'Опишите вещь или услугу, характеристики, причину продажи и дефекты при их наличии...'
+                  }
                   className="w-full p-3 border border-[var(--line)] rounded-lg bg-[var(--surface)] text-[var(--ink)] text-sm outline-none"
                 />
               </div>
@@ -372,20 +382,22 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               <div>
                 <div className="flex justify-between items-center mb-1.5">
                   <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider">
-                    Фотографии (до 8 штук)
+                    {locale === 'en' ? 'Photos (up to 8)' : 'Фотографии (до 8 штук)'}
                   </label>
-                  <span className="text-xs text-[var(--muted)]">{photos.length} из 8</span>
+                  <span className="text-xs text-[var(--muted)]">
+                    {photos.length} {locale === 'en' ? 'of 8' : 'из 8'}
+                  </span>
                 </div>
 
                 <div className="flex flex-wrap gap-3">
                   {photos.map((p, idx) => (
                     <div key={p.id} className="relative w-20 h-20 rounded-lg overflow-hidden border border-[var(--line)] group">
-                      <img src={p.dataUrl} alt={`Фото ${idx + 1}`} className="w-full h-full object-cover" />
+                      <img src={p.dataUrl} alt={locale === 'en' ? `Photo ${idx + 1}` : `Фото ${idx + 1}`} className="w-full h-full object-cover" />
                       <button
                         type="button"
                         onClick={() => handleRemovePhoto(p.id)}
-                        className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-80 hover:opacity-100"
-                        title="Удалить фото"
+                        className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-80 hover:opacity-100 cursor-pointer"
+                        title={locale === 'en' ? 'Delete photo' : 'Удалить фото'}
                       >
                         ✕
                       </button>
@@ -395,7 +407,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   {photos.length < 8 && (
                     <label className="w-20 h-20 rounded-lg border-2 border-dashed border-[var(--line)] hover:border-[var(--blue)] flex flex-col items-center justify-center text-xs text-[var(--muted)] cursor-pointer hover:bg-[var(--surface)] transition-colors">
                       <span className="text-lg">+</span>
-                      <span>Фото</span>
+                      <span>{locale === 'en' ? 'Photo' : 'Фото'}</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -407,20 +419,22 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   )}
                 </div>
                 <p className="text-xs text-[var(--muted)] mt-2">
-                  Только настоящие фотографии вашего предмета. Никаких картинок из интернета или стоковых подмен.
+                  {locale === 'en'
+                    ? 'Only genuine photos of your real item. No stock internet images or AI generated pictures.'
+                    : 'Только настоящие фотографии вашего предмета. Никаких картинок из интернета или стоковых подмен.'}
                 </p>
               </div>
 
               {/* Author name */}
               <div>
                 <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5">
-                  Имя автора объявления
+                  {locale === 'en' ? 'Author Name' : 'Имя автора объявления'}
                 </label>
                 <input
                   type="text"
                   value={authorName}
                   onChange={(e) => setAuthorName(e.target.value)}
-                  placeholder="Александр"
+                  placeholder={locale === 'en' ? 'Alex' : 'Александр'}
                   className="w-full h-10 px-3 border border-[var(--line)] rounded-lg bg-[var(--surface)] text-[var(--ink)] text-sm outline-none"
                 />
               </div>
@@ -429,7 +443,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
             /* PREVIEW TAB */
             <div className="border border-[var(--line)] rounded-xl p-5 bg-[var(--surface)] space-y-4">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-[var(--green)] bg-[var(--greenbg)] px-2.5 py-0.5 rounded-full">
+                <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950 px-2.5 py-0.5 rounded-full">
                   {kind === 'offer' ? t('kind.offer') : t('kind.request')} · {t(`cat.${category}` as TranslationKey)}
                 </span>
                 {subcategory && (
@@ -438,17 +452,17 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               </div>
 
               <h3 className="text-2xl font-bold text-[var(--ink)]">
-                {title || 'Название ещё не введено'}
+                {title || (locale === 'en' ? 'Title not entered yet' : 'Название ещё не введено')}
               </h3>
 
               <div className="text-2xl font-extrabold text-[var(--ink)]">
                 {isPriceNegotiable
-                  ? 'Цена по договорённости'
+                  ? (locale === 'en' ? 'Price negotiable' : 'Цена по договорённости')
                   : formatPrice(Math.floor(Number(priceRubles || 0) * 100), 'RUB')}
               </div>
 
               <div className="text-xs text-[var(--muted)]">
-                Локация: {locality || 'Не указана'} · {modes.map((m) => MODE_LABELS[m]).join(', ')}
+                {locale === 'en' ? 'Location:' : 'Локация:'} {locality || (locale === 'en' ? 'Not specified' : 'Не указана')} · {modes.map((m) => t(`mode.${m}` as TranslationKey)).join(', ')}
               </div>
 
               {photos.length > 0 ? (
@@ -457,23 +471,25 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                     <img
                       key={p.id}
                       src={p.dataUrl}
-                      alt={`Предпросмотр ${idx}`}
+                      alt={locale === 'en' ? `Preview ${idx}` : `Предпросмотр ${idx}`}
                       className="w-full h-24 object-cover rounded-md border border-[var(--line)]"
                     />
                   ))}
                 </div>
               ) : (
                 <div className="p-4 border border-[var(--line)] rounded-lg bg-[var(--canvas)] text-center text-xs text-[var(--muted)]">
-                  Фотографии не добавлены. Будет отображена фирменная заглушка честного черновика.
+                  {locale === 'en'
+                    ? 'No photos added. Authentic prototype placeholder will be displayed.'
+                    : 'Фотографии не добавлены. Будет отображена фирменная заглушка честного черновика.'}
                 </div>
               )}
 
               <div className="p-3 bg-[var(--canvas)] rounded-lg border border-[var(--line)] text-sm whitespace-pre-wrap">
-                {description || 'Описание не заполнено.'}
+                {description || (locale === 'en' ? 'Description not provided.' : 'Описание не заполнено.')}
               </div>
 
               <div className="text-xs text-[var(--muted)]">
-                Автор: <strong>{authorName || 'Пользователь площадки'}</strong>
+                {locale === 'en' ? 'Author:' : 'Автор:'} <strong>{authorName || (locale === 'en' ? 'Platform User' : 'Пользователь площадки')}</strong>
               </div>
             </div>
           )}
@@ -482,7 +498,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
         {/* Modal Footer */}
         <div className="px-6 py-4 border-t border-[var(--line)] bg-[var(--surface)] flex flex-wrap justify-between items-center gap-3">
           <div className="text-xs text-[var(--muted)]">
-            Черновик проверяется валидатором listing_contract
+            {locale === 'en' ? 'Draft validated by listing_contract rules' : 'Черновик проверяется валидатором listing_contract'}
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -490,7 +506,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               onClick={onClose}
               className="px-4 py-2 text-sm border border-[var(--line)] rounded-lg hover:bg-[var(--canvas)] text-[var(--ink)] cursor-pointer"
             >
-              Отмена
+              {t('modal.cancel')}
             </button>
             {activeTab === 'edit' ? (
               <button
@@ -498,7 +514,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                 onClick={() => setActiveTab('preview')}
                 className="px-4 py-2 text-sm bg-[var(--surface)] border border-[var(--line)] hover:bg-[var(--raised)] text-[var(--ink)] font-semibold rounded-lg cursor-pointer"
               >
-                Предпросмотр →
+                {locale === 'en' ? 'Preview →' : 'Предпросмотр →'}
               </button>
             ) : (
               <button
@@ -506,7 +522,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                 onClick={() => setActiveTab('edit')}
                 className="px-4 py-2 text-sm border border-[var(--line)] rounded-lg text-[var(--ink)] cursor-pointer"
               >
-                ← Вернуться к правкам
+                {locale === 'en' ? '← Back to Edit' : '← Вернуться к правкам'}
               </button>
             )}
             <button
@@ -514,7 +530,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               onClick={validateAndSubmit}
               className="px-5 py-2 text-sm bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white font-semibold rounded-lg transition-colors cursor-pointer"
             >
-              Опубликовать
+              {locale === 'en' ? 'Publish' : 'Опубликовать'}
             </button>
           </div>
         </div>
