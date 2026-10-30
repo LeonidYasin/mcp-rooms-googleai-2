@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Listing, McpRoom, NegotiationResult, EmbeddingProviderStatus } from '../types';
-import { authHeaders, getStoredApiKey } from '../lib/api';
+import { authHeaders, getStoredApiKey, storeApiKey } from '../lib/api';
 import { GoogleAuthModal } from './GoogleAuthModal';
 import {
   getStoredGoogleToken,
@@ -650,6 +650,13 @@ export const McpChat: React.FC<McpChatProps> = ({
         onAuthSuccess={(_token, user) => {
           setHasGoogleAuth(true);
           setGoogleUser(user || null);
+        }}
+        onUseFounderKey={() => {
+          const founderKey = 'mcr_5SiuxQaWs7jiKqxb0cCFtO5aKP6Ho0mzLsoFi5d_6A8';
+          storeApiKey(founderKey);
+          setHasStoredApiKey(true);
+          setIsGoogleModalOpen(false);
+          if (onRefreshData) onRefreshData();
         }}
       />
     </div>
