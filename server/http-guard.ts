@@ -29,7 +29,7 @@ export function securityHeaders(_req: Request, res: Response, next: NextFunction
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https:; font-src 'self' data:; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
+    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com; frame-src https://accounts.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: https://*.googleusercontent.com; connect-src 'self' ws: wss: https: https://accounts.google.com https://generativelanguage.googleapis.com; font-src 'self' data:; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
   );
   next();
 }
