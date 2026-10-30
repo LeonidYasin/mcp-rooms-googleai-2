@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { getStoredApiKey, storeApiKey, createGuestSession } from '../lib/api';
+import { useI18n } from '../i18n';
 
 interface ApiKeyModalProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ interface ApiKeyModalProps {
  * only stores it for this browser.
  */
 export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSaved, reason }) => {
+  const { t, locale } = useI18n();
   const [value, setValue] = useState('');
   const [showValue, setShowValue] = useState(false);
   const [isGuestLoading, setIsGuestLoading] = useState(false);
@@ -66,13 +68,13 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSav
         <div className="px-6 py-4 border-b border-[var(--line)] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-xl">🔑</span>
-            <h2 className="text-lg font-bold text-[var(--ink)]">API-ключ и Доступ</h2>
+            <h2 className="text-lg font-bold text-[var(--ink)]">{t('keymodal.title')}</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="text-[var(--muted)] hover:text-[var(--ink)] text-xl leading-none cursor-pointer p-1"
-            aria-label="Закрыть"
+            aria-label={t('modal.close')}
           >
             ✕
           </button>
@@ -192,7 +194,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSav
               onClick={handleClear}
               className="text-xs text-[var(--muted)] hover:text-[var(--ink)] underline cursor-pointer"
             >
-              Забыть ключ в этом браузере
+              {t('keymodal.forget')}
             </button>
             <div className="flex gap-2">
               <button
@@ -200,13 +202,13 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSav
                 onClick={onClose}
                 className="px-3.5 h-9 border border-[var(--line)] rounded-lg text-sm text-[var(--ink)] hover:bg-[var(--raised)] cursor-pointer"
               >
-                Отмена
+                {t('modal.cancel')}
               </button>
               <button
                 type="submit"
                 className="px-4 h-9 bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white text-sm font-semibold rounded-lg cursor-pointer"
               >
-                Сохранить
+                {t('modal.save')}
               </button>
             </div>
           </div>

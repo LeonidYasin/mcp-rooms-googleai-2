@@ -18,6 +18,7 @@ import { PrinciplesBanner } from './components/PrinciplesBanner';
 import { McpChat } from './components/McpChat';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { RoomsHub } from './components/RoomsHub';
+import { useI18n, TranslationKey } from './i18n';
 import {
   authHeaders,
   getStoredApiKey,
@@ -26,6 +27,7 @@ import {
 } from './lib/api';
 
 export const App: React.FC = () => {
+  const { t, locale } = useI18n();
   const [listings, setListings] = useState<Listing[]>(INITIAL_LISTINGS);
   // Rooms are private: they only come from the server for the current key.
   const [rooms, setRooms] = useState<McpRoom[]>([]);
@@ -442,48 +444,50 @@ export const App: React.FC = () => {
               <div>
                 <h1 className="text-2xl md:text-3xl font-black text-[var(--ink)] tracking-tight">
                   {currentCategory === 'all'
-                    ? 'Все объявления'
-                    : CATEGORY_LABELS[currentCategory]}
+                    ? t('cat.all')
+                    : t(`cat.${currentCategory}` as TranslationKey)}
                 </h1>
                 <p className="text-xs md:text-sm text-[var(--muted)] mt-1">
-                  Найдено в базе данных SQLite: {filteredListings.length}
+                  {locale === 'en'
+                    ? `Found in SQLite database: ${filteredListings.length}`
+                    : `Найдено в базе данных SQLite: ${filteredListings.length}`}
                 </p>
               </div>
 
               {/* Offer vs Request Filter */}
-              <div className="flex items-center gap-1.5 p-1 bg-[var(--surface)] border border-[var(--line)] rounded-lg text-xs font-semibold">
+              <div className="flex items-center gap-1.5 p-1 bg-[var(--surface)] border border-[var(--line)] rounded-xl text-xs font-semibold">
                 <button
                   type="button"
                   onClick={() => setFilterKind('all')}
-                  className={`px-3 py-1.5 rounded-md transition-colors ${
+                  className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
                     filterKind === 'all'
-                      ? 'bg-[var(--canvas)] text-[var(--ink)] shadow-xs'
+                      ? 'bg-[var(--canvas)] text-[var(--ink)] shadow-xs font-bold'
                       : 'text-[var(--muted)] hover:text-[var(--ink)]'
                   }`}
                 >
-                  Все
+                  {t('kind.all')}
                 </button>
                 <button
                   type="button"
                   onClick={() => setFilterKind('offer')}
-                  className={`px-3 py-1.5 rounded-md transition-colors ${
+                  className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
                     filterKind === 'offer'
-                      ? 'bg-[var(--canvas)] text-[var(--ink)] shadow-xs'
+                      ? 'bg-[var(--canvas)] text-[var(--ink)] shadow-xs font-bold text-emerald-700 dark:text-emerald-300'
                       : 'text-[var(--muted)] hover:text-[var(--ink)]'
                   }`}
                 >
-                  📦 Предлагаю ({listings.filter((l) => l.content.kind === 'offer').length})
+                  📦 {t('kind.offer')} ({listings.filter((l) => l.content.kind === 'offer').length})
                 </button>
                 <button
                   type="button"
                   onClick={() => setFilterKind('request')}
-                  className={`px-3 py-1.5 rounded-md transition-colors ${
+                  className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
                     filterKind === 'request'
-                      ? 'bg-[var(--canvas)] text-[var(--ink)] shadow-xs'
+                      ? 'bg-[var(--canvas)] text-[var(--ink)] shadow-xs font-bold text-blue-700 dark:text-blue-300'
                       : 'text-[var(--muted)] hover:text-[var(--ink)]'
                   }`}
                 >
-                  🔍 Ищу ({listings.filter((l) => l.content.kind === 'request').length})
+                  🔍 {t('kind.request')} ({listings.filter((l) => l.content.kind === 'request').length})
                 </button>
               </div>
             </div>
@@ -504,10 +508,10 @@ export const App: React.FC = () => {
               <div className="border border-[var(--line)] rounded-2xl p-12 text-center bg-[var(--surface)] my-8">
                 <div className="text-3xl mb-3">🔍</div>
                 <h2 className="text-xl md:text-2xl font-bold text-[var(--ink)] mb-2">
-                  В каталоге нет таких объявлений
+                  {t('empty.title')}
                 </h2>
                 <p className="text-sm text-[var(--muted)] max-w-md mx-auto mb-6">
-                  Попробуйте изменить поисковый запрос, выбрать другую категорию или дать поручение Агенту-Ангелу найти нужный контакт.
+                  {t('empty.desc')}
                 </p>
                 <div className="flex justify-center gap-3">
                   <button
@@ -520,14 +524,14 @@ export const App: React.FC = () => {
                     }}
                     className="px-5 py-2.5 bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer"
                   >
-                    Сбросить фильтры
+                    {t('empty.reset_btn')}
                   </button>
                   <button
                     type="button"
                     onClick={() => setCurrentTab('chat')}
                     className="px-5 py-2.5 border border-[var(--line)] bg-[var(--canvas)] hover:bg-[var(--raised)] text-[var(--ink)] text-sm font-semibold rounded-lg transition-colors cursor-pointer"
                   >
-                    👼 Поручить Агенту-Ангелу
+                    👼 {locale === 'en' ? 'Ask Angel Agent' : 'Поручить Агенту-Ангелу'}
                   </button>
                 </div>
               </div>
@@ -592,13 +596,15 @@ export const App: React.FC = () => {
         }}
       />
 
-      {/* Footer */}
+      {/* Modern Sleek Footer */}
       <footer className="border-t border-[var(--line)] bg-[var(--canvas)] py-6 mt-12 text-xs md:text-sm text-[var(--muted)]">
         <div className="max-w-[1120px] mx-auto px-4 md:px-8 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div>
-            <strong>MCP Rooms</strong> · Серверный бэкенд на SQLite + Model Context Protocol (JSON-RPC 2.0).
+          <div className="flex items-center gap-2">
+            <strong className="text-[var(--ink)] font-bold">MCP Rooms</strong>
+            <span>·</span>
+            <span>{t('footer.tagline')}</span>
           </div>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-4 items-center">
             <button
               type="button"
               onClick={() => {
@@ -607,7 +613,7 @@ export const App: React.FC = () => {
               }}
               className="hover:underline cursor-pointer font-bold text-[var(--ink)]"
             >
-              🤝 Переговоры и темы
+              {t('nav.rooms')}
             </button>
             <button
               type="button"
@@ -617,7 +623,7 @@ export const App: React.FC = () => {
               }}
               className="hover:underline cursor-pointer text-[var(--blue)] font-bold"
             >
-              👼 Агент-Ангел
+              👼 {locale === 'en' ? 'Angel Agent' : 'Агент-Ангел'}
             </button>
             <button
               type="button"
@@ -627,7 +633,7 @@ export const App: React.FC = () => {
               }}
               className="hover:underline cursor-pointer"
             >
-              Принципы площадки
+              {t('nav.principles')}
             </button>
             <button
               type="button"
@@ -637,8 +643,16 @@ export const App: React.FC = () => {
               }}
               className="hover:underline cursor-pointer"
             >
-              MCP Консоль
+              {t('nav.mcp')}
             </button>
+            <a
+              href="https://github.com/LeonidYasin/mcp-rooms"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:underline text-[var(--muted)] hover:text-[var(--ink)]"
+            >
+              GitHub ↗
+            </a>
           </div>
         </div>
       </footer>

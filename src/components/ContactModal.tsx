@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Listing } from '../types';
+import { useI18n } from '../i18n';
 
 interface ContactModalProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ export const ContactModal: React.FC<ContactModalProps> = ({
   onClose,
   onSendMessage,
 }) => {
+  const { t, locale } = useI18n();
   const [message, setMessage] = useState('');
   const [contactInfo, setContactInfo] = useState('');
   const [visibility, setVisibility] = useState<'public' | 'private'>('private');
@@ -45,16 +47,16 @@ export const ContactModal: React.FC<ContactModalProps> = ({
         <div className="flex justify-between items-start mb-4">
           <div>
             <h2 className="text-xl font-bold text-[var(--ink)]">
-              Связь с продавцом
+              {t('contact.title')}
             </h2>
             <p className="text-xs text-[var(--muted)] mt-0.5">
-              По объявлению: <strong>{listing.content.title}</strong>
+              {t('contact.by_listing')} <strong>{listing.content.title}</strong>
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-[var(--muted)] hover:text-[var(--ink)] p-1 text-lg"
+            className="text-[var(--muted)] hover:text-[var(--ink)] p-1 text-lg cursor-pointer"
           >
             ✕
           </button>
@@ -66,17 +68,17 @@ export const ContactModal: React.FC<ContactModalProps> = ({
               ✓
             </div>
             <h3 className="text-lg font-bold text-[var(--ink)]">
-              Отклик отправлен в защищённую комнату
+              {t('contact.success_title')}
             </h3>
             <p className="text-xs text-[var(--muted)]">
-              Продавец получит уведомление в MCP-комнате. Ваши личные данные не разглашаются в публичной ленте.
+              {t('contact.success_desc')}
             </p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4 text-sm">
             <div>
               <label className="block text-xs font-semibold text-[var(--muted)] uppercase mb-1.5">
-                Формат общения
+                {t('contact.format')}
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <label
@@ -94,10 +96,10 @@ export const ContactModal: React.FC<ContactModalProps> = ({
                       checked={visibility === 'private'}
                       onChange={() => setVisibility('private')}
                     />
-                    <span>🔒 Приватная</span>
+                    <span>{t('contact.private')}</span>
                   </div>
                   <span className="text-[11px] text-[var(--muted)] leading-tight">
-                    Конфиденциально 1-на-1 с автором
+                    {t('contact.private_desc')}
                   </span>
                 </label>
 
@@ -116,46 +118,46 @@ export const ContactModal: React.FC<ContactModalProps> = ({
                       checked={visibility === 'public'}
                       onChange={() => setVisibility('public')}
                     />
-                    <span>🌐 Открытая тема</span>
+                    <span>{t('contact.public')}</span>
                   </div>
                   <span className="text-[11px] text-[var(--muted)] leading-tight">
-                    Видна всем в общем каталоге тем
+                    {t('contact.public_desc')}
                   </span>
                 </label>
               </div>
             </div>
 
             <div className="p-3 bg-[var(--surface)] border border-[var(--line)] rounded-lg text-xs text-[var(--muted)]">
-              🔒 <strong>Принцип безопасности:</strong> телефон и точный адрес не публикуются автоматически. Общение начинается в защищённой комнате протокола MCP.
+              🔒 <strong>{locale === 'en' ? 'Safety principle:' : 'Принцип безопасности:'}</strong> {locale === 'en' ? 'phone number and exact address are never published. Communication begins inside a protected MCP room.' : 'телефон и точный адрес не публикуются автоматически. Общение начинается в защищённой комнате протокола MCP.'}
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-[var(--muted)] uppercase mb-1">
-                Ваше сообщение
+                {t('contact.message_label')}
               </label>
               <textarea
                 required
                 rows={4}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                placeholder="Здравствуйте! Хочу уточнить детали и возможность встречи..."
+                placeholder={t('contact.message_placeholder')}
                 className="w-full p-3 border border-[var(--line)] rounded-lg bg-[var(--surface)] text-[var(--ink)] text-sm outline-none"
               />
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-[var(--muted)] uppercase mb-1">
-                Способ обратной связи (по желанию)
+                {t('contact.feedback_label')}
               </label>
               <input
                 type="text"
                 value={contactInfo}
                 onChange={(e) => setContactInfo(e.target.value)}
-                placeholder="Telegram, email или комната MCP"
+                placeholder={t('contact.feedback_placeholder')}
                 className="w-full h-10 px-3 border border-[var(--line)] rounded-lg bg-[var(--surface)] text-[var(--ink)] text-sm outline-none"
               />
               <span className="text-[11px] text-[var(--muted)] mt-1 block">
-                Будет передано только автору этого конкретного объявления.
+                {locale === 'en' ? 'Delivered only to the author of this specific listing.' : 'Будет передано только автору этого конкретного объявления.'}
               </span>
             </div>
 
@@ -163,15 +165,15 @@ export const ContactModal: React.FC<ContactModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 border border-[var(--line)] rounded-lg text-[var(--ink)] hover:bg-[var(--surface)]"
+                className="px-4 py-2 border border-[var(--line)] rounded-lg text-[var(--ink)] hover:bg-[var(--surface)] cursor-pointer"
               >
-                Отмена
+                {t('modal.cancel')}
               </button>
               <button
                 type="submit"
                 className="px-5 py-2 bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white font-semibold rounded-lg transition-colors cursor-pointer"
               >
-                Отправить отклик
+                {t('contact.submit')}
               </button>
             </div>
           </form>
