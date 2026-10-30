@@ -290,7 +290,7 @@ paths:
 
           <div className="space-y-2">
             <div className="flex items-center justify-between text-[11px] font-semibold text-[var(--muted)]">
-              <span>Прямой HTTP MCP Endpoint:</span>
+              <span>Прямой HTTP MCP Endpoint (Streamable HTTP):</span>
               <button
                 type="button"
                 onClick={() => copyToClipboard(mcpEndpoint, 'mcpEndpoint')}
@@ -301,6 +301,13 @@ paths:
             </div>
             <div className="p-3 bg-[var(--canvas)] border border-[var(--line)] rounded-xl font-mono text-xs text-sky-600 dark:text-sky-400 font-bold">
               {mcpEndpoint}
+            </div>
+            <div className="text-[11px] text-[var(--muted)] leading-relaxed">
+              💡 <em>Для плагинов и клиентов с форматом SSE также поддерживается эндпоинт:</em>{' '}
+              <code className="text-sky-600 dark:text-sky-400">{`${serverUrl}/sse`}</code>
+            </div>
+            <div className="p-2.5 bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 rounded-lg text-[11px] text-[var(--ink)] leading-relaxed">
+              <strong>Аутентификация (Bearer Token):</strong> Метод рукопожатия <code>initialize</code> и получение списка инструментов <code>tools/list</code> работают <strong>без токена</strong>. Для вызова инструментов (<code>tools/call</code>) передавайте заголовок <code>Authorization: Bearer &lt;ваш_ключ&gt;</code> (нажмите 🔑 в шапке сайта для копирования).
             </div>
           </div>
 
