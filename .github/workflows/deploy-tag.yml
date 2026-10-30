@@ -74,11 +74,38 @@ jobs:
             mkdir -p ./data/uploads ./data/thumbnails
             run_sudo chown -R 1000:1000 ./data || true
 
+            # Check if ports 80/443 are already in use by host Caddy/Nginx
+            HOST_WEB_ACTIVE=false
+            OUR_CADDY_RUNNING=false
+            if docker ps --format '{{.Names}}' 2>/dev/null | grep -q 'mcp_rooms_caddy'; then
+              OUR_CADDY_RUNNING=true
+            fi
+
+            if [ "$OUR_CADDY_RUNNING" = "false" ]; then
+              if ss -tlpn 2>/dev/null | grep -E ':(80|443)\b' &>/dev/null; then
+                HOST_WEB_ACTIVE=true
+              elif netstat -tlpn 2>/dev/null | grep -E ':(80|443)\b' &>/dev/null; then
+                HOST_WEB_ACTIVE=true
+              elif lsof -i :80 -sTCP:LISTEN &>/dev/null 2>&1 || lsof -i :443 -sTCP:LISTEN &>/dev/null 2>&1; then
+                HOST_WEB_ACTIVE=true
+              fi
+            fi
+
+            if [ "$HOST_WEB_ACTIVE" = "true" ]; then
+              echo "⚠️ Обнаружен работающий веб-сервер на портах 80/443 (хостовый Caddy/Nginx)!"
+              echo "ℹ️ Запускаем docker-compose.yml (только сервис mcp-rooms на 127.0.0.1:3000 во избежание конфликта)"
+              COMPOSE_FILE="docker-compose.yml"
+            else
+              echo "✅ Порты 80 и 443 свободны."
+              echo "ℹ️ Запускаем автономный стек со встроенным Caddy (docker-compose.prod.yml)"
+              COMPOSE_FILE="docker-compose.prod.yml"
+            fi
+
             # 7. Build and run production Docker containers
             if docker compose version &>/dev/null; then
-              docker compose -f docker-compose.prod.yml up -d --build
+              docker compose -f "$COMPOSE_FILE" up -d --build
             else
-              run_sudo docker compose -f docker-compose.prod.yml up -d --build
+              run_sudo docker compose -f "$COMPOSE_FILE" up -d --build
             fi
 
             echo "✅ Auto-provisioning & deployment successful!"
