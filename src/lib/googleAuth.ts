@@ -15,7 +15,8 @@ const STORAGE_KEY_CLIENT_ID = 'mcp_google_client_id';
 
 // Default / fallback Client ID (can be overridden by environment or UI settings)
 export const DEFAULT_GOOGLE_CLIENT_ID =
-  (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '';
+  (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID ||
+  '152270310048-pjss5aeomr5q1a5qd1ugdd2eme0fmmka.apps.googleusercontent.com';
 
 export function getStoredGoogleClientId(): string {
   if (typeof window === 'undefined') return DEFAULT_GOOGLE_CLIENT_ID;
