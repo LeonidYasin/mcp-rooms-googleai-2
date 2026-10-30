@@ -44,6 +44,7 @@ import {
   securityHeaders,
 } from './server/http-guard';
 import { configuredModel, llmStatus, recordLlmFailure, resolveLlmClient, callGeminiWithOAuth } from './server/llm';
+import { executeOpenAiChatWithMcp } from './server/llm-openai';
 import { logger } from './server/logger';
 
 const app = express();
@@ -272,7 +273,25 @@ app.get('/api/embedding/status', (_req, res) => {
 // next /api/chat call would attempt a model call, and why not if it would not.
 // There is no invented default model id — see GEMINI_MODEL in .env.example.
 app.get('/api/llm/status', (_req, res) => {
-  res.json(llmStatus());
+  const gemini = llmStatus();
+  const openRouterKey = (process.env.OPENROUTER_API_KEY || '').trim();
+  const openRouterModel = (process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat:free').trim();
+
+  const isServerConfigured = Boolean(openRouterKey || gemini.configured);
+  const serverProvider = openRouterKey ? 'openrouter' : gemini.configured ? 'gemini' : null;
+  const serverModel = openRouterKey ? openRouterModel : gemini.model;
+
+  res.json({
+    ...gemini,
+    configured: isServerConfigured,
+    serverProvider,
+    model: serverModel,
+    degradedReason: isServerConfigured ? null : gemini.degradedReason,
+    supportedProviders: ['openrouter', 'gemini', 'deepseek', 'openai', 'custom'],
+    freeModelRecommendation: 'deepseek/deepseek-chat:free',
+    hasOpenRouter: Boolean(openRouterKey),
+    hasGemini: gemini.configured,
+  });
 });
 
 app.get('/api/health', (_req, res) => {
@@ -837,8 +856,15 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
 
   const userPrompt = messages[messages.length - 1]?.content || '';
   const promptLower = userPrompt.toLowerCase();
+  
+  // Multi-provider inputs from headers or body
+  const customProvider = ((req.headers['x-llm-provider'] as string) || req.body?.llmProvider || '').toLowerCase();
+  const customApiKey = (req.headers['x-llm-api-key'] as string) || req.body?.llmApiKey;
+  const customModel = (req.headers['x-llm-model'] as string) || req.body?.llmModel;
+  const customBaseUrl = (req.headers['x-llm-base-url'] as string) || req.body?.llmBaseUrl;
+
+  const userGeminiApiKey = (req.headers['x-gemini-api-key'] as string) || req.body?.geminiApiKey || (customProvider === 'gemini' ? customApiKey : undefined);
   const googleAccessToken = (req.headers['x-google-access-token'] as string) || req.body?.googleAccessToken;
-  const userGeminiApiKey = (req.headers['x-gemini-api-key'] as string) || req.body?.geminiApiKey;
   let llmDegradedReason: string | null = null;
 
   const systemInstruction = `Ты — персональный ИИ-ассистент («Агент-Ангел») площадки объявлений, идей и совместных проектов «Хочу · Предлагаю» (MCP Rooms).
@@ -867,7 +893,52 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
     }
   }
 
-  // 1. Priority: If user provided their own Gemini API key or server has LLM configured, call via GoogleGenAI SDK
+  // 1. Priority: Multi-Provider LLM (OpenRouter, DeepSeek, OpenAI, Groq, custom)
+  // Check if user provided an OpenAI-compatible key OR server has OPENROUTER_API_KEY
+  const serverOpenRouterKey = (process.env.OPENROUTER_API_KEY || '').trim();
+  const serverOpenRouterModel = (process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat:free').trim();
+
+  const isGeminiExplicit = customProvider === 'gemini' || Boolean(userGeminiApiKey);
+  const openAiApiKey = !isGeminiExplicit
+    ? (customApiKey || (!configuredModel() && !process.env.GEMINI_API_KEY ? serverOpenRouterKey : '')).trim()
+    : '';
+
+  if (openAiApiKey) {
+    const effectiveProvider = customProvider || (openAiApiKey.startsWith('sk-or-') ? 'openrouter' : openAiApiKey.includes('deepseek') ? 'deepseek' : 'openrouter');
+    const effectiveModel = customModel || (effectiveProvider === 'openrouter' ? serverOpenRouterModel : 'gpt-4o-mini');
+
+    try {
+      const openAiChatResult = await executeOpenAiChatWithMcp({
+        apiKey: openAiApiKey,
+        baseUrl: customBaseUrl,
+        model: effectiveModel,
+        messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
+        systemInstruction,
+        providerName: effectiveProvider,
+        principalId,
+        executeTool: executeMcpToolCall,
+      });
+
+      res.json({
+        text: openAiChatResult.text || 'Действие успешно выполнено через протокол MCP.',
+        model: openAiChatResult.model,
+        degraded: false,
+        authType: effectiveProvider,
+        executedTools: openAiChatResult.executedTools,
+        negotiation: openAiChatResult.negotiationResult,
+        createdListing: openAiChatResult.createdListingResult,
+      });
+      return;
+    } catch (openAiErr: any) {
+      logger.warn('OpenAI-compatible LLM call failed, falling back to Gemini/rules', {
+        error: openAiErr.message,
+        status: openAiErr.status,
+      });
+      llmDegradedReason = openAiErr.status === 401 ? 'invalid_api_key' : 'model_error';
+    }
+  }
+
+  // 2. Google Gemini: user-provided Gemini API key or server-configured Gemini
   const effectiveModel = configuredModel() || (userGeminiApiKey ? 'gemini-1.5-flash' : '');
   const llm = resolveLlmClient(userGeminiApiKey);
 

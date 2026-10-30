@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Listing, McpRoom, McpMessage } from '../types';
 import { callMcpTool, listMcpTools, McpToolInfo } from '../lib/mcpClient';
 import { getStoredApiKey } from '../lib/api';
+import { McpIntegrationGuide } from './McpIntegrationGuide';
 
 interface McpConsoleProps {
   listings: Listing[];
@@ -30,6 +31,7 @@ export const McpConsole: React.FC<McpConsoleProps> = ({
   const [selectedRoomId, setSelectedRoomId] = useState<string>(rooms[0]?.id || '');
   const [newMessageText, setNewMessageText] = useState('');
   const [activeRole, setActiveRole] = useState<'human' | 'agent'>('agent');
+  const [activeSection, setActiveSection] = useState<'guide' | 'tools'>('guide');
 
   const [tools, setTools] = useState<McpToolInfo[]>([]);
   const [toolsError, setToolsError] = useState<string | null>(null);
@@ -200,9 +202,38 @@ export const McpConsole: React.FC<McpConsoleProps> = ({
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Left Column: Room Conversation */}
-        <div className="border border-[var(--line)] rounded-2xl bg-[var(--canvas)] flex flex-col h-[650px] shadow-xs">
+      {/* Section Switcher */}
+      <div className="flex flex-wrap gap-2 border-b border-[var(--line)] pb-3 text-xs font-semibold">
+        <button
+          type="button"
+          onClick={() => setActiveSection('guide')}
+          className={`px-4 py-2 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 ${
+            activeSection === 'guide'
+              ? 'bg-[var(--blue)] text-white shadow-xs font-bold'
+              : 'bg-[var(--surface)] hover:bg-[var(--raised)] text-[var(--ink)] border border-[var(--line)]'
+          }`}
+        >
+          <span>🔌 Подключение внешних ИИ (Claude, Cursor, ChatGPT, Python)</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSection('tools')}
+          className={`px-4 py-2 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 ${
+            activeSection === 'tools'
+              ? 'bg-[var(--blue)] text-white shadow-xs font-bold'
+              : 'bg-[var(--surface)] hover:bg-[var(--raised)] text-[var(--ink)] border border-[var(--line)]'
+          }`}
+        >
+          <span>🛠️ Интерактивная отладка инструментов MCP ({tools.length})</span>
+        </button>
+      </div>
+
+      {activeSection === 'guide' ? (
+        <McpIntegrationGuide />
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Left Column: Room Conversation */}
+          <div className="border border-[var(--line)] rounded-2xl bg-[var(--canvas)] flex flex-col h-[650px] shadow-xs">
           <div className="p-4 border-b border-[var(--line)] bg-[var(--surface)] rounded-t-2xl flex items-center justify-between">
             <div>
               <h2 className="text-base font-bold text-[var(--ink)]">
@@ -410,6 +441,7 @@ export const McpConsole: React.FC<McpConsoleProps> = ({
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 };
