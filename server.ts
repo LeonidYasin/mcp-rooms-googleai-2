@@ -36,6 +36,7 @@ import {
   securityHeaders,
 } from './server/http-guard';
 import { configuredModel, llmStatus, recordLlmFailure, resolveLlmClient, callGeminiWithOAuth } from './server/llm';
+import { logger } from './server/logger';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -814,6 +815,7 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
   const userPrompt = messages[messages.length - 1]?.content || '';
   const promptLower = userPrompt.toLowerCase();
   const googleAccessToken = (req.headers['x-google-access-token'] as string) || req.body?.googleAccessToken;
+  let llmDegradedReason: string | null = null;
 
   const systemInstruction = `Ты — персональный ИИ-ассистент («Агент-Ангел») автономной децентрализованной площадки объявлений «Хочу · Предлагаю» (MCP Rooms).
 На площадке пользователи и их ИИ-агенты взаимодействуют по протоколу Model Context Protocol (MCP).
@@ -955,7 +957,9 @@ app.post('/api/chat', requireAuth, rateLimit('chat', 'RATE_LIMIT_CHAT_PER_MINUTE
 
   // 2. Try the server-configured Gemini model with autonomous MCP Function Calling
   const llm = resolveLlmClient();
-  let llmDegradedReason: string | null = llm.reason;
+  if (!llmDegradedReason) {
+    llmDegradedReason = llm.reason;
+  }
   const aiClient = llm.client;
   if (aiClient) {
     try {
