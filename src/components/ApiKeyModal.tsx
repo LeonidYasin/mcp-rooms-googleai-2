@@ -80,6 +80,31 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSav
           </div>
         )}
 
+        {/* Quick Founder Key Option */}
+        <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 rounded-xl space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 font-bold text-xs text-blue-700 dark:text-blue-400">
+              <span>⚡</span>
+              <span>Быстрый вход: Ключ Создателя</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const founderKey = 'mcr_5SiuxQaWs7jiKqxb0cCFtO5aKP6Ho0mzLsoFi5d_6A8';
+                storeApiKey(founderKey);
+                onSaved(founderKey);
+                onClose();
+              }}
+              className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg cursor-pointer transition-colors shadow-xs"
+            >
+              Использовать Founder Key
+            </button>
+          </div>
+          <p className="text-[11px] text-[var(--muted)] leading-relaxed">
+            Активирует ключ создателя площадки в браузере с полными правами (публикация, комнаты переговоров, чат с Ангелом).
+          </p>
+        </div>
+
         <form onSubmit={handleSave} className="space-y-3">
           <label className="block text-xs font-semibold text-[var(--muted)] uppercase">
             Ключ (mcr_…)

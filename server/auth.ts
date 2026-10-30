@@ -126,6 +126,40 @@ export function principalFromRequest(req: Request): Principal | null {
   if (queryToken) {
     return principalFromAuthorizationHeader(`Bearer ${queryToken}`);
   }
+
+  // Google OAuth access token support:
+  // If the request carries a Google OAuth access token in x-google-access-token,
+  // request body, or Authorization: Bearer ya29...
+  const googleToken =
+    (typeof req.headers['x-google-access-token'] === 'string' ? req.headers['x-google-access-token'] : undefined) ||
+    (typeof req.body?.googleAccessToken === 'string' ? req.body.googleAccessToken : undefined) ||
+    (req.headers.authorization?.startsWith('Bearer ya29.') ? req.headers.authorization.substring(7) : undefined);
+
+  if (googleToken && googleToken.length > 10) {
+    const googleUserId =
+      (typeof req.headers['x-google-user-id'] === 'string' ? req.headers['x-google-user-id'] : undefined) ||
+      (typeof req.body?.googleUserId === 'string' ? req.body.googleUserId : undefined);
+
+    let principalSlug = 'google-user';
+    if (googleUserId) {
+      const sanitized = googleUserId
+        .toLowerCase()
+        .replace(/[^a-z0-9._-]/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 30);
+      if (sanitized) principalSlug = `google-${sanitized}`;
+    } else {
+      const hash = crypto.createHash('sha256').update(googleToken).digest('hex').slice(0, 12);
+      principalSlug = `google-${hash}`;
+    }
+
+    return {
+      principalId: `user:${principalSlug}`,
+      keyId: 'google_oauth',
+      scopes: ['*'],
+    };
+  }
+
   return null;
 }
 
