@@ -36,9 +36,10 @@ describe('Google OAuth 2.0 Gemini Chat Integration', () => {
   it('handles expired/invalid Google OAuth token gracefully without server error', async () => {
     const res = await fetch(`${baseUrl}/api/chat`, {
       method: 'POST',
-      headers: authJson(apiKey, {
+      headers: {
+        ...authJson(apiKey),
         'x-google-access-token': 'ya29.invalid-mock-token-for-testing',
-      }),
+      },
       body: JSON.stringify({
         messages: [{ role: 'user', content: 'Привет! Расскажи о возможностях платформы' }],
       }),
