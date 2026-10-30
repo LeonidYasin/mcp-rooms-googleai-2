@@ -13,12 +13,14 @@ interface GoogleAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAuthSuccess?: (token: string, user?: GoogleUserProfile) => void;
+  onUseFounderKey?: () => void;
 }
 
 export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
   isOpen,
   onClose,
   onAuthSuccess,
+  onUseFounderKey,
 }) => {
   const [clientId, setClientId] = useState('');
   const [user, setUser] = useState<GoogleUserProfile | null>(null);
@@ -132,10 +134,39 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
                 className="w-full px-3 py-2 text-sm bg-[var(--surface)] border border-[var(--line)] rounded-lg text-[var(--ink)] focus:outline-none focus:border-[var(--tint)]"
               />
               <p className="text-xs text-[var(--muted)] mt-1.5 leading-relaxed">
-                В настройках Client ID добавьте в Authorized JavaScript origins ваш домен:{' '}
+                Получить Client ID можно в{' '}
+                <a
+                  href="https://console.cloud.google.com/apis/credentials"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-500 hover:underline font-medium"
+                >
+                  Google Cloud Console Credentials ↗
+                </a>
+                . В настройках Client ID добавьте в Authorized JavaScript origins ваш домен:{' '}
                 <code className="text-xs text-sky-400">https://leonid-mcp.duckdns.org</code>
               </p>
             </div>
+
+            {onUseFounderKey && (
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 rounded-xl flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-blue-700 dark:text-blue-400">
+                    ⚡ Нет Google Client ID?
+                  </p>
+                  <p className="text-[11px] text-[var(--muted)]">
+                    Войдите мгновенно по ключу создателя площадки
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={onUseFounderKey}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg cursor-pointer transition shadow-xs whitespace-nowrap"
+                >
+                  Использовать Founder Key
+                </button>
+              </div>
+            )}
 
             {error && (
               <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-xs text-red-400">
