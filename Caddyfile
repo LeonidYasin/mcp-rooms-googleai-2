@@ -1,31 +1,34 @@
 # Caddy Production Reverse Proxy Configuration for MCP Rooms Marketplace
 # Handles Automatic HTTPS/TLS, SSE Stream Header Preservation, Compression & Rate Limit Pass-Through
 
-{$DOMAIN_NAME:localhost} {
-    # Encoding compression for static SPA and JSON API
-    encode zstd gzip
+{
+	email {$LETSENCRYPT_EMAIL:admin@example.com}
+	admin off
+}
 
-    # Security Headers
-    header {
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "DENY"
-        Referrer-Policy "no-referrer"
-        Permissions-Policy "camera=(), geolocation=(), microphone=()"
-        -Server
-    }
+{$DOMAIN:localhost} {
+	# Encoding compression for static SPA and JSON API
+	encode zstd gzip
 
-    # Disable buffering for Server-Sent Events (SSE) streams
-    @sse path /api/rooms/*/stream
-    header @sse {
-        X-Accel-Buffering "no"
-        Cache-Control "no-cache, no-transform"
-    }
+	# Security Headers
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), geolocation=(), microphone=()"
+		-Server
+	}
 
-    # Pass client real IP to Node.js backend
-    reverse_proxy 127.0.0.1:3000 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-    }
+	# Disable buffering for Server-Sent Events (SSE) streaming endpoints
+	@sse path /api/rooms/*/stream
+	handle @sse {
+		reverse_proxy mcp-rooms:3000 {
+			flush_interval -1
+		}
+	}
+
+	# Reverse proxy all standard API and static app traffic
+	handle {
+		reverse_proxy mcp-rooms:3000
+	}
 }

@@ -245,4 +245,29 @@ describe('Listings publication lifecycle: draft -> preview -> publish -> withdra
     expect(withdrawResult.success).toBe(true);
     expect(withdrawResult.status).toBe('archived');
   });
+
+  it('accepts nested content format from frontend PublishModal', async () => {
+    const res = await fetch(`${baseUrl}/api/listings`, {
+      method: 'POST',
+      headers: authJson(ownerKey),
+      body: JSON.stringify({
+        author_name: 'Frontend User',
+        content: {
+          title: 'Объявление из UI формы',
+          description: 'Подробное описание из PublishModal с вложенным объектом content.',
+          category: 'services',
+          kind: 'request',
+          locality: 'Казань',
+          price_minor: 500000,
+          modes: ['online'],
+        },
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const created = await res.json();
+    expect(created.content.title).toBe('Объявление из UI формы');
+    expect(created.content.price_minor).toBe(500000);
+    expect(created.content.category).toBe('services');
+  });
 });

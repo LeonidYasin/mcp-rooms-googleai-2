@@ -1,9 +1,13 @@
+# Caddy Production Reverse Proxy Configuration for MCP Rooms Marketplace
+# Handles Automatic HTTPS/TLS, SSE Stream Header Preservation, Compression & Rate Limit Pass-Through
+
 {
 	email {$LETSENCRYPT_EMAIL:admin@example.com}
 	admin off
 }
 
 {$DOMAIN:mcp-rooms.example.com} {
+	# Encoding compression for static SPA and JSON API
 	encode zstd gzip
 
 	# Security headers

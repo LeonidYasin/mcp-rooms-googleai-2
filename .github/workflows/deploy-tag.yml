@@ -4,13 +4,12 @@ on:
   push:
     tags:
       - 'v*'
-    branches:
-      - main
 
 jobs:
   deploy:
     name: Auto-Provision & Deploy to VPS on Git Tag
     runs-on: ubuntu-latest
+    if: ${{ secrets.VPS_HOST != '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -22,6 +21,7 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           password: ${{ secrets.VPS_PASSWORD }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          passphrase: ${{ secrets.VPS_PASSPHRASE }}
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
             set -e
@@ -46,10 +46,9 @@ jobs:
             # 4. Clone or update repository to latest code/tag
             if [ ! -d ".git" ]; then
               git clone https://github.com/LeonidYasin/mcp-rooms-googleai-2.git .
-            else
-              git fetch --all --tags
-              git reset --hard origin/main || git checkout tags/${{ github.ref_name }}
             fi
+            git fetch --all --tags
+            git checkout -f "tags/${{ github.ref_name }}" || git checkout -f "${{ github.ref_name }}"
 
             # 5. Bootstrap default .env if missing
             if [ ! -f ".env" ]; then
@@ -57,9 +56,9 @@ jobs:
               echo "DOMAIN=${{ secrets.VPS_HOST }}" >> .env
             fi
 
-            # 6. Ensure persistent database and upload directories
-            mkdir -p ./data ./uploads/thumbnails
-            sudo chown -R 1000:1000 ./data ./uploads || true
+            # 6. Ensure persistent database and upload directories with non-root UID 1000
+            mkdir -p ./data/uploads ./data/thumbnails
+            sudo chown -R 1000:1000 ./data || true
 
             # 7. Build and run production Docker containers
             docker compose -f docker-compose.prod.yml up -d --build
