@@ -108,4 +108,23 @@ jobs:
               run_sudo docker compose -f "$COMPOSE_FILE" up -d --build
             fi
 
+            echo "⏳ Waiting for containers to become healthy..."
+            sleep 10
+
+            echo "🔍 Probing application health endpoint..."
+            for i in $(seq 1 12); do
+              if curl -sSf http://127.0.0.1:3000/api/health >/dev/null 2>&1; then
+                echo "✅ mcp-rooms is healthy and responding on http://127.0.0.1:3000/api/health!"
+                break
+              fi
+              echo "Waiting for app to start ($i/12)..."
+              sleep 5
+            done
+
+            echo "=== FINAL RUNTIME STATUS ==="
+            docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            echo "--- Health API Response ---"
+            curl -sS http://127.0.0.1:3000/api/health || true
+            echo ""
+
             echo "✅ Auto-provisioning & deployment successful!"
