@@ -437,8 +437,8 @@ export const ListingDetail: React.FC<ListingDetailProps> = ({
 
       {/* Simple Photo Upload Modal */}
       {showPhotoUploadModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-[var(--canvas)] border border-[var(--line)] rounded-xl max-w-md w-full p-6 shadow-xl">
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+          <div className="bg-[var(--canvas)] border border-[var(--line)] rounded-xl max-w-md w-full p-6 shadow-xl my-auto max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-[var(--ink)] mb-2">
               Прикрепить фотографию
             </h3>
