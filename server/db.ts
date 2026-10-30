@@ -64,9 +64,6 @@ export function initDatabase() {
       FOREIGN KEY(listing_id) REFERENCES listings(id) ON DELETE SET NULL
     );
 
-    CREATE INDEX IF NOT EXISTS idx_rooms_visibility ON rooms(visibility);
-    CREATE INDEX IF NOT EXISTS idx_rooms_category ON rooms(category);
-
     CREATE TABLE IF NOT EXISTS messages (
       id TEXT PRIMARY KEY,
       room_id TEXT NOT NULL,
@@ -209,6 +206,8 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     if (!roomColNames.includes('category')) {
       db.exec(`ALTER TABLE rooms ADD COLUMN category TEXT;`);
     }
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_rooms_visibility ON rooms(visibility);`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_rooms_category ON rooms(category);`);
   } catch {
     // Column already exists or table freshly initialized
   }
