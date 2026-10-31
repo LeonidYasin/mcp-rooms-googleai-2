@@ -64,22 +64,25 @@ interface DemoScript {
   demoTerms: Omit<NegotiationDemoTerms, 'note'>;
 }
 
-function buildDemoScript(bestMatch: any): DemoScript {
-  const category = bestMatch.content.category;
-  const price = bestMatch.content.price_minor
+function buildDemoScript(bestMatch: any, userGoal: string = ''): DemoScript {
+  const category = bestMatch.content?.category || 'services';
+  const title = bestMatch.content?.title || 'Услуга / предложение';
+  const price = bestMatch.content?.price_minor
     ? `${bestMatch.content.price_minor / 100} ₽`
-    : 'По договорённости';
+    : (bestMatch.content?.price ? String(bestMatch.content.price) : 'По договорённости');
+  const goalClean = userGoal.trim() ? userGoal.trim() : `Согласование условий по «${title}»`;
+  const locality = bestMatch.content?.location || bestMatch.locality || 'Удалённо / онлайн';
 
   if (category === 'business') {
     return {
-      angelMessage1: `Здравствуйте! Мой доверитель заинтересован в партнёрстве по проекту «${bestMatch.content.title}». Можем ли мы уточнить текущие метрики и стадию переговоров с инвесторами?`,
-      counterpartResponse1: `Приветствую! Мы развиваем B2B-интеграции и открыты к сотрудничеству. Предлагаем зафиксировать формат 20-минутного звонка для демонстрации MVP.`,
-      angelMessage2: `Подтверждаем интерес. Предлагаем четверг 16:00 для звонка.`,
-      counterpartResponse2: `Договорились, время внесено в пример протокола.`,
+      angelMessage1: `Здравствуйте! Мой доверитель заинтересован в партнёрстве по проекту «${title}». Цель: ${goalClean}. Можем ли мы уточнить условия сотрудничества и формат взаимодействия?`,
+      counterpartResponse1: `Приветствую! Мы открыты к сотрудничеству по проекту «${title}». Предлагаем зафиксировать формат звонка для обсуждения деталей.`,
+      angelMessage2: `Подтверждаем интерес. Предлагаем согласовать удобное время для онлайн-встречи.`,
+      counterpartResponse2: `Договорились, предложение внесено в пример протокола.`,
       demoTerms: {
-        topic: 'Предварительное согласование встречи по кофаундерству',
-        price: 'Equity / доля обсуждается при демонстрации MVP',
-        schedule: 'Четверг, 16:00 (пример)',
+        topic: `Партнёрство / сотрудничество: ${title}`,
+        price: price !== 'По договорённости' ? price : 'Обсуждается при согласовании условий',
+        schedule: 'По согласованию сторон (онлайн)',
         locationProtocol: 'Онлайн',
       },
     };
@@ -87,61 +90,59 @@ function buildDemoScript(bestMatch: any): DemoScript {
 
   if (category === 'jobs') {
     return {
-      angelMessage1: `Добрый день! Мой пользователь ищет позицию по объявлению «${bestMatch.content.title}». Уточните, актуален ли удалённый формат и вилка 320 000 ₽?`,
-      counterpartResponse1: `Здравствуйте! Позиция открыта, удалёнка доступна, вилка от 320 000 ₽ обсуждаема. Готовы провести 30-минутный скрининг.`,
-      angelMessage2: `Условия подходят. Предлагаем первичный скрининг на пятницу 14:00.`,
+      angelMessage1: `Добрый день! Мой пользователь откликается по объявлению «${title}». Цель: ${goalClean}. Уточните, актуальны ли условия (${price}) и возможность обсуждения?`,
+      counterpartResponse1: `Здравствуйте! Вакансия «${title}» открыта, условия (${price}) обсуждаемы. Готовы провести первичное собеседование / скрининг.`,
+      angelMessage2: `Условия подходят. Предлагаем зафиксировать предварительное время для скрининга.`,
       counterpartResponse2: `Слот зарезервирован в примере расписания.`,
       demoTerms: {
-        topic: 'Скрининг на позицию Senior Backend Engineer',
-        price: '320 000 ₽ / месяц на руки (пример)',
-        schedule: 'Пятница, 14:00 (пример)',
-        locationProtocol: 'Удалённо',
+        topic: `Отклик на позицию: ${title}`,
+        price: price !== 'По договорённости' ? `${price}` : 'По договорённости',
+        schedule: 'По согласованию сторон (пример)',
+        locationProtocol: locality.toLowerCase().includes('онлайн') || locality.toLowerCase().includes('удал') ? 'Удалённо' : locality,
       },
     };
   }
 
   if (category === 'services') {
     return {
-      angelMessage1: `Приветствую! Пользователю необходим качественный ремонт санузла. Возможен ли выезд на замер и фиксация сметы до 40 000 ₽?`,
-      counterpartResponse1: `Добрый день! Замер бесплатный при заключении договора, смета составляется до начала работ. Мастер свободен в субботу в 11:00.`,
-      angelMessage2: `Суббота 11:00 устраивает. Точный адрес передадим после подтверждения.`,
-      counterpartResponse2: `Выезд внесён в пример графика.`,
+      angelMessage1: `Приветствую! Пользователю необходима услуга «${title}». Цель: ${goalClean}. Возможна ли фиксация условий и стоимости на уровне ${price}?`,
+      counterpartResponse1: `Добрый день! Услуга «${title}» актуальна, стоимость (${price}) подтверждаем. Готовы согласовать детали выполнения и сроки.`,
+      angelMessage2: `Условия устраивают. Предлагаем зафиксировать договоренности и перейти к согласованию ТЗ.`,
+      counterpartResponse2: `Условия внесены в пример графика и протокола.`,
       demoTerms: {
-        topic: 'Выезд на замер и согласование сметы ремонта',
-        price: 'Ориентир ~35 000 – 40 000 ₽ по смете (пример)',
-        schedule: 'Суббота, 11:00 (пример)',
-        locationProtocol: 'Выезд по городу; точный адрес не публикуется',
+        topic: `Оказание услуги: ${title} (${goalClean})`,
+        price: price !== 'По договорённости' ? `Ориентир ~${price}` : 'По договорённости',
+        schedule: 'В ближайшие согласованные сроки (пример)',
+        locationProtocol: locality.toLowerCase().includes('онлайн') || locality.toLowerCase().includes('удал') ? 'Удалённо / онлайн' : locality,
       },
     };
   }
 
   if (category === 'real_estate') {
     return {
-      angelMessage1: `Здравствуйте! Мой доверитель заинтересован в объекте «${bestMatch.content.title}». Подтвердите, пожалуйста, актуальность условий и удобное время для осмотра.`,
-      counterpartResponse1: `Приветствую! Объект доступен, условия соответствуют карточке. Готовы организовать просмотр завтра в 18:30.`,
-      angelMessage2: `Время 18:30 подходит. Контакты и точные координаты передадим после подтверждения.`,
+      angelMessage1: `Здравствуйте! Мой доверитель заинтересован в объекте «${title}». Цель: ${goalClean}. Подтвердите, пожалуйста, актуальность условий (${price}) и удобное время для осмотра.`,
+      counterpartResponse1: `Приветствую! Объект «${title}» доступен, условия (${price}) соответствуют карточке. Готовы организовать просмотр в ближайшее удобное время.`,
+      angelMessage2: `Время подходит. Контакты и точные координаты согласуем после подтверждения.`,
       counterpartResponse2: `Слот просмотра внесён в пример расписания.`,
       demoTerms: {
-        topic: `Осмотр и согласование аренды: ${bestMatch.content.title}`,
-        price: bestMatch.content.price_minor
-          ? `${bestMatch.content.price_minor / 100} ₽/мес`
-          : 'По договорённости',
-        schedule: 'Завтра, 18:30 (пример)',
-        locationProtocol: 'Личный осмотр объекта; точный адрес не публикуется',
+        topic: `Осмотр и согласование: ${title}`,
+        price: price !== 'По договорённости' ? `${price}` : 'По договорённости',
+        schedule: 'В согласованное сторонами время (пример)',
+        locationProtocol: locality || 'Личный осмотр объекта; точный адрес не публикуется',
       },
     };
   }
 
   if (category === 'communities') {
     return {
-      angelMessage1: `Приветствую! Мой пользователь хочет присоединиться к инициативе «${bestMatch.content.title}». Каковы регламент и ближайшая координационная сессия?`,
-      counterpartResponse1: `Здравствуйте! Ближайшая онлайн-сессия состоится в среду в 19:00, повестка формируется совместно.`,
-      angelMessage2: `Подтверждаем участие в онлайн-сессии в среду 19:00.`,
+      angelMessage1: `Приветствую! Мой пользователь хочет присоединиться к инициативе «${title}». Цель: ${goalClean}. Каковы регламент и ближайшая координационная сессия?`,
+      counterpartResponse1: `Здравствуйте! Будем рады видеть в инициативе «${title}». Ближайшая онлайн-сессия планируется в ближайшие дни, повестка формируется совместно.`,
+      angelMessage2: `Подтверждаем участие в онлайн-сессии.`,
       counterpartResponse2: `Участие внесено в пример повестки.`,
       demoTerms: {
-        topic: `Участие в сообществе: ${bestMatch.content.title}`,
-        price: 'Открытое участие',
-        schedule: 'Среда, 19:00 (онлайн, пример)',
+        topic: `Участие в сообществе: ${title}`,
+        price: price !== 'По договорённости' ? price : 'Открытое участие',
+        schedule: 'Ближайшая онлайн-сессия (пример)',
         locationProtocol: 'Онлайн',
       },
     };
@@ -149,29 +150,29 @@ function buildDemoScript(bestMatch: any): DemoScript {
 
   if (category === 'dating') {
     return {
-      angelMessage1: `Здравствуйте! Мой доверитель ищет компанию для активного отдыха. Планируется ли веловыезд или поход на этих выходных?`,
-      counterpartResponse1: `Привет! Да, в субботу собирается небольшая компания на велопрогулку. Встречаемся в публичном месте.`,
+      angelMessage1: `Здравствуйте! Мой доверитель заинтересован во встрече по предложению «${title}». Цель: ${goalClean}. Предлагаем встретиться в публичном месте.`,
+      counterpartResponse1: `Привет! Предложение «${title}» актуально. Встреча в публичном месте — отличная идея.`,
       angelMessage2: `Мой пользователь подтверждает участие. Первая встреча — в общественном месте.`,
-      counterpartResponse2: `Отлично, встреча в субботу в 12:00 в примере расписания.`,
+      counterpartResponse2: `Отлично, встреча зафиксирована в примере расписания.`,
       demoTerms: {
-        topic: 'Совместный веловыезд на выходных',
+        topic: `Встреча: ${title}`,
         price: 'Бесплатно / личные расходы',
-        schedule: 'Суббота, 12:00 (пример)',
+        schedule: 'Ближайшие выходные (пример)',
         locationProtocol: 'Публичное место',
       },
     };
   }
 
   return {
-    angelMessage1: `Здравствуйте! Нас заинтересовало объявление «${bestMatch.content.title}». Подтвердите, пожалуйста, актуальность цены и возможность самовывоза.`,
-    counterpartResponse1: `Здравствуйте! Товар в наличии, цена актуальна, самовывоз возможен.`,
+    angelMessage1: `Здравствуйте! Нас заинтересовало объявление «${title}». Цель: ${goalClean}. Подтвердите, пожалуйста, актуальность цены (${price}) и возможность передачи.`,
+    counterpartResponse1: `Здравствуйте! Товар «${title}» в наличии, цена ${price} актуальна, передача возможна.`,
     angelMessage2: `Условия принимаем. Предлагаем передачу в публичном месте с проверкой товара.`,
     counterpartResponse2: `Слот для встречи внесён в пример расписания.`,
     demoTerms: {
-      topic: `Приобретение: ${bestMatch.content.title}`,
+      topic: `Приобретение: ${title} (${goalClean})`,
       price,
       schedule: 'Ближайшие выходные по согласованию (пример)',
-      locationProtocol: 'Самовывоз в публичном месте города',
+      locationProtocol: locality || 'Самовывоз в публичном месте города',
     },
   };
 }
@@ -339,7 +340,7 @@ export async function runAutonomousNegotiation(
     };
   }
 
-  const script = buildDemoScript(bestMatch);
+  const script = buildDemoScript(bestMatch, userPrompt);
   const turn1Time = now + 400;
   const turn2Time = now + 900;
   const turn3Time = now + 1400;
