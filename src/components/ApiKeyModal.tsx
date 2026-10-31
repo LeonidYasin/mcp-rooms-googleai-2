@@ -132,10 +132,20 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSav
             </div>
 
             {/* Clear Bearer Token Explanation for external MCP connectors */}
-            <div className="p-3 bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-xl text-xs space-y-1">
-              <div className="font-bold text-blue-900 dark:text-blue-300 flex items-center gap-1.5">
-                <span>🔌</span>
-                <span>Для коннекторов Claude, Cursor, DeepSeek MCP Lite и др.:</span>
+            <div className="p-3 bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-xl text-xs space-y-2">
+              <div className="font-bold text-blue-900 dark:text-blue-300 flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5">
+                  <span>🔌</span>
+                  <span>Для коннекторов Claude, Cursor, DeepSeek MCP Lite и др.:</span>
+                </span>
+                <a
+                  href="/deepseek-mcp-lite.zip"
+                  download="deepseek-mcp-lite.zip"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white text-[10px] font-semibold rounded-md transition-colors shadow-2xs"
+                >
+                  <span>📥</span>
+                  <span>Скачать плагин (.zip)</span>
+                </a>
               </div>
               <p className="text-[11px] text-[var(--muted)] leading-relaxed">
                 Выданный ключ <code>mcr_...</code> — это и есть ваш <strong>Bearer токен</strong>. Если программа просит <em>«Bearer Token»</em> или <em>«API Key»</em>, вставляйте именно его. Если требуется заголовок вручную: <code>Authorization: Bearer &lt;ваш_ключ&gt;</code>.

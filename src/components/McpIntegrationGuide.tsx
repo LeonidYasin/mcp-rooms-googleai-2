@@ -9,7 +9,7 @@ export const McpIntegrationGuide: React.FC<McpIntegrationGuideProps> = ({
   serverUrl = typeof window !== 'undefined' ? window.location.origin : 'https://leonid-mcp.duckdns.org',
   onClose,
 }) => {
-  const [activeTab, setActiveTab] = useState<'claude' | 'cursor' | 'chatgpt' | 'scripts'>('claude');
+  const [activeTab, setActiveTab] = useState<'deepseek' | 'claude' | 'cursor' | 'chatgpt' | 'scripts'>('deepseek');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const mcpEndpoint = `${serverUrl}/mcp`;
@@ -279,6 +279,20 @@ paths:
       <div className="flex flex-wrap gap-2 text-xs border-b border-[var(--line)] pb-2">
         <button
           type="button"
+          onClick={() => setActiveTab('deepseek')}
+          className={`px-3.5 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
+            activeTab === 'deepseek'
+              ? 'bg-[var(--blue)] text-white shadow-xs font-bold'
+              : 'bg-[var(--canvas)] hover:bg-[var(--raised)] text-[var(--ink)] border border-[var(--line)]'
+          }`}
+        >
+          <span>🤖 DeepSeek MCP Lite (Chrome)</span>
+          <span className="text-[10px] bg-emerald-500/20 text-emerald-300 dark:text-emerald-300 border border-emerald-400/30 px-1.5 py-0.2 rounded font-bold">
+            .zip
+          </span>
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveTab('claude')}
           className={`px-3.5 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer ${
             activeTab === 'claude'
@@ -322,6 +336,64 @@ paths:
           🐍 Python / cURL / API
         </button>
       </div>
+
+      {/* Tab 0: DeepSeek MCP Lite */}
+      {activeTab === 'deepseek' && (
+        <div className="space-y-4 text-xs">
+          <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 border border-blue-200 dark:border-blue-900 rounded-xl space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="font-bold text-sm text-[var(--ink)] flex items-center gap-2">
+                  <span>🤖</span>
+                  <span>Плагин DeepSeek MCP Lite для Google Chrome / Яндекс Браузера</span>
+                </h4>
+                <p className="text-[11px] text-[var(--muted)] mt-0.5">
+                  Интегрирует инструменты нашей площадки (поиск, карточки, комнаты) напрямую в веб-интерфейс DeepSeek.
+                </p>
+              </div>
+
+              <a
+                href="/deepseek-mcp-lite.zip"
+                download="deepseek-mcp-lite.zip"
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white text-xs font-bold rounded-xl shadow-xs transition-colors shrink-0"
+              >
+                <span>📥</span>
+                <span>Скачать плагин (.zip, 79 КБ)</span>
+              </a>
+            </div>
+
+            <div className="p-3 bg-[var(--canvas)] border border-[var(--line)] rounded-lg space-y-2">
+              <div className="font-bold text-[var(--ink)] text-xs">
+                Быстрая установка за 1 минуту:
+              </div>
+              <ol className="list-decimal pl-4 space-y-1 text-[11px] text-[var(--muted)]">
+                <li>Скачайте и распакуйте архив <code className="text-[var(--ink)] font-bold">deepseek-mcp-lite.zip</code> на своём компьютере.</li>
+                <li>В браузере откройте страницу расширений: <code className="text-blue-600 dark:text-blue-400 select-all">chrome://extensions</code> (или меню ➔ Расширения).</li>
+                <li>В правом верхнем углу включите тумблер <strong>«Режим разработчика»</strong> (<em>Developer mode</em>).</li>
+                <li>Нажмите появившуюся кнопку <strong>«Загрузить распакованное расширение»</strong> (<em>Load unpacked</em>) и выберите распакованную папку.</li>
+              </ol>
+            </div>
+
+            <div className="p-3 bg-[var(--surface)] border border-[var(--line)] rounded-lg space-y-2">
+              <div className="font-bold text-[var(--ink)] text-xs">
+                Параметры для ввода в окне плагина:
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px]">
+                <div className="p-2 bg-[var(--canvas)] rounded border border-[var(--line)]">
+                  <span className="text-[var(--muted)] block">URL сервера (SSE / HTTP):</span>
+                  <code className="text-sky-600 dark:text-sky-400 font-bold select-all break-all">{`${serverUrl}/sse`}</code>
+                  <span className="text-[10px] text-[var(--muted)] block mt-0.5">или {mcpEndpoint}</span>
+                </div>
+                <div className="p-2 bg-[var(--canvas)] rounded border border-[var(--line)]">
+                  <span className="text-[var(--muted)] block">Bearer Token:</span>
+                  <code className="text-emerald-600 dark:text-emerald-400 font-bold break-all">mcr_... (скопируйте по кнопке 🔑 в шапке)</code>
+                  <span className="text-[10px] text-[var(--muted)] block mt-0.5">Рукопожатие initialize работает даже без токена</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tab 1: Claude Desktop */}
       {activeTab === 'claude' && (
