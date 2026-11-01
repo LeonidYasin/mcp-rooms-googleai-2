@@ -40,7 +40,16 @@ leonid-mcp.duckdns.org {
         }
     }
 
-    # 3. MCP Rooms: Server-Sent Events (SSE) streaming for real-time rooms
+    # 3. Python MCP Server (mcp-server: port 3001 prod, port 3002 test)
+    @mcp_python header X-API-Key "3ad107b7a086c60a02b7023ecc0dca705e1f2ba50a4e62a650ac500a702704d7"
+    handle @mcp_python {
+        handle_path /test/* {
+            reverse_proxy 127.0.0.1:3002
+        }
+        reverse_proxy 127.0.0.1:3001
+    }
+
+    # 4. MCP Rooms: Server-Sent Events (SSE) streaming for real-time rooms
     @sse path /api/rooms/*/stream
     handle @sse {
         reverse_proxy 127.0.0.1:3000 {
@@ -48,7 +57,7 @@ leonid-mcp.duckdns.org {
         }
     }
 
-    # 4. MCP Rooms: Web Storefront, React SPA, and MCP JSON-RPC protocol
+    # 5. MCP Rooms: Web Storefront, React SPA, and MCP JSON-RPC protocol
     handle {
         reverse_proxy 127.0.0.1:3000
     }
