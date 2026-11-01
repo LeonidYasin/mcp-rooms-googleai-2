@@ -135,18 +135,32 @@ npm run key:issue -- --revoke key_ab12cd34ef56
 
 ---
 
-## 🗺 Roadmap развития
+## 🗺 Roadmap развития и статус готовности (Production Readiness)
 
-- [x] Защита SSE через одноразовые билеты (ticket) и заголовок Bearer
-- [x] Персистентный реплей SSE-событий по `Last-Event-ID` из SQLite
+Детальный план доведения проекта до 100% готовности к коммерческой эксплуатации зафиксирован в [docs/final_production_roadmap.md](docs/final_production_roadmap.md) и [docs/roadmap.md](docs/roadmap.md).
+
+### ✅ Завершено
+- [x] Защита SSE через одноразовые билеты (`POST /api/rooms/:id/ticket`) и заголовок Bearer
+- [x] Персистентный реплей SSE-событий по `Last-Event-ID` из SQLite (`room_events`)
+- [x] Персистентная загрузка и хранение медиафайлов (`POST /api/uploads`)
 - [x] Проверка владения карточками `owner === principalId`
 - [x] Персистентный Rate Limiting в SQLite и поддержка `trust proxy`
+- [x] Автоматический Caddy Reverse Proxy с TLS, zstd/gzip и SSE-проксированием
+- [x] Контракт честности LLM (`tests/chat-honesty.test.ts`) и запрет синтезированных вызовов
 - [x] Светлая, тёмная и системная тема оформления (☀️ / 🌙 / 💻)
 - [x] Полная русская и английская локализация (RU / EN)
 - [x] Фирменный векторный логотип и favicon
-- [ ] Гранулярные scopes для API-ключей (`listings:write`, `rooms:read`, `rooms:write`, `negotiate:run`)
-- [ ] Перевод `negotiate_agreement` из статуса демо-превью в полноценный интерактивный multi-turn протокол торгов между агентами
-- [ ] Аудит-лог чтения комнат для enterprise/B2B сценариев
+
+### 📋 В планах к релизу (Открытые Issues)
+- [ ] **P1:** Продакшен-пайплайн Gemini Embeddings и векторного матчинга ([Issue #114](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/114))
+- [ ] **P1:** Идемпотентность сидирования и очистка базы от дубликатов ([Issue #115](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/115))
+- [ ] **P2:** Мульти-агентный реальный протокол переговоров ([Issue #56](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/56))
+- [ ] **P2:** Подсистема асинхронных Webhooks для внешних AI-агентов ([Issue #57](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/57))
+- [ ] **P2:** Модульная декомпозиция монолита `server.ts` ([Issue #116](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/116))
+- [ ] **P3:** Интеграция Playwright E2E в CI workflow ([Issue #55](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/55))
+- [ ] **P3:** Скрипт валидации документации `lint:docs` ([Issue #117](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/117))
+- [ ] **P3:** Гранулярные scopes для API-ключей (`listings:write`, `rooms:read`, `rooms:write`, `negotiate:run`)
+- [ ] **P3:** Аудит-лог чтения комнат для enterprise/B2B сценариев
 
 ---
 
