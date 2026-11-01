@@ -8,6 +8,12 @@ Start with:
 - [`../README.md`](../README.md) — feature list, API access rules, quick start.
 - [`../AGENTS.md`](../AGENTS.md) — owner constraints and the honesty rules for agents.
 
+## Strategy and Architecture
+
+- [`PRODUCT_STRATEGY.md`](PRODUCT_STRATEGY.md) — strategic product vision, agentic commerce fundamentals, hard problems, and GTM positioning.
+- [`agent_orchestration.md`](agent_orchestration.md) — protocol flow and actor roles.
+- [`session_coordination.md`](session_coordination.md) — rules of engagement between agents.
+
 ## Audit and plan
 
 - [`final_production_roadmap.md`](final_production_roadmap.md) — 100% production readiness roadmap and status tracking.
