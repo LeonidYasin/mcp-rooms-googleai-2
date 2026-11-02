@@ -19,6 +19,7 @@ interface HeaderProps {
   onLocalityChange: (loc: string) => void;
   hasApiKey: boolean;
   onOpenApiKey: () => void;
+  onOpenAbout: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -35,6 +36,7 @@ export const Header: React.FC<HeaderProps> = ({
   onLocalityChange,
   hasApiKey,
   onOpenApiKey,
+  onOpenAbout,
 }) => {
   const { t } = useI18n();
   const [categoriesOpen, setCategoriesOpen] = React.useState(false);
@@ -108,6 +110,14 @@ export const Header: React.FC<HeaderProps> = ({
             >
               {t('nav.principles')}
             </button>
+            <button
+              type="button"
+              onClick={onOpenAbout}
+              className="hover:underline cursor-pointer font-bold text-[var(--muted)] hover:text-[var(--ink)] flex items-center gap-1"
+            >
+              <span>ℹ️</span>
+              <span>{t('nav.about')}</span>
+            </button>
           </div>
         </div>
       </div>
@@ -154,19 +164,26 @@ export const Header: React.FC<HeaderProps> = ({
               {/* Language Switcher */}
               <LangToggle />
 
-              {/* Key Status Button */}
+              {/* Connection Status Button */}
               <button
                 type="button"
                 onClick={onOpenApiKey}
                 title={hasApiKey ? t('nav.key_saved') : t('nav.key_needed')}
-                className={`font-semibold text-xs sm:text-sm h-9 px-2.5 sm:px-3 rounded-lg border transition-colors cursor-pointer flex items-center gap-1.5 ${
+                className={`font-semibold text-xs sm:text-sm h-9 px-2.5 sm:px-3 rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs ${
                   hasApiKey
-                    ? 'bg-[var(--surface)] border-[var(--line)] text-[var(--ink)] hover:bg-[var(--raised)]'
-                    : 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/60'
+                    ? 'bg-[var(--surface)] border-emerald-500/40 text-[var(--ink)] hover:bg-[var(--raised)]'
+                    : 'bg-blue-50 dark:bg-blue-950/40 border-blue-300 dark:border-blue-800 text-blue-800 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-950/60'
                 }`}
               >
-                <span>🔑</span>
-                <span className="hidden sm:inline">{hasApiKey ? t('nav.key') : t('nav.no_key')}</span>
+                {hasApiKey ? (
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                    <span>🔌</span>
+                  </span>
+                ) : (
+                  <span>🔌</span>
+                )}
+                <span className="hidden sm:inline font-bold">{t('nav.key')}</span>
               </button>
 
               {/* Publish Action Button */}

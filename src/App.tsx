@@ -17,6 +17,7 @@ import { McpConsole } from './components/McpConsole';
 import { PrinciplesBanner } from './components/PrinciplesBanner';
 import { McpChat } from './components/McpChat';
 import { ApiKeyModal } from './components/ApiKeyModal';
+import { AboutModal } from './components/AboutModal';
 import { RoomsHub } from './components/RoomsHub';
 import { useI18n, TranslationKey, getLocalizedListing, getLocalizedRoom } from './i18n';
 import {
@@ -51,6 +52,7 @@ export const App: React.FC = () => {
   const [filterKind, setFilterKind] = useState<'all' | 'offer' | 'request'>('all');
 
   // Modals
+  const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [contactModalListing, setContactModalListing] = useState<Listing | null>(null);
   const [agentModalListing, setAgentModalListing] = useState<Listing | null>(null);
@@ -407,6 +409,7 @@ export const App: React.FC = () => {
         onLocalityChange={setSelectedLocality}
         hasApiKey={Boolean(apiKey)}
         onOpenApiKey={() => openApiKeyModal()}
+        onOpenAbout={() => setIsAboutModalOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -616,6 +619,12 @@ export const App: React.FC = () => {
         }}
       />
 
+      <AboutModal
+        isOpen={isAboutModalOpen}
+        onClose={() => setIsAboutModalOpen(false)}
+        onOpenConnect={() => openApiKeyModal()}
+      />
+
       {/* Modern Sleek Footer */}
       <footer className="border-t border-[var(--line)] bg-[var(--canvas)] py-6 mt-12 text-xs md:text-sm text-[var(--muted)]">
         <div className="max-w-[1120px] mx-auto px-4 md:px-8 flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -625,6 +634,13 @@ export const App: React.FC = () => {
             <span>{t('footer.tagline')}</span>
           </div>
           <div className="flex flex-wrap gap-4 items-center">
+            <button
+              type="button"
+              onClick={() => setIsAboutModalOpen(true)}
+              className="hover:underline cursor-pointer font-bold text-[var(--ink)]"
+            >
+              ℹ️ {t('nav.about')}
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -666,7 +682,7 @@ export const App: React.FC = () => {
               {t('nav.mcp')}
             </button>
             <a
-              href="https://github.com/LeonidYasin/mcp-rooms"
+              href="https://github.com/LeonidYasin/mcp-rooms-googleai-2"
               target="_blank"
               rel="noreferrer"
               className="hover:underline text-[var(--muted)] hover:text-[var(--ink)]"
