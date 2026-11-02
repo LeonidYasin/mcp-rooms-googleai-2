@@ -7,6 +7,8 @@ Status: Ready for publication / Public
 > 📚 **Дополнительные материалы:**  
 > * [Архитектурная справка: Почему брокерная модель mcp-rooms решает проблему NAT (в отличие от прямого A2A)](2026-11-02-supplementary-nat-friendly-broker.md)
 
+![Marketplace OS: The Last Mile of Agentic Commerce](assets/marketplace-os-banner.jpg)
+
 ---
 
 ## Русский вариант
