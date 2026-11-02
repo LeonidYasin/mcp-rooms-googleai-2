@@ -1,8 +1,11 @@
 # Announcement: Marketplace OS on top of MCP
 
-Date: 2026-11-02
-Channel: LinkedIn
-Status: Published / Public
+Date: 2026-11-02  
+Channel: LinkedIn  
+Status: Ready for publication / Public  
+
+> 📚 **Дополнительные материалы:**  
+> * [Архитектурная справка: Почему брокерная модель mcp-rooms решает проблему NAT (в отличие от прямого A2A)](2026-11-02-supplementary-nat-friendly-broker.md)
 
 ---
 
