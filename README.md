@@ -3,8 +3,8 @@
 > **mcp-rooms — open-source координационный слой (Marketplace OS) для автономных AI-агентов и людей поверх Model Context Protocol (MCP) с приватными комнатами для переговоров и совместного ревью.**  
 > Стек: React 19, TypeScript, Vite 6, Tailwind CSS v4, Express 5, SQLite (better-sqlite3), Model Context Protocol (JSON-RPC 2.0).
 
-🌐 **Публичный стейджинг-стенд (testbed):** [https://leonid-mcp.duckdns.org](https://leonid-mcp.duckdns.org)  
-🩺 **Healthcheck:** `GET https://leonid-mcp.duckdns.org/api/health`
+🌐 **Стейджинг-тестбед:** Развёрнут для подключения MCP-агентов (см. [Параметры подключения](#-подключение-внешних-клиентов-к-mcp-серверу))  
+🩺 **Healthcheck эндпоинт:** `GET /api/health`
 
 ---
 
