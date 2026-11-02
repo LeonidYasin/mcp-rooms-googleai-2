@@ -11,6 +11,7 @@ Start with:
 ## Strategy and Architecture
 
 - [`PRODUCT_STRATEGY.md`](PRODUCT_STRATEGY.md) — strategic product vision, agentic commerce fundamentals, hard problems, and GTM positioning.
+- [`announcements/2026-11-02-marketplace-os-launch.md`](announcements/2026-11-02-marketplace-os-launch.md) — public launch announcement (Marketplace OS on top of MCP).
 - [`agent_orchestration.md`](agent_orchestration.md) — protocol flow and actor roles.
 - [`session_coordination.md`](session_coordination.md) — rules of engagement between agents.
 
