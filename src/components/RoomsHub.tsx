@@ -242,6 +242,11 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
               setShowCreateModal(true);
             }
           }}
+          title={
+            locale === 'en'
+              ? 'Create a new public discussion topic or private deal room'
+              : 'Создать новую открытую тему для обсуждения или приватную комнату сделки'
+          }
           className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white font-semibold text-sm shadow-xs transition-colors self-start md:self-auto cursor-pointer"
         >
           <span>➕</span>
@@ -258,6 +263,11 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
             const first = rooms.find((r) => r.visibility === 'public');
             if (first) setSelectedRoomId(first.id);
           }}
+          title={
+            locale === 'en'
+              ? 'Public discussion rooms open to all marketplace users and agents'
+              : 'Открытые темы: публичные обсуждения, доступные всем участникам и агентам'
+          }
           className={`pb-3 px-2 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
             activeTab === 'public'
               ? 'border-[var(--blue)] text-[var(--blue)]'
@@ -277,6 +287,11 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
             const first = rooms.find((r) => (r.visibility || 'private') === 'private');
             if (first) setSelectedRoomId(first.id);
           }}
+          title={
+            locale === 'en'
+              ? 'Private 1-on-1 negotiation rooms created for deal discussions with authors'
+              : 'Приватные комнаты: закрытые переговоры 1-на-1 по вашим сделкам с авторами и агентами'
+          }
           className={`pb-3 px-2 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
             activeTab === 'private'
               ? 'border-[var(--blue)] text-[var(--blue)]'
@@ -297,6 +312,7 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
           <button
             type="button"
             onClick={() => setSelectedCategory('all')}
+            title={locale === 'en' ? 'Show all topic categories' : 'Показать комнаты всех категорий'}
             className={`px-3 py-1.5 rounded-lg font-medium whitespace-nowrap transition-colors cursor-pointer ${
               selectedCategory === 'all'
                 ? 'bg-[var(--blue)] text-white'
@@ -310,6 +326,7 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
               key={cat}
               type="button"
               onClick={() => setSelectedCategory(cat)}
+              title={locale === 'en' ? `Filter by ${t(`cat.${cat}` as TranslationKey)}` : `Фильтровать по категории «${t(`cat.${cat}` as TranslationKey)}»`}
               className={`px-3 py-1.5 rounded-lg font-medium whitespace-nowrap transition-colors cursor-pointer ${
                 selectedCategory === cat
                   ? 'bg-[var(--blue)] text-white'
@@ -479,9 +496,35 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
                       const l = listings.find((item) => item.id === activeRoom.listingId);
                       if (l) onOpenListing(l);
                     }}
+                    title={locale === 'en' ? 'Open original listing details' : 'Открыть подробную карточку этого объявления'}
                     className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[var(--line)] bg-[var(--canvas)] hover:bg-[var(--surface)] text-[var(--ink)] shrink-0 cursor-pointer"
                   >
                     {locale === 'en' ? 'View Listing ↗' : 'Посмотреть объявление ↗'}
+                  </button>
+                )}
+              </div>
+
+              {/* Educational Context Callout explaining why this room exists */}
+              <div className="bg-blue-50/80 dark:bg-blue-950/40 border-b border-blue-200/50 dark:border-blue-900/40 px-4 py-2 text-[11px] text-blue-900 dark:text-blue-200 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="shrink-0 text-sm">💡</span>
+                  <span className="truncate">
+                    {locale === 'en'
+                      ? 'Deal Negotiation Room: direct coordination chat between you and the listing author (or their autonomous AI agent).'
+                      : 'Переговорная комната: защищённый чат сделки между вами и автором объявления (или его автономным AI-агентом).'}
+                  </span>
+                </div>
+                {activeRoom.listingId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const l = listings.find((item) => item.id === activeRoom.listingId);
+                      if (l) onOpenListing(l);
+                    }}
+                    title={locale === 'en' ? 'Open original listing details' : 'Открыть подробную карточку этого объявления'}
+                    className="text-[11px] font-bold text-[var(--blue)] hover:underline shrink-0 cursor-pointer"
+                  >
+                    {locale === 'en' ? 'About Listing ↗' : 'К объявлению ↗'}
                   </button>
                 )}
               </div>
@@ -572,6 +615,7 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
                     <button
                       type="button"
                       onClick={() => setSendRole('human')}
+                      title={locale === 'en' ? 'Post message as a human user' : 'Отправить сообщение от своего имени как человек'}
                       className={`px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer ${
                         sendRole === 'human'
                           ? 'bg-[var(--canvas)] text-[var(--ink)] shadow-xs border border-[var(--line)]'
@@ -583,6 +627,7 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
                     <button
                       type="button"
                       onClick={() => setSendRole('agent')}
+                      title={locale === 'en' ? 'Post message on behalf of autonomous MCP agent' : 'Отправить сообщение от лица автономного MCP-агента'}
                       className={`px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer ${
                         sendRole === 'agent'
                           ? 'bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-300'
@@ -604,11 +649,13 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
                         ? (locale === 'en' ? 'Message on behalf of autonomous agent...' : 'Сообщение от лица автономного агента...')
                         : (locale === 'en' ? 'Type a message...' : 'Напишите сообщение...')
                     }
+                    title={locale === 'en' ? 'Enter your message to discuss terms, conditions, or ask questions' : 'Введите сообщение для обсуждения условий, цены или вопросов по объявлению'}
                     className="flex-1 h-10 px-3.5 rounded-xl border border-[var(--line)] bg-[var(--canvas)] text-sm text-[var(--ink)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--blue)]"
                   />
                   <button
                     type="submit"
                     disabled={isSending || !inputText.trim()}
+                    title={locale === 'en' ? 'Send message to this negotiation room' : 'Отправить сообщение в переговорную комнату'}
                     className="h-10 px-5 rounded-xl bg-[var(--blue)] hover:bg-[var(--blue-hover)] disabled:opacity-50 text-white font-semibold text-sm transition-colors cursor-pointer"
                   >
                     {isSending ? '...' : (locale === 'en' ? 'Send' : 'Отправить')}

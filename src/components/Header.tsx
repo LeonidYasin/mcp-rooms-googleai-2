@@ -112,10 +112,14 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Left: Location Picker + Face / Slogan Badge */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {/* Location Selector (now positioned in Top Bar like Avito/CIAN) */}
-            <div className="flex items-center gap-1 text-[11px] font-semibold text-[var(--muted)] hover:text-[var(--ink)] bg-[var(--canvas)]/80 border border-[var(--line)] px-2 py-0.5 rounded-lg shrink-0">
+            <div
+              title={isEn ? 'Filter listings by city or region' : 'Выбор города или региона для фильтрации объявлений'}
+              className="flex items-center gap-1 text-[11px] font-semibold text-[var(--muted)] hover:text-[var(--ink)] bg-[var(--canvas)]/80 border border-[var(--line)] px-2 py-0.5 rounded-lg shrink-0"
+            >
               <span className="text-xs">📍</span>
               <select
                 aria-label={t('nav.location')}
+                title={isEn ? 'Filter listings by city or region' : 'Выбор города или региона для фильтрации объявлений'}
                 value={selectedLocality}
                 onChange={(e) => onLocalityChange(e.target.value)}
                 className="bg-transparent text-[var(--ink)] font-bold outline-none cursor-pointer text-[11px]"
@@ -147,6 +151,11 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={() => onChangeTab('rooms')}
+                title={
+                  isEn
+                    ? 'Negotiation Rooms & Deal Chat: private and public chat rooms between humans and AI agents'
+                    : 'Комнаты переговоров и сделок: диалоги по объявлениям между людьми и AI-агентами'
+                }
                 className={`hover:underline cursor-pointer flex items-center gap-1 font-bold ${
                   currentTab === 'rooms' ? 'text-[var(--blue)]' : 'text-[var(--ink)]'
                 }`}
@@ -156,6 +165,11 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={() => onChangeTab('chat')}
+                title={
+                  isEn
+                    ? 'AI Angel Chat: smart concierge to search listings, negotiate, and consult'
+                    : 'Чат с AI-Ангелом: персональный AI-помощник для поиска, создания объявлений и консультаций'
+                }
                 className={`hover:underline cursor-pointer flex items-center gap-1 font-bold ${
                   currentTab === 'chat' ? 'text-[var(--blue)]' : 'text-[var(--ink)]'
                 }`}
@@ -165,6 +179,11 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={() => onChangeTab('mcp')}
+                title={
+                  isEn
+                    ? 'MCP Console: Model Context Protocol tools, JSON-RPC endpoints, and agent automation'
+                    : 'MCP Консоль: инструменты протокола Model Context Protocol и API для автономных агентов'
+                }
                 className={`hover:underline cursor-pointer hidden md:inline ${
                   currentTab === 'mcp' ? 'font-bold text-[var(--blue)]' : 'text-[var(--muted)]'
                 }`}
@@ -174,6 +193,11 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={() => onChangeTab('principles')}
+                title={
+                  isEn
+                    ? 'Platform Principles: rules of agentic commerce, escrow safety, and coordination etiquette'
+                    : 'Принципы площадки: правила агентной торговли, безопасность сделок, escrow и протоколы'
+                }
                 className={`hover:underline cursor-pointer hidden md:inline ${
                   currentTab === 'principles' ? 'font-bold text-[var(--blue)]' : 'text-[var(--muted)]'
                 }`}
@@ -183,6 +207,11 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={onOpenAbout}
+                title={
+                  isEn
+                    ? 'About Marketplace OS: architectural concept, open source stack, and MCP integration'
+                    : 'О проекте Marketplace OS: архитектурная концепция, открытый стек и интеграция MCP'
+                }
                 className="hover:underline cursor-pointer font-bold text-[var(--muted)] hover:text-[var(--ink)] flex items-center gap-1"
               >
                 <span>ℹ️</span>
@@ -209,7 +238,7 @@ export const Header: React.FC<HeaderProps> = ({
               type="button"
               onClick={onGoHome}
               className="text-left cursor-pointer transition-transform hover:opacity-95 focus:outline-none shrink-0 max-w-[140px] sm:max-w-[180px] truncate"
-              title={t('site.title')}
+              title={isEn ? 'Go to Marketplace Home Catalog' : 'На главную: каталог всех объявлений'}
             >
               <Logo
                 size="sm"
@@ -242,6 +271,11 @@ export const Header: React.FC<HeaderProps> = ({
                   value={searchQuery}
                   onChange={(e) => onSearchChange(e.target.value)}
                   placeholder={getSearchPlaceholder()}
+                  title={
+                    isEn
+                      ? 'Search listings, services, products, or keywords (Press ⌘K or Ctrl+K)'
+                      : 'Поиск объявлений, услуг, товаров или ключевых слов (Нажмите ⌘K или Ctrl+K)'
+                  }
                   maxLength={120}
                   className="flex-1 min-w-[160px] bg-transparent text-xs sm:text-sm text-[var(--ink)] placeholder-[var(--muted)] outline-none py-1 px-1 font-medium"
                 />
@@ -250,7 +284,8 @@ export const Header: React.FC<HeaderProps> = ({
                   <button
                     type="button"
                     onClick={() => onSearchChange('')}
-                    aria-label="Очистить поиск"
+                    aria-label={isEn ? 'Clear search text' : 'Очистить поисковый запрос'}
+                    title={isEn ? 'Clear search text' : 'Очистить поисковый запрос'}
                     className="text-[var(--muted)] hover:text-[var(--ink)] text-xs p-1 hover:bg-[var(--raised)] rounded-md cursor-pointer shrink-0"
                   >
                     ✕
@@ -259,7 +294,10 @@ export const Header: React.FC<HeaderProps> = ({
 
                 {/* 3. Keyboard Shortcut Badge */}
                 {!searchQuery && (
-                  <div className="hidden 2xl:flex items-center gap-0.5 text-[10px] text-[var(--muted)] font-mono bg-[var(--raised)] border border-[var(--line)] px-1.5 py-0.5 rounded select-none shrink-0">
+                  <div
+                    title={isEn ? 'Press ⌘K or Ctrl+K to focus search' : 'Нажмите ⌘K или Ctrl+K для быстрого перехода к поиску'}
+                    className="hidden 2xl:flex items-center gap-0.5 text-[10px] text-[var(--muted)] font-mono bg-[var(--raised)] border border-[var(--line)] px-1.5 py-0.5 rounded select-none shrink-0"
+                  >
                     <span className="text-[11px]">⌘</span>K
                   </div>
                 )}
@@ -268,7 +306,11 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   type="button"
                   onClick={onOpenAdvancedSearch}
-                  title={isEn ? 'Advanced search & filters' : 'Расширенный поиск и фильтры'}
+                  title={
+                    isEn
+                      ? 'Advanced search: filter by price range, intent (offer/request), categories, skins, regions'
+                      : 'Расширенный поиск: фильтры по цене, типу (ищу/предлагаю), категориям, темам и регионам'
+                  }
                   className={`h-7.5 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold transition-all cursor-pointer shrink-0 select-none ${
                     activeFilterCount > 0
                       ? 'bg-[var(--soft)] text-[var(--blue)] font-bold border border-[var(--blue)]/30 shadow-2xs'
@@ -290,7 +332,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   type="submit"
                   aria-label={isEn ? 'Search' : 'Найти'}
-                  title={isEn ? 'Search' : 'Найти'}
+                  title={isEn ? 'Find listings matching keywords and filters' : 'Найти объявления по запросу и фильтрам'}
                   style={currentFace !== 'general' ? { backgroundColor: activeFace.accentColor } : undefined}
                   className="h-7.5 px-3.5 rounded-lg bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white font-black text-xs flex items-center gap-1.5 transition-all shadow-xs hover:shadow-md active:scale-98 cursor-pointer shrink-0"
                 >
@@ -312,7 +354,15 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={onOpenApiKey}
-                title={hasApiKey ? t('nav.key_saved') : t('nav.key_needed')}
+                title={
+                  hasApiKey
+                    ? (isEn
+                      ? 'AI connection active: API key saved for Gemini & MCP agents. Click to view or change settings.'
+                      : 'Подключение активно: API-ключ Gemini сохранен. Нажмите для настройки моделей и агентов.')
+                    : (isEn
+                      ? 'Connection required: add Gemini API key or connect MCP agent to unlock AI capabilities.'
+                      : 'Требуется подключение: добавьте API-ключ Gemini для запуска AI-агентов и комнат.')
+                }
                 className={`font-semibold text-xs h-8 px-2 sm:px-2.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs shrink-0 ${
                   hasApiKey
                     ? 'bg-[var(--surface)] border-emerald-500/40 text-[var(--ink)] hover:bg-[var(--raised)]'
@@ -331,7 +381,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   type="button"
                   onClick={() => setMoreMenuOpen((prev) => !prev)}
-                  title={isEn ? 'More options' : 'Дополнительные настройки'}
+                  title={isEn ? 'More options: location, theme, and language' : 'Дополнительные настройки: локация, тема, язык'}
                   aria-label={isEn ? 'More options' : 'Дополнительные настройки'}
                   aria-expanded={moreMenuOpen}
                   className="h-8 w-8 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--raised)] text-[var(--ink)] flex items-center justify-center font-bold text-sm transition-colors cursor-pointer select-none"
@@ -356,6 +406,7 @@ export const Header: React.FC<HeaderProps> = ({
                       </span>
                       <select
                         aria-label={t('nav.location')}
+                        title={isEn ? 'Filter listings by region or city' : 'Фильтровать объявления по региону или городу'}
                         value={selectedLocality}
                         onChange={(e) => onLocalityChange(e.target.value)}
                         className="bg-[var(--raised)] text-[var(--ink)] font-semibold rounded-md px-1.5 py-0.5 text-xs outline-none cursor-pointer"
@@ -380,6 +431,11 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={onOpenPublish}
+                title={
+                  isEn
+                    ? 'Publish a new listing: create an offer or request with AI agent representation'
+                    : 'Подать объявление: разместить предложение или заявку с привязкой AI-агента'
+                }
                 style={currentFace !== 'general' ? { backgroundColor: activeFace.accentColor } : undefined}
                 className="bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white font-bold text-xs h-8 px-2.5 sm:px-3 rounded-lg transition-all cursor-pointer shadow-xs hover:shadow-md flex items-center gap-1 active:scale-98 shrink-0"
               >
@@ -411,6 +467,7 @@ export const Header: React.FC<HeaderProps> = ({
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
                 placeholder={getSearchPlaceholder()}
+                title={isEn ? 'Search listings, services, products, or keywords' : 'Поиск объявлений, услуг, товаров или ключевых слов'}
                 className="flex-1 bg-transparent text-xs text-[var(--ink)] placeholder-[var(--muted)] outline-none py-1 px-1 min-w-0 font-medium"
               />
 
@@ -418,7 +475,8 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   type="button"
                   onClick={() => onSearchChange('')}
-                  aria-label="Очистить"
+                  aria-label={isEn ? 'Clear search text' : 'Очистить поисковый запрос'}
+                  title={isEn ? 'Clear search text' : 'Очистить поисковый запрос'}
                   className="text-[var(--muted)] hover:text-[var(--ink)] text-xs px-1 cursor-pointer"
                 >
                   ✕
@@ -429,7 +487,11 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={onOpenAdvancedSearch}
-                title={isEn ? 'Advanced search & filters' : 'Расширенный поиск и фильтры'}
+                title={
+                  isEn
+                    ? 'Advanced search: filter by price range, intent, categories, skins, regions'
+                    : 'Расширенный поиск: фильтры по цене, типу, категориям, темам и регионам'
+                }
                 className={`h-7 px-2 rounded-lg flex items-center gap-1 text-xs font-semibold cursor-pointer shrink-0 transition-colors ${
                   activeFilterCount > 0
                     ? 'bg-[var(--soft)] text-[var(--blue)] font-bold border border-[var(--blue)]/30 shadow-2xs'
@@ -450,7 +512,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="submit"
                 aria-label={isEn ? 'Search' : 'Найти'}
-                title={isEn ? 'Search' : 'Найти'}
+                title={isEn ? 'Find listings matching keywords and filters' : 'Найти объявления по запросу и фильтрам'}
                 style={currentFace !== 'general' ? { backgroundColor: activeFace.accentColor } : undefined}
                 className="h-7 px-2.5 rounded-lg bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white font-black text-xs flex items-center gap-1 transition-all shadow-xs cursor-pointer shrink-0"
               >
