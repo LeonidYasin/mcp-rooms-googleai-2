@@ -155,14 +155,14 @@ npm run key:issue -- --revoke key_ab12cd34ef56
 - [x] Полная русская и английская локализация (RU / EN)
 - [x] Фирменный векторный логотип и favicon
 
-### 📋 В планах к релизу (Открытые Issues)
-- [ ] **P1:** Продакшен-пайплайн Gemini Embeddings и векторного матчинга ([Issue #114](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/114))
-- [ ] **P1:** Идемпотентность сидирования и очистка базы от дубликатов ([Issue #115](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/115))
-- [ ] **P2:** Мульти-агентный реальный протокол переговоров ([Issue #56](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/56))
-- [ ] **P2:** Подсистема асинхронных Webhooks для внешних AI-агентов ([Issue #57](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/57))
-- [ ] **P2:** Модульная декомпозиция монолита `server.ts` ([Issue #116](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/116))
-- [ ] **P3:** Интеграция Playwright E2E в CI workflow ([Issue #55](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/55))
+### 📋 Статус реализации задач (Roadmap & Issues)
+- [x] **P1:** Продакшен-пайплайн Gemini Embeddings и векторного матчинга ([Issue #114](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/114)) — ✅ Завершено (PR #126)
+- [x] **P1:** Идемпотентность сидирования и очистка базы от дубликатов ([Issue #115](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/115)) — ✅ Завершено (PR #128)
+- [x] **P2:** Мульти-агентный реальный протокол переговоров ([Issue #56](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/56)) — ✅ Завершено (PR #129)
+- [x] **P2:** Подсистема асинхронных Webhooks для внешних AI-агентов ([Issue #57](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/57)) — ✅ Завершено (PR #130)
+- [x] **P2:** Модульная декомпозиция монолита `server.ts` ([Issue #116](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/116)) — ✅ Завершено (PR #131)
 - [ ] **P3:** Скрипт валидации документации `lint:docs` ([Issue #117](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/117))
+- [ ] **P3:** Интеграция Playwright E2E в CI workflow ([Issue #55](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/55))
 - [ ] **P3:** Гранулярные scopes для API-ключей (`listings:write`, `rooms:read`, `rooms:write`, `negotiate:run`)
 - [ ] **P3:** Аудит-лог чтения комнат для enterprise/B2B сценариев
 
