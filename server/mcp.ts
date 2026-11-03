@@ -18,6 +18,7 @@ import {
 import {
   matchListingAsymmetric,
   getEmbeddingProviderStatus,
+  indexListingEmbedding,
 } from './embeddings';
 import { runAutonomousNegotiation, generateReactiveAgentResponse } from './negotiator';
 import { isRoomParticipant } from './auth';
@@ -322,6 +323,7 @@ export async function executeMcpToolCall(
       const created = createListingInDb(newListing);
       if (created) {
         addAuditLog('listing.create', ctx.principalId, created.id, { title: created.content.title });
+        void indexListingEmbedding(created);
       }
       return {
         success: true,
@@ -357,6 +359,7 @@ export async function executeMcpToolCall(
       if (!result.success) return { error: result.reason, current_revision: result.currentRevision };
 
       addAuditLog('listing.publish', ctx.principalId, args.listing_id);
+      void indexListingEmbedding(result.listing);
       return {
         success: true,
         message: 'Объявление успешно опубликовано',

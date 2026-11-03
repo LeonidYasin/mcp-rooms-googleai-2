@@ -24,13 +24,14 @@
 
 ---
 
-### 🔴 Модуль 5: Продакшен-пайплайн Gemini Embeddings и векторного матчинга
-- **Статус:** 📋 **В ПЛАНАХ (Issue [#114](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/114))**
+### 🟢 Модуль 5: Продакшен-пайплайн Gemini Embeddings и векторного матчинга
+- **Статус:** ✅ **ЗАВЕРШЕНО (Issue [#114](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/114))**
 - **Ответственный:** AI & Data Platform Agent
-- **Описание:** Перевод семантического поиска из режима `EMBEDDING_PROVIDER=disabled` в реальный векторный матчинг:
-  1. Подключение `text-embedding-004` через `@google/genai` с кэшированием векторов в таблице `listing_embeddings` SQLite.
-  2. CLI-скрипт `scripts/reindex-embeddings.ts` для фоновой пакетной индексации объявлений.
-  3. Расчёт косинусного сходства векторов с возвратом числового скора совпадения (0.0–1.0) в MCP и интерфейсе.
+- **Результат:** Реализован сквозной пайплайн векторного семантического матчинга:
+  1. Интеграция `text-embedding-004` через `@google/genai` с кэшированием в таблице `listing_embeddings` SQLite.
+  2. Фоновый CLI-индексатор `scripts/reindex-embeddings.ts` (`npm run embeddings:reindex`).
+  3. Автоматический расчёт векторов при создании/обновлении объявлений через API и MCP.
+  4. Асимметричный расчёт косинусного сходства (0.0–1.0) с безопасным лексическим фолбэком.
 
 ### 🔴 Модуль 6: Идемпотентность сидирования и дедупликация базы данных
 - **Статус:** 📋 **В ПЛАНАХ (Issue [#115](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/115))**
@@ -79,7 +80,7 @@
 | **Модуль 2** | Event Store & Replay (`Last-Event-ID`) | Protocol & Core | PR #30 | ✅ Завершено |
 | **Модуль 3** | Хранилище загрузок (`/uploads`) | Storage & Backend | PR #32 | ✅ Завершено |
 | **Модуль 4** | Caddy Reverse Proxy & TLS | Ops & Infra | PR #29, #35 | ✅ Завершено |
-| **Модуль 5** | Gemini Embeddings & Vector Search | AI & Data Platform | [#114](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/114) | 📋 В планах (P1) |
+| **Модуль 5** | Gemini Embeddings & Vector Search | AI & Data Platform | [#114](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/114) | ✅ Завершено |
 | **Модуль 6** | Идемпотентность сидирования и дедупликация | DB & Quality | [#115](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/115) | 📋 В планах (P1) |
 | **Модуль 7** | Реальный протокол переговоров | Multi-Agent | [#56](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/56) | 📋 В планах (P2) |
 | **Модуль 8** | Подсистема Webhooks для агентов | Protocol & Integration | [#57](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/57) | 📋 В планах (P2) |

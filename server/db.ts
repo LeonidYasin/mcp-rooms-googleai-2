@@ -845,7 +845,7 @@ export function getListingsFromDb(filters: {
   kind?: string;
   locality?: string;
   query?: string;
-}) {
+} = {}) {
   let sql = "SELECT * FROM listings WHERE status = 'active'";
   const params: any[] = [];
 
@@ -891,9 +891,9 @@ export function createListingInDb(listing: any) {
     )
   `);
 
-  const modesStr = Array.isArray(listing.content.modes)
+  const modesStr = Array.isArray(listing.content?.modes)
     ? JSON.stringify(listing.content.modes)
-    : listing.content.modes;
+    : (listing.content?.modes || '["online"]');
 
   const photosStr = Array.isArray(listing.photos)
     ? JSON.stringify(listing.photos)

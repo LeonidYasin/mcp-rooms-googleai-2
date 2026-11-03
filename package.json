@@ -10,6 +10,7 @@
     "start": "tsx server.ts",
     "key:issue": "tsx scripts/issue-key.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
+    "embeddings:reindex": "tsx scripts/reindex-embeddings.ts",
     "db:backup": "tsx scripts/backup-db.ts",
     "db:restore": "tsx scripts/restore-db.ts",
     "lint:docs": "tsx scripts/validate-docs.ts",

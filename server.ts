@@ -28,7 +28,7 @@ import {
 } from './server/db';
 import { handleMcpJsonRpcRequest, executeMcpToolCall, MCP_TOOLS_MANIFEST } from './server/mcp';
 import { runAutonomousNegotiation } from './server/negotiator';
-import { getEmbeddingProviderStatus, matchListingAsymmetric } from './server/embeddings';
+import { getEmbeddingProviderStatus, matchListingAsymmetric, indexListingEmbedding } from './server/embeddings';
 import { roomEventBus } from './server/events';
 import {
   isRoomParticipant,
@@ -512,6 +512,9 @@ app.post('/api/listings', requireAuth, rateLimit('listings', 'RATE_LIMIT_LISTING
   }
   try {
     const created = createListingInDb(normalized.listing);
+    if (created) {
+      void indexListingEmbedding(created);
+    }
     res.status(201).json(created);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -536,6 +539,7 @@ app.put('/api/listings/:id', requireAuth, (req, res) => {
       res.status(400).json({ error: 'update_failed', message: 'Could not update listing' });
       return;
     }
+    void indexListingEmbedding(updated);
     res.json(updated);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

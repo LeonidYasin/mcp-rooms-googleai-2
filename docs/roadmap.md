@@ -41,9 +41,9 @@
   - Учёт лимитов в SQLite (`rate_limit_hits`) и `app.set('trust proxy', 1)`.
 - [x] **1.4 Персистентный Replay в SSE по `Last-Event-ID`** *(Завершено — PR #30)*
   - Таблица `room_events` в SQLite, надёжная доотправка сообщений при разрыве соединения.
-- [ ] **1.5 Продакшен-пайплайн Gemini Embeddings и векторного матчинга** *(В планах — Issue [#114](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/114))*
+- [x] **1.5 Продакшен-пайплайн Gemini Embeddings и векторного матчинга** *(Завершено — Issue [#114](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/114))*
   - Включение `text-embedding-004` через `@google/genai` с кэшированием векторов в таблице `listing_embeddings` SQLite.
-  - Фоновый переиндексатор `scripts/reindex-embeddings.ts` и расчёт косинусного сходства для `match_listings`.
+  - Фоновый переиндексатор `scripts/reindex-embeddings.ts` (`npm run embeddings:reindex`) и расчёт косинусного сходства для `match_listings`.
 - [ ] **1.6 Идемпотентность сидирования и очистка базы от дубликатов** *(В планах — Issue [#115](https://github.com/LeonidYasin/mcp-rooms-googleai-2/issues/115))*
   - Скрипт миграции `scripts/cleanup-duplicates.ts` для дедупликации живой базы на проде.
   - Идемпотентный `scripts/seed-demo.ts` с уникальными индексами.
