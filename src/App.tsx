@@ -167,10 +167,10 @@ export const App: React.FC = () => {
   );
 
   const realAgentCount = useMemo(() => {
-    return listings.filter((l) =>
+    return localizedListings.filter((l) =>
       Boolean(l.author_name?.startsWith('agent:') || l.author_name?.toLowerCase().includes('agent'))
     ).length;
-  }, [listings]);
+  }, [localizedListings]);
 
   const activeSelectedListing = useMemo(() => {
     if (!selectedListing) return null;
@@ -680,7 +680,7 @@ export const App: React.FC = () => {
               onOpenRoom={handleOpenRoom}
               onSelectFace={handleSelectFace}
               realStats={{
-                totalListings: listings.length,
+                totalListings: localizedListings.length,
                 agentCount: realAgentCount,
                 roomsCount: rooms.length,
                 pingMs: realPingMs,
