@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import http from 'http';
+import http, { type Server } from 'http';
 import crypto from 'crypto';
-import request from 'supertest';
 import { app } from '../server';
 import {
   initDatabase,
@@ -10,7 +9,6 @@ import {
   getWebhookByIdFromDb,
   deleteWebhookFromDb,
   updateWebhookDeliveryStatsInDb,
-  createRoomInDb,
 } from '../server/db';
 import {
   computeWebhookSignature,
@@ -18,7 +16,7 @@ import {
   deliverWebhook,
   dispatchWebhooksForEvent,
 } from '../server/webhooks';
-import { roomEventBus } from '../server/events';
+import { issueTestKey, authJson, authOnly } from './auth-helpers';
 
 describe('TASK-09: Agent Webhook Subsystem & Async Event Delivery', () => {
   beforeAll(() => {
@@ -203,70 +201,90 @@ describe('TASK-09: Agent Webhook Subsystem & Async Event Delivery', () => {
   });
 
   describe('REST Webhooks API Endpoints', () => {
-    let authHeader = 'Bearer test_agent_token';
+    let apiServer: Server;
+    let baseUrl: string;
+    let apiKey: string;
+    let createdId = '';
 
     beforeAll(async () => {
-      // Create guest session to get valid auth token
-      const res = await request(app).post('/api/auth/guest');
-      if (res.body?.token) {
-        authHeader = `Bearer ${res.body.token}`;
+      apiKey = issueTestKey('user:wh-rest-suite').key;
+      await new Promise<void>((resolve) => {
+        apiServer = app.listen(0, '127.0.0.1', () => {
+          const addr = apiServer.address();
+          if (addr && typeof addr === 'object') {
+            baseUrl = `http://127.0.0.1:${addr.port}`;
+          }
+          resolve();
+        });
+      });
+    });
+
+    afterAll(async () => {
+      if (apiServer) {
+        await new Promise<void>((resolve) => apiServer.close(() => resolve()));
       }
     });
 
-    let createdId = '';
-
     it('POST /api/webhooks validates URL and registers a new webhook', async () => {
-      const res = await request(app)
-        .post('/api/webhooks')
-        .set('Authorization', authHeader)
-        .send({
+      const res = await fetch(`${baseUrl}/api/webhooks`, {
+        method: 'POST',
+        headers: authJson(apiKey),
+        body: JSON.stringify({
           target_url: 'https://my-agent.io/mcp-events',
           events: ['message', 'agreement'],
-        });
+        }),
+      });
 
       expect(res.status).toBe(201);
-      expect(res.body.id).toBeDefined();
-      expect(res.body.targetUrl).toBe('https://my-agent.io/mcp-events');
-      expect(res.body.secret).toMatch(/^whsec_/);
-      expect(res.body.events).toEqual(['message', 'agreement']);
-      createdId = res.body.id;
+      const data = await res.json();
+      expect(data.id).toBeDefined();
+      expect(data.targetUrl).toBe('https://my-agent.io/mcp-events');
+      expect(data.secret).toMatch(/^whsec_/);
+      expect(data.events).toEqual(['message', 'agreement']);
+      createdId = data.id;
     });
 
     it('POST /api/webhooks rejects invalid URL with 400', async () => {
-      const res = await request(app)
-        .post('/api/webhooks')
-        .set('Authorization', authHeader)
-        .send({
+      const res = await fetch(`${baseUrl}/api/webhooks`, {
+        method: 'POST',
+        headers: authJson(apiKey),
+        body: JSON.stringify({
           target_url: 'not-a-valid-url',
-        });
+        }),
+      });
 
       expect(res.status).toBe(400);
-      expect(res.body.error).toBe('invalid_url');
+      const data = await res.json();
+      expect(data.error).toBe('invalid_url');
     });
 
     it('GET /api/webhooks returns list of registered webhooks with masked secrets', async () => {
-      const res = await request(app)
-        .get('/api/webhooks')
-        .set('Authorization', authHeader);
+      const res = await fetch(`${baseUrl}/api/webhooks`, {
+        headers: authOnly(apiKey),
+      });
 
       expect(res.status).toBe(200);
-      expect(Array.isArray(res.body)).toBe(true);
-      const wh = res.body.find((w: any) => w.id === createdId);
+      const list = await res.json();
+      expect(Array.isArray(list)).toBe(true);
+      const wh = list.find((w: any) => w.id === createdId);
       expect(wh).toBeDefined();
       expect(wh.secret).toContain('...');
     });
 
     it('DELETE /api/webhooks/:id deletes webhook', async () => {
-      const res = await request(app)
-        .delete(`/api/webhooks/${createdId}`)
-        .set('Authorization', authHeader);
+      const res = await fetch(`${baseUrl}/api/webhooks/${createdId}`, {
+        method: 'DELETE',
+        headers: authOnly(apiKey),
+      });
 
       expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
+      const data = await res.json();
+      expect(data.success).toBe(true);
 
-      const check = await request(app)
-        .delete(`/api/webhooks/${createdId}`)
-        .set('Authorization', authHeader);
+      const check = await fetch(`${baseUrl}/api/webhooks/${createdId}`, {
+        method: 'DELETE',
+        headers: authOnly(apiKey),
+      });
 
       expect(check.status).toBe(404);
     });
