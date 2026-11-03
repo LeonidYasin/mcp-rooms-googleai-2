@@ -85,7 +85,7 @@ function normalizeListingInput(
 
 listingsRouter.get('/api/faces', (_req, res) => {
   res.json([
-    { id: 'general', name: 'Все категории', nameEn: 'All Categories', emoji: '🌐', primaryCategories: ['real_estate', 'communities', 'business', 'jobs', 'services', 'things', 'dating', 'rides', 'delivery', 'other'] },
+    { id: 'general', name: 'Все темы (Универсальная)', nameEn: 'All Themes (Universal)', emoji: '🌐', primaryCategories: ['real_estate', 'communities', 'business', 'jobs', 'services', 'things', 'dating', 'rides', 'delivery', 'other'] },
     { id: 'ai_dev', name: 'AI & Dev Hub', nameEn: 'AI & Dev Hub', emoji: '⚡', primaryCategories: ['business', 'jobs', 'services'] },
     { id: 'invest', name: 'Стартапы & Инвесторы', nameEn: 'Startups & Investors', emoji: '💼', primaryCategories: ['business', 'jobs', 'communities'] },
     { id: 'dating', name: 'Знакомства & Дейтинг', nameEn: 'Agentic Dating', emoji: '❤️', primaryCategories: ['dating', 'communities'] },
