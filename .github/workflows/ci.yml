@@ -31,6 +31,9 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      - name: Lint documentation
+        run: npm run lint:docs
+
       - name: Unit tests
         run: npx vitest run --reporter=verbose
 
