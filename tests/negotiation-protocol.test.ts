@@ -118,12 +118,12 @@ describe('TASK-08: Multi-Agent Real Negotiation Protocol', () => {
       expect(negotiation?.rounds.length).toBeGreaterThanOrEqual(2);
 
       // Verify Audit Log
-      const auditRows = db.prepare('SELECT * FROM audit_logs WHERE action = ? AND target_id = ?').all(
+      const auditRows = db.prepare('SELECT * FROM audit_logs WHERE event_type = ? AND resource_id = ?').all(
         'negotiation.agreement',
         result.negotiation_id
       ) as any[];
       expect(auditRows.length).toBeGreaterThan(0);
-      expect(auditRows[0].actor).toBe(alice.principalId);
+      expect(auditRows[0].actor_id).toBe(alice.principalId);
 
       // Verify room count incremented by exactly 1
       expect(getRoomsFromDb().length).toBe(beforeRooms + 1);

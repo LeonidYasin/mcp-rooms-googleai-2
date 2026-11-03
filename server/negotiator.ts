@@ -433,6 +433,9 @@ export async function runRealNegotiation(
     visibility: 'private',
     status: 'active',
   });
+  if (!room) {
+    throw new Error(`Не удалось создать или получить комнату ${roomId}`);
+  }
   addParticipantToRoomInDb(room.id, principalId);
   addParticipantToRoomInDb(room.id, bestMatch.owner);
 
@@ -560,16 +563,11 @@ export async function runRealNegotiation(
   });
 
   // 6. Record audit log
-  addAuditLog({
-    action: 'negotiation.agreement',
-    actor: principalId,
-    target_id: negId,
-    details: {
-      roomId: room.id,
-      listingId: bestMatch.id,
-      counterpart: bestMatch.owner,
-      agreedTerms: finalAgreedTerms,
-    },
+  addAuditLog('negotiation.agreement', principalId, negId, {
+    roomId: room.id,
+    listingId: bestMatch.id,
+    counterpart: bestMatch.owner,
+    agreedTerms: finalAgreedTerms,
   });
 
   // 7. Broadcast SSE event

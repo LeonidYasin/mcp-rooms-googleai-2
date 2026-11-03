@@ -59,6 +59,7 @@ function degradedTitle(reason?: string): string {
 
 export const McpChat: React.FC<McpChatProps> = ({
   onOpenListing,
+  onOpenRoom,
   onListingCreated,
   onRefreshData,
   contextListing,

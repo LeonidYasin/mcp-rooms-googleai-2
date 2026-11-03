@@ -1130,11 +1130,9 @@ app.post('/api/negotiations/:id/accept', requireAuth, rateLimit('negotiate_accep
 
     roomEventBus.broadcast(negotiation.roomId, 'agreement', agreedTerms);
 
-    addAuditLog({
-      action: 'negotiation.manual_accept',
-      actor: principalId,
-      target_id: negotiation.id,
-      details: { roomId: negotiation.roomId, agreedTerms },
+    addAuditLog('negotiation.manual_accept', principalId, negotiation.id, {
+      roomId: negotiation.roomId,
+      agreedTerms,
     });
 
     const updated = getNegotiationByIdFromDb(negotiation.id);
