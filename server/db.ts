@@ -263,13 +263,13 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     // Real estate / communities were added later than the original seed set, so
     // they must be ensured on every init, not only when the table already has rows.
     ensureNewCategoriesSeeded();
+  }
 
-    // Automatic deduplication and data hygiene: clean any duplicate or redundant listings
-    try {
-      cleanupDuplicateListings({ dbInstance: db });
-    } catch {
-      // Non-fatal
-    }
+  // Automatic deduplication and data hygiene: clean any duplicate or redundant listings
+  try {
+    cleanupDuplicateListings({ dbInstance: db });
+  } catch (err) {
+    // Non-fatal
   }
 
   // Restore persistent settings (e.g. Gemini API key configured via Web UI)

@@ -1,5 +1,6 @@
-import { initDatabase } from '../server/db';
+import { db, initDatabase } from '../server/db';
 import { issueApiKey } from '../server/auth';
+import { cleanupDuplicateListings } from '../server/dedup';
 
 const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:3000';
 
@@ -36,8 +37,36 @@ async function callTool(token: string, name: string, args: any) {
 async function run() {
   console.log('🚀 [E2E Live Scenarios] Starting end-to-end verification against', BASE_URL);
 
-  // 1. Initialize DB and issue real credentials
+  // 1. Initialize DB and clean up any past test artifacts
   initDatabase();
+  try {
+    cleanupDuplicateListings({ dbInstance: db });
+    const oldTestListings = db.prepare(`
+      SELECT id FROM listings
+      WHERE owner IN ('user:leonid-founder', 'agent:ai-partner')
+        AND title IN (
+          'Разработка и внедрение MCP-серверов и AI-агентов под ключ',
+          'Ищу техническую команду для создания платформы автономных комнат'
+        )
+    `).all() as Array<{ id: string }>;
+
+    if (oldTestListings.length > 0) {
+      console.log(`🧹 Cleaning up ${oldTestListings.length} previous test scenario listing(s)...`);
+      for (const item of oldTestListings) {
+        try {
+          db.prepare('DELETE FROM room_messages WHERE room_id IN (SELECT id FROM rooms WHERE listing_id = ?)').run(item.id);
+          db.prepare('DELETE FROM rooms WHERE listing_id = ?').run(item.id);
+          db.prepare('DELETE FROM listing_embeddings WHERE listing_id = ?').run(item.id);
+          db.prepare('DELETE FROM listings WHERE id = ?').run(item.id);
+        } catch {
+          // ignore
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('⚠️ Non-fatal pre-test cleanup warning:', err);
+  }
+
   const founder = issueApiKey('user:leonid-founder', 'Леонид Основатель');
   const agent = issueApiKey('agent:ai-partner', 'AI Агент Партнер');
 
