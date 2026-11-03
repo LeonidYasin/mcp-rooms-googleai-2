@@ -5,6 +5,7 @@ import {
   McpRoom,
   McpMessage,
   CATEGORY_LABELS,
+  FulfilmentMode,
 } from './types';
 import { INITIAL_LISTINGS } from './data/mockListings';
 import { Header } from './components/Header';
@@ -22,6 +23,7 @@ import { RoomsHub } from './components/RoomsHub';
 import { FaceBanner } from './components/FaceBanner';
 import { VerticalModuleWidget } from './components/VerticalModuleWidget';
 import { CategoryBar } from './components/CategoryBar';
+import { AdvancedSearchModal, AdvancedSearchFilters } from './components/AdvancedSearchModal';
 import {
   FaceId,
   getFaceConfig,
@@ -63,8 +65,14 @@ export const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLocality, setSelectedLocality] = useState<string>('all');
   const [filterKind, setFilterKind] = useState<'all' | 'offer' | 'request'>('all');
+  const [minPrice, setMinPrice] = useState<number | null>(null);
+  const [maxPrice, setMaxPrice] = useState<number | null>(null);
+  const [priceOnly, setPriceOnly] = useState<boolean>(false);
+  const [selectedModes, setSelectedModes] = useState<FulfilmentMode[]>([]);
+  const [sortBy, setSortBy] = useState<'newest' | 'price_asc' | 'price_desc' | 'popular'>('newest');
 
   // Modals
+  const [isAdvancedSearchOpen, setIsAdvancedSearchOpen] = useState(false);
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [contactModalListing, setContactModalListing] = useState<Listing | null>(null);
@@ -160,10 +168,85 @@ export const App: React.FC = () => {
     return found || getLocalizedListing(selectedListing, locale);
   }, [selectedListing, localizedListings, locale]);
 
-  // Filtered listings
+  const handleSelectFace = useCallback((face: FaceId) => {
+    setCurrentFace(face);
+    setStoredFace(face);
+    setCurrentCategory('all');
+    setSearchQuery('');
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (face === 'general') {
+        url.searchParams.delete('face');
+        url.searchParams.delete('theme');
+        url.searchParams.delete('niche');
+      } else {
+        url.searchParams.set('face', face);
+      }
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, []);
+
+  // Active filters count for badges
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (currentCategory !== 'all') count++;
+    if (currentFace !== 'general') count++;
+    if (filterKind !== 'all') count++;
+    if (selectedLocality !== 'all') count++;
+    if (minPrice !== null && minPrice > 0) count++;
+    if (maxPrice !== null) count++;
+    if (priceOnly) count++;
+    if (selectedModes.length > 0) count++;
+    if (sortBy !== 'newest') count++;
+    return count;
+  }, [currentCategory, currentFace, filterKind, selectedLocality, minPrice, maxPrice, priceOnly, selectedModes, sortBy]);
+
+  // Advanced search filters object for modal
+  const advancedFilters: AdvancedSearchFilters = useMemo(() => ({
+    query: searchQuery,
+    category: currentCategory,
+    face: currentFace,
+    kind: filterKind,
+    locality: selectedLocality,
+    minPrice,
+    maxPrice,
+    priceOnly,
+    modes: selectedModes,
+    sortBy,
+  }), [searchQuery, currentCategory, currentFace, filterKind, selectedLocality, minPrice, maxPrice, priceOnly, selectedModes, sortBy]);
+
+  const handleUpdateAdvancedFilters = useCallback((f: AdvancedSearchFilters) => {
+    setSearchQuery(f.query);
+    setCurrentCategory(f.category);
+    if (f.face !== currentFace) {
+      handleSelectFace(f.face);
+    }
+    setFilterKind(f.kind);
+    setSelectedLocality(f.locality);
+    setMinPrice(f.minPrice);
+    setMaxPrice(f.maxPrice);
+    setPriceOnly(f.priceOnly);
+    setSelectedModes(f.modes);
+    setSortBy(f.sortBy);
+  }, [currentFace, handleSelectFace]);
+
+  const handleResetAllFilters = useCallback(() => {
+    setSearchQuery('');
+    setCurrentCategory('all');
+    handleSelectFace('general');
+    setFilterKind('all');
+    setSelectedLocality('all');
+    setMinPrice(null);
+    setMaxPrice(null);
+    setPriceOnly(false);
+    setSelectedModes([]);
+    setSortBy('newest');
+  }, [handleSelectFace]);
+
+  // Filtered and sorted listings
   const filteredListings = useMemo(() => {
     const faceConfig = getFaceConfig(currentFace);
-    return localizedListings.filter((item) => {
+    const result = localizedListings.filter((item) => {
       // Thematic Face filter
       if (currentFace !== 'general' && !faceConfig.primaryCategories.includes(item.content.category)) {
         return false;
@@ -184,6 +267,25 @@ export const App: React.FC = () => {
       ) {
         return false;
       }
+      // Price filter (price_minor is in kopecks / cents)
+      const priceRub = item.content.price_minor !== null && item.content.price_minor !== undefined
+        ? Math.floor(item.content.price_minor / 100)
+        : null;
+      if (priceOnly && priceRub === null) {
+        return false;
+      }
+      if (minPrice !== null && (priceRub === null || priceRub < minPrice)) {
+        return false;
+      }
+      if (maxPrice !== null && (priceRub === null || priceRub > maxPrice)) {
+        return false;
+      }
+      // Fulfillment modes filter
+      if (selectedModes.length > 0) {
+        const itemModes = item.content.modes || [];
+        const hasMatchingMode = selectedModes.some((m) => itemModes.includes(m));
+        if (!hasMatchingMode) return false;
+      }
       // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -198,25 +300,43 @@ export const App: React.FC = () => {
       }
       return true;
     });
-  }, [localizedListings, currentFace, currentCategory, filterKind, selectedLocality, searchQuery, t]);
 
-  const handleSelectFace = useCallback((face: FaceId) => {
-    setCurrentFace(face);
-    setStoredFace(face);
-    setCurrentCategory('all');
-    setSearchQuery('');
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      if (face === 'general') {
-        url.searchParams.delete('face');
-        url.searchParams.delete('theme');
-        url.searchParams.delete('niche');
-      } else {
-        url.searchParams.set('face', face);
-      }
-      window.history.replaceState({}, '', url.toString());
+    // Sorting
+    const sorted = [...result];
+    if (sortBy === 'price_asc') {
+      sorted.sort((a, b) => {
+        const aP = a.content.price_minor ?? Infinity;
+        const bP = b.content.price_minor ?? Infinity;
+        return aP - bP;
+      });
+    } else if (sortBy === 'price_desc') {
+      sorted.sort((a, b) => {
+        const aP = a.content.price_minor ?? -1;
+        const bP = b.content.price_minor ?? -1;
+        return bP - aP;
+      });
+    } else if (sortBy === 'popular') {
+      sorted.sort((a, b) => (b.responses_count || 0) - (a.responses_count || 0));
+    } else {
+      // Newest first (default)
+      sorted.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
     }
-  }, []);
+
+    return sorted;
+  }, [
+    localizedListings,
+    currentFace,
+    currentCategory,
+    filterKind,
+    selectedLocality,
+    minPrice,
+    maxPrice,
+    priceOnly,
+    selectedModes,
+    sortBy,
+    searchQuery,
+    t,
+  ]);
 
   const handleApplyChip = useCallback((chip: QuickChip) => {
     setSearchQuery(chip.query);
@@ -479,6 +599,8 @@ export const App: React.FC = () => {
         onOpenAbout={() => setIsAboutModalOpen(true)}
         currentFace={currentFace}
         onSelectFace={handleSelectFace}
+        onOpenAdvancedSearch={() => setIsAdvancedSearchOpen(true)}
+        activeFilterCount={activeFilterCount}
       />
 
       {/* Main Content Area with Ambient Mesh Glow */}
@@ -559,7 +681,7 @@ export const App: React.FC = () => {
               accentColor={currentFace !== 'general' ? getFaceConfig(currentFace).accentColor : undefined}
             />
 
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
               <div>
                 <h1 className="text-2xl md:text-3xl font-black text-[var(--ink)] tracking-tight flex items-center gap-2">
                   {currentFace !== 'general' && currentCategory === 'all' ? (
@@ -580,43 +702,196 @@ export const App: React.FC = () => {
                 </p>
               </div>
 
-              {/* Offer vs Request Filter */}
-              <div className="flex items-center gap-1.5 p-1 bg-[var(--surface)] border border-[var(--line)] rounded-xl text-xs font-semibold">
+              {/* Actions & Filters Controls */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Offer vs Request Filter */}
+                <div className="flex items-center gap-1.5 p-1 bg-[var(--surface)] border border-[var(--line)] rounded-xl text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setFilterKind('all')}
+                    className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                      filterKind === 'all'
+                        ? 'bg-[var(--canvas)] text-[var(--ink)] shadow-xs font-bold'
+                        : 'text-[var(--muted)] hover:text-[var(--ink)]'
+                    }`}
+                  >
+                    {t('kind.all')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFilterKind('offer')}
+                    className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                      filterKind === 'offer'
+                        ? 'bg-[var(--canvas)] text-[var(--ink)] shadow-xs font-bold text-emerald-700 dark:text-emerald-300'
+                        : 'text-[var(--muted)] hover:text-[var(--ink)]'
+                    }`}
+                  >
+                    📦 {t('kind.offer')} ({listings.filter((l) => l.content.kind === 'offer').length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFilterKind('request')}
+                    className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                      filterKind === 'request'
+                        ? 'bg-[var(--canvas)] text-[var(--ink)] shadow-xs font-bold text-blue-700 dark:text-blue-300'
+                        : 'text-[var(--muted)] hover:text-[var(--ink)]'
+                    }`}
+                  >
+                    🔍 {t('kind.request')} ({listings.filter((l) => l.content.kind === 'request').length})
+                  </button>
+                </div>
+
+                {/* Advanced Search & Filters Button */}
                 <button
                   type="button"
-                  onClick={() => setFilterKind('all')}
-                  className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                    filterKind === 'all'
-                      ? 'bg-[var(--canvas)] text-[var(--ink)] shadow-xs font-bold'
-                      : 'text-[var(--muted)] hover:text-[var(--ink)]'
+                  onClick={() => setIsAdvancedSearchOpen(true)}
+                  className={`h-9 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs ${
+                    activeFilterCount > 0
+                      ? 'bg-[var(--soft)] text-[var(--blue)] border-[var(--blue)]/40 font-black shadow-xs'
+                      : 'bg-[var(--surface)] hover:bg-[var(--raised)] text-[var(--ink)] border-[var(--line)]'
                   }`}
                 >
-                  {t('kind.all')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFilterKind('offer')}
-                  className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                    filterKind === 'offer'
-                      ? 'bg-[var(--canvas)] text-[var(--ink)] shadow-xs font-bold text-emerald-700 dark:text-emerald-300'
-                      : 'text-[var(--muted)] hover:text-[var(--ink)]'
-                  }`}
-                >
-                  📦 {t('kind.offer')} ({listings.filter((l) => l.content.kind === 'offer').length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFilterKind('request')}
-                  className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                    filterKind === 'request'
-                      ? 'bg-[var(--canvas)] text-[var(--ink)] shadow-xs font-bold text-blue-700 dark:text-blue-300'
-                      : 'text-[var(--muted)] hover:text-[var(--ink)]'
-                  }`}
-                >
-                  🔍 {t('kind.request')} ({listings.filter((l) => l.content.kind === 'request').length})
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                  </svg>
+                  <span>{locale === 'en' ? 'Filters' : 'Фильтры'}</span>
+                  {activeFilterCount > 0 && (
+                    <span className="min-w-4 h-4 px-1 rounded-full bg-[var(--blue)] text-white text-[10px] font-black flex items-center justify-center leading-none">
+                      {activeFilterCount}
+                    </span>
+                  )}
                 </button>
               </div>
             </div>
+
+            {/* Active Filter Badges Bar */}
+            {(activeFilterCount > 0 || searchQuery) && (
+              <div className="flex flex-wrap items-center gap-1.5 mb-6 p-2.5 rounded-xl bg-[var(--surface)]/60 border border-[var(--line)] text-xs">
+                <span className="text-[var(--muted)] font-semibold mr-1">
+                  {locale === 'en' ? 'Active filters:' : 'Применены фильтры:'}
+                </span>
+
+                {searchQuery && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--canvas)] border border-[var(--line)] text-[var(--ink)] font-medium">
+                    <span>🔍 «{searchQuery}»</span>
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="text-[var(--muted)] hover:text-red-500 font-bold ml-0.5 cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )}
+
+                {currentFace !== 'general' && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--canvas)] border border-[var(--line)] text-[var(--ink)] font-medium">
+                    <span>{getFaceConfig(currentFace).emoji} {locale === 'en' ? getFaceConfig(currentFace).nameEn : getFaceConfig(currentFace).nameRu}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectFace('general')}
+                      className="text-[var(--muted)] hover:text-red-500 font-bold ml-0.5 cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )}
+
+                {currentCategory !== 'all' && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--canvas)] border border-[var(--line)] text-[var(--ink)] font-medium">
+                    <span>📁 {t(`cat.${currentCategory}` as TranslationKey)}</span>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentCategory('all')}
+                      className="text-[var(--muted)] hover:text-red-500 font-bold ml-0.5 cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )}
+
+                {selectedLocality !== 'all' && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--canvas)] border border-[var(--line)] text-[var(--ink)] font-medium">
+                    <span>📍 {selectedLocality}</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedLocality('all')}
+                      className="text-[var(--muted)] hover:text-red-500 font-bold ml-0.5 cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )}
+
+                {(minPrice !== null || maxPrice !== null) && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--canvas)] border border-[var(--line)] text-[var(--ink)] font-medium">
+                    <span>
+                      💰 {minPrice !== null ? `от ${minPrice.toLocaleString()} ₽` : ''}{' '}
+                      {maxPrice !== null ? `до ${maxPrice.toLocaleString()} ₽` : ''}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMinPrice(null);
+                        setMaxPrice(null);
+                      }}
+                      className="text-[var(--muted)] hover:text-red-500 font-bold ml-0.5 cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )}
+
+                {priceOnly && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--canvas)] border border-[var(--line)] text-[var(--ink)] font-medium">
+                    <span>Только с ценой</span>
+                    <button
+                      type="button"
+                      onClick={() => setPriceOnly(false)}
+                      className="text-[var(--muted)] hover:text-red-500 font-bold ml-0.5 cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )}
+
+                {selectedModes.length > 0 && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--canvas)] border border-[var(--line)] text-[var(--ink)] font-medium">
+                    <span>🤝 {selectedModes.map((m) => t(`mode.${m}` as TranslationKey)).join(', ')}</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedModes([])}
+                      className="text-[var(--muted)] hover:text-red-500 font-bold ml-0.5 cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )}
+
+                {sortBy !== 'newest' && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--canvas)] border border-[var(--line)] text-[var(--ink)] font-medium">
+                    <span>
+                      {sortBy === 'price_asc' ? '💰 Сначала дешевле' : sortBy === 'price_desc' ? '💎 Сначала дороже' : '🔥 По популярности'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSortBy('newest')}
+                      className="text-[var(--muted)] hover:text-red-500 font-bold ml-0.5 cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleResetAllFilters}
+                  className="ml-auto text-[11px] font-bold text-red-500 hover:underline cursor-pointer px-2 py-0.5"
+                >
+                  {locale === 'en' ? 'Reset all' : 'Сбросить все'}
+                </button>
+              </div>
+            )}
 
             {/* Listings Grid / List */}
             {filteredListings.length > 0 ? (
@@ -685,6 +960,20 @@ export const App: React.FC = () => {
       )}
 
       {/* Modals */}
+      {/* Advanced Search & Filtering Modal */}
+      <AdvancedSearchModal
+        isOpen={isAdvancedSearchOpen}
+        onClose={() => setIsAdvancedSearchOpen(false)}
+        filters={advancedFilters}
+        onChangeFilters={handleUpdateAdvancedFilters}
+        onApply={() => {
+          setSelectedListing(null);
+          setCurrentTab('catalog');
+        }}
+        onReset={handleResetAllFilters}
+        totalMatching={filteredListings.length}
+      />
+
       <ApiKeyModal
         isOpen={isApiKeyModalOpen}
         onClose={() => setIsApiKeyModalOpen(false)}
