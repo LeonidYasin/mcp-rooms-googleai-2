@@ -169,6 +169,12 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
     CREATE INDEX IF NOT EXISTS idx_room_events_room_ts ON room_events(room_id, timestamp, seq);
 
+    CREATE TABLE IF NOT EXISTS system_config (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
   `);
 
   // Safe migration for existing listings table
@@ -223,6 +229,16 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     // Real estate / communities were added later than the original seed set, so
     // they must be ensured on every init, not only when the table already has rows.
     ensureNewCategoriesSeeded();
+  }
+
+  // Restore persistent settings (e.g. Gemini API key configured via Web UI)
+  try {
+    const storedGeminiKey = getSystemConfig('gemini_api_key');
+    if (storedGeminiKey && !process.env.GEMINI_API_KEY) {
+      process.env.GEMINI_API_KEY = storedGeminiKey;
+    }
+  } catch {
+    // Non-fatal if system_config table is not yet accessible
   }
 }
 
@@ -1460,6 +1476,32 @@ export function touchApiKeyInDb(id: string, at: number, minIntervalMs = 60_000) 
 export function revokeApiKeyInDb(id: string, at: number): boolean {
   const result = db.prepare('UPDATE api_keys SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL').run(at, id);
   return result.changes > 0;
+}
+
+export function getSystemConfig(key: string): string | null {
+  try {
+    const row = db.prepare('SELECT value FROM system_config WHERE key = ?').get(key) as { value: string } | undefined;
+    return row ? row.value : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setSystemConfig(key: string, value: string): void {
+  const now = Date.now();
+  db.prepare(`
+    INSERT INTO system_config (key, value, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+  `).run(key, value, now);
+}
+
+export function deleteSystemConfig(key: string): void {
+  try {
+    db.prepare('DELETE FROM system_config WHERE key = ?').run(key);
+  } catch {
+    // ignore
+  }
 }
 
 /**

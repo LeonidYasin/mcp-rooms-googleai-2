@@ -66,3 +66,86 @@ export async function createGuestSession(): Promise<{ key: string; principalId: 
   storeApiKey(data.key);
   return data;
 }
+
+export interface EmbeddingStatusResponse {
+  provider: 'google' | 'disabled' | 'fallback';
+  model: string;
+  isAvailable: boolean;
+  reason?: string;
+  hasCustomKey?: boolean;
+  keyMasked?: string;
+  isConfiguredViaWeb?: boolean;
+}
+
+export async function getEmbeddingStatus(): Promise<EmbeddingStatusResponse> {
+  const res = await fetch('/api/embedding/status');
+  if (!res.ok) {
+    throw new Error('Failed to fetch embedding status');
+  }
+  return res.json();
+}
+
+export async function configureEmbeddingKey(apiKey?: string): Promise<{
+  success: boolean;
+  message: string;
+  status: EmbeddingStatusResponse;
+}> {
+  const res = await fetch('/api/embedding/configure', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ apiKey }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data?.message || data?.error || 'Failed to configure embedding key');
+  }
+  return data;
+}
+
+export async function triggerEmbeddingReindex(force: boolean = false): Promise<{
+  success: boolean;
+  total: number;
+  indexed: number;
+  skipped: number;
+  errors: number;
+  status: EmbeddingStatusResponse;
+}> {
+  const res = await fetch('/api/embedding/reindex', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ force }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data?.message || data?.error || 'Failed to reindex embeddings');
+  }
+  return data;
+}
+
+export interface CurrentAuthMeResponse {
+  authenticated: boolean;
+  principal: {
+    principalId: string;
+    keyId: string;
+    scopes: string[];
+    isGuest: boolean;
+  } | null;
+}
+
+export async function getCurrentAuthStatus(): Promise<CurrentAuthMeResponse> {
+  const key = getStoredApiKey();
+  if (!key) {
+    return { authenticated: false, principal: null };
+  }
+  try {
+    const res = await fetch('/api/auth/me', {
+      headers: authHeaders(),
+    });
+    if (!res.ok) {
+      return { authenticated: false, principal: null };
+    }
+    return res.json();
+  } catch {
+    return { authenticated: false, principal: null };
+  }
+}
