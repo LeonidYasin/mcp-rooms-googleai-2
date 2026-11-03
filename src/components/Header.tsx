@@ -25,6 +25,8 @@ interface HeaderProps {
   onOpenAbout: () => void;
   currentFace?: FaceId;
   onSelectFace?: (face: FaceId) => void;
+  onOpenAdvancedSearch?: () => void;
+  activeFilterCount?: number;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -44,6 +46,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAbout,
   currentFace = 'general',
   onSelectFace = () => {},
+  onOpenAdvancedSearch,
+  activeFilterCount = 0,
 }) => {
   const { t, locale } = useI18n();
   const isEn = locale === 'en';
@@ -225,20 +229,15 @@ export const Header: React.FC<HeaderProps> = ({
                   e.preventDefault();
                   onSearchSubmit();
                 }}
-                className="w-full flex items-center bg-[var(--surface)] hover:bg-[var(--surface)]/95 focus-within:bg-[var(--canvas)] border border-[var(--line)] focus-within:border-[var(--blue)] focus-within:ring-2 focus-within:ring-[var(--focus)] rounded-xl transition-all h-9 px-1.5 shadow-2xs relative gap-1"
+                className="w-full flex items-center bg-[var(--surface)] hover:bg-[var(--surface)]/95 focus-within:bg-[var(--canvas)] border border-[var(--line)] focus-within:border-[var(--blue)] focus-within:ring-2 focus-within:ring-[var(--focus)] rounded-xl transition-all h-9.5 pl-2.5 pr-1 shadow-2xs relative gap-1.5"
               >
-                {/* 1. Leading Functional SVG Search Button */}
-                <button
-                  type="submit"
-                  aria-label={isEn ? 'Search' : 'Найти'}
-                  title={isEn ? 'Search' : 'Искать'}
-                  className="h-7 w-7 rounded-lg flex items-center justify-center text-[var(--muted)] hover:text-[var(--blue)] hover:bg-[var(--raised)] transition-colors cursor-pointer shrink-0"
-                >
+                {/* 1. Leading Search Icon */}
+                <div className="text-[var(--muted)] shrink-0 flex items-center select-none" aria-hidden="true">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="11" cy="11" r="8" />
                     <line x1="21" y1="21" x2="16.65" y2="16.65" />
                   </svg>
-                </button>
+                </div>
 
                 {/* 2. Wide Responsive Input */}
                 <input
@@ -249,14 +248,14 @@ export const Header: React.FC<HeaderProps> = ({
                   placeholder={
                     currentCategory === 'all'
                       ? isEn
-                        ? 'Search listings, services...'
-                        : 'Поиск объявлений, услуг...'
+                        ? 'Search listings, services, goods...'
+                        : 'Поиск объявлений, услуг, товаров...'
                       : isEn
                       ? `Search in ${getCategoryLabel(currentCategory)}...`
                       : `Искать в «${getCategoryLabel(currentCategory)}»...`
                   }
                   maxLength={120}
-                  className="flex-1 bg-transparent text-xs text-[var(--ink)] placeholder-[var(--muted)] outline-none py-1 px-1 min-w-0"
+                  className="flex-1 bg-transparent text-xs text-[var(--ink)] placeholder-[var(--muted)] outline-none py-1 px-1 min-w-0 font-medium"
                 />
 
                 {searchQuery && (
@@ -264,13 +263,20 @@ export const Header: React.FC<HeaderProps> = ({
                     type="button"
                     onClick={() => onSearchChange('')}
                     aria-label="Очистить поиск"
-                    className="text-[var(--muted)] hover:text-[var(--ink)] text-xs p-1 hover:bg-[var(--raised)] rounded-md cursor-pointer shrink-0 mr-1"
+                    className="text-[var(--muted)] hover:text-[var(--ink)] text-xs p-1 hover:bg-[var(--raised)] rounded-md cursor-pointer shrink-0"
                   >
                     ✕
                   </button>
                 )}
 
-                {/* 3. Category Filter Popover Trigger (Clean & Compact on the right) */}
+                {/* 3. Keyboard Shortcut Badge */}
+                {!searchQuery && (
+                  <div className="hidden xl:flex items-center gap-0.5 text-[10px] text-[var(--muted)] font-mono bg-[var(--raised)] border border-[var(--line)] px-1.5 py-0.5 rounded select-none shrink-0">
+                    <span className="text-[11px]">⌘</span>K
+                  </div>
+                )}
+
+                {/* 4. Category Filter Popover Trigger */}
                 <div className="relative shrink-0 flex items-center" ref={desktopRef}>
                   <div className="w-[1px] h-4 bg-[var(--line)] mr-1 shrink-0" />
                   <button
@@ -282,7 +288,7 @@ export const Header: React.FC<HeaderProps> = ({
                     className="h-7 px-2 rounded-lg flex items-center gap-1 text-xs font-semibold text-[var(--ink)] hover:bg-[var(--raised)] transition-colors cursor-pointer select-none"
                   >
                     <span>{CATEGORY_ICONS[currentCategory] || '📁'}</span>
-                    <span className="hidden xl:inline max-w-[100px] truncate">{getCategoryLabel(currentCategory)}</span>
+                    <span className="hidden xl:inline max-w-[85px] truncate">{getCategoryLabel(currentCategory)}</span>
                     <svg
                       className={`w-3 h-3 text-[var(--muted)] transition-transform duration-200 ${
                         categoriesOpen ? 'rotate-180' : ''
@@ -299,12 +305,41 @@ export const Header: React.FC<HeaderProps> = ({
                   {categoriesOpen && renderCategoryDropdownMenu()}
                 </div>
 
-                {/* 4. Keyboard Shortcut Badge */}
-                {!searchQuery && (
-                  <div className="hidden sm:flex items-center gap-0.5 text-[10px] text-[var(--muted)] font-mono bg-[var(--surface)] border border-[var(--line)] px-1.5 py-0.5 rounded select-none shrink-0">
-                    <span className="text-[11px]">⌘</span>K
-                  </div>
-                )}
+                {/* 5. Advanced Search & Filters Button with Active Filter Count Badge */}
+                <button
+                  type="button"
+                  onClick={onOpenAdvancedSearch}
+                  title={isEn ? 'Advanced search & filters' : 'Расширенный поиск и фильтры'}
+                  className={`h-7.5 px-2 rounded-lg flex items-center gap-1 text-xs font-semibold transition-all cursor-pointer shrink-0 select-none ${
+                    activeFilterCount > 0
+                      ? 'bg-[var(--soft)] text-[var(--blue)] font-bold border border-[var(--blue)]/30 shadow-2xs'
+                      : 'text-[var(--ink)] hover:bg-[var(--raised)] border border-[var(--line)]'
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5 text-[var(--muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                  </svg>
+                  <span className="hidden xl:inline">{isEn ? 'Filters' : 'Фильтры'}</span>
+                  {activeFilterCount > 0 && (
+                    <span className="min-w-4 h-4 px-1 rounded-full bg-[var(--blue)] text-white text-[10px] font-black flex items-center justify-center leading-none">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* 6. Prominent High-Contrast "Найти" CTA Button */}
+                <button
+                  type="submit"
+                  aria-label={isEn ? 'Search' : 'Найти'}
+                  title={isEn ? 'Search' : 'Найти'}
+                  className="h-7.5 px-3 rounded-lg bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white font-black text-xs flex items-center gap-1.5 transition-all shadow-xs hover:shadow-md active:scale-98 cursor-pointer shrink-0"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                  <span>{isEn ? 'Search' : 'Найти'}</span>
+                </button>
               </form>
             </div>
 
@@ -422,20 +457,15 @@ export const Header: React.FC<HeaderProps> = ({
                 e.preventDefault();
                 onSearchSubmit();
               }}
-              className="w-full flex items-center bg-[var(--surface)] border border-[var(--line)] focus-within:border-[var(--blue)] rounded-xl h-8 px-1.5 shadow-2xs relative gap-1"
+              className="w-full flex items-center bg-[var(--surface)] border border-[var(--line)] focus-within:border-[var(--blue)] focus-within:ring-2 focus-within:ring-[var(--focus)] rounded-xl h-9 pl-2 pr-1 shadow-2xs relative gap-1.5"
             >
-              {/* Leading Functional SVG Submit Button */}
-              <button
-                type="submit"
-                aria-label={isEn ? 'Search' : 'Найти'}
-                title={isEn ? 'Search' : 'Искать'}
-                className="h-6 w-6 rounded-md flex items-center justify-center text-[var(--muted)] hover:text-[var(--blue)] cursor-pointer shrink-0"
-              >
+              {/* Leading Magnifier Icon */}
+              <div className="text-[var(--muted)] shrink-0 flex items-center select-none" aria-hidden="true">
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="11" cy="11" r="8" />
                   <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>
-              </button>
+              </div>
 
               <input
                 type="search"
@@ -450,7 +480,7 @@ export const Header: React.FC<HeaderProps> = ({
                     ? `Search in ${getCategoryLabel(currentCategory)}...`
                     : `Искать в «${getCategoryLabel(currentCategory)}»...`
                 }
-                className="flex-1 bg-transparent text-xs text-[var(--ink)] placeholder-[var(--muted)] outline-none py-1 px-1 min-w-0"
+                className="flex-1 bg-transparent text-xs text-[var(--ink)] placeholder-[var(--muted)] outline-none py-1 px-1 min-w-0 font-medium"
               />
 
               {searchQuery && (
@@ -470,10 +500,10 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   type="button"
                   onClick={() => setCategoriesOpen((prev) => !prev)}
-                  className="h-6 px-1.5 rounded-md flex items-center gap-1 text-[11px] font-semibold text-[var(--ink)] hover:bg-[var(--raised)] cursor-pointer select-none"
+                  className="h-6.5 px-1.5 rounded-md flex items-center gap-1 text-[11px] font-semibold text-[var(--ink)] hover:bg-[var(--raised)] cursor-pointer select-none"
                 >
                   <span>{CATEGORY_ICONS[currentCategory] || '📁'}</span>
-                  <span className="max-w-[75px] truncate">{getCategoryLabel(currentCategory)}</span>
+                  <span className="max-w-[70px] truncate">{getCategoryLabel(currentCategory)}</span>
                   <svg
                     className={`w-2.5 h-2.5 text-[var(--muted)] transition-transform duration-200 ${
                       categoriesOpen ? 'rotate-180' : ''
@@ -489,6 +519,37 @@ export const Header: React.FC<HeaderProps> = ({
                 {/* Mobile Dropdown Popover */}
                 {categoriesOpen && renderCategoryDropdownMenu()}
               </div>
+
+              {/* Mobile Filter Button */}
+              <button
+                type="button"
+                onClick={onOpenAdvancedSearch}
+                title={isEn ? 'Advanced search & filters' : 'Расширенный поиск и фильтры'}
+                className={`h-7 px-2 rounded-lg flex items-center gap-1 text-xs font-semibold cursor-pointer shrink-0 transition-colors ${
+                  activeFilterCount > 0
+                    ? 'bg-[var(--soft)] text-[var(--blue)] font-bold border border-[var(--blue)]/30 shadow-2xs'
+                    : 'text-[var(--ink)] hover:bg-[var(--raised)] border border-[var(--line)]'
+                }`}
+              >
+                <svg className="w-3.5 h-3.5 text-[var(--muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                </svg>
+                {activeFilterCount > 0 && (
+                  <span className="min-w-3.5 h-3.5 px-0.5 rounded-full bg-[var(--blue)] text-white text-[9px] font-black flex items-center justify-center leading-none">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Mobile Prominent "Найти" CTA Button */}
+              <button
+                type="submit"
+                aria-label={isEn ? 'Search' : 'Найти'}
+                title={isEn ? 'Search' : 'Найти'}
+                className="h-7 px-2.5 rounded-lg bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white font-black text-xs flex items-center gap-1 transition-all shadow-xs cursor-pointer shrink-0"
+              >
+                <span>{isEn ? 'Search' : 'Найти'}</span>
+              </button>
             </form>
           </div>
         </div>
