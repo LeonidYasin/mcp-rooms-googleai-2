@@ -34,14 +34,16 @@ interface CategoryBarProps {
   currentCategory: ListingCategory | 'all';
   onSelectCategory: (cat: ListingCategory | 'all') => void;
   accentColor?: string;
+  isFloatingDock?: boolean;
 }
 
 export const CategoryBar: React.FC<CategoryBarProps> = ({
   currentCategory,
   onSelectCategory,
   accentColor,
+  isFloatingDock = false,
 }) => {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = React.useState(false);
 
@@ -65,6 +67,40 @@ export const CategoryBar: React.FC<CategoryBarProps> = ({
   const getCategoryLabel = (cat: ListingCategory | 'all'): string => {
     return t(`cat.${cat}` as TranslationKey);
   };
+
+  // 💎 V2 Mockup Centered Floating Glass Pill Dock
+  if (isFloatingDock) {
+    return (
+      <div className="flex justify-center mb-8 px-2">
+        <div
+          role="tablist"
+          aria-label={t('nav.sections')}
+          className="floating-glass-dock inline-flex items-center gap-1.5 p-1.5 rounded-2xl max-w-full overflow-x-auto no-scrollbar"
+        >
+          {CATEGORIES_ORDER.map((cat) => {
+            const isSelected = currentCategory === cat;
+            const label = getCategoryLabel(cat);
+            return (
+              <button
+                key={cat}
+                type="button"
+                role="tab"
+                aria-selected={isSelected}
+                onClick={() => onSelectCategory(cat)}
+                className={`px-4 py-1.5 rounded-xl text-xs font-medium transition-all duration-200 cursor-pointer whitespace-nowrap select-none ${
+                  isSelected
+                    ? 'bg-slate-800/90 text-white font-semibold shadow-inner border border-white/20'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/40 border border-transparent'
+                }`}
+              >
+                <span>{cat === 'all' ? (locale === 'en' ? 'All Rooms' : 'Все комнаты') : label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative mb-6 group">

@@ -15,7 +15,8 @@ export type FaceId =
   | 'barter'
   | 'm2m_agents'
   | 'ozon_market'
-  | 'yandex_realty';
+  | 'yandex_realty'
+  | 'dark_glass';
 
 export type SpecialFeatureType =
   | 'standard'
@@ -29,7 +30,8 @@ export type SpecialFeatureType =
   | 'barter'
   | 'm2m_agents'
   | 'ozon_market'
-  | 'yandex_realty';
+  | 'yandex_realty'
+  | 'dark_glass';
 
 export interface QuickChip {
   labelRu: string;
@@ -651,6 +653,43 @@ export const FACES_REGISTRY: Record<FaceId, FaceConfig> = {
       labelEn: '6% Mortgage & Room Selector',
       infoRu: 'Автоматический расчет ежемесячного платежа, проверка ЕГРН и фиксация брони в комнате.',
       infoEn: 'Automated monthly mortgage estimate, deed registry verification, and secure room lock.',
+    },
+  },
+  dark_glass: {
+    id: 'dark_glass',
+    nameRu: '💎 Dark Glass (Неоновый макет V2)',
+    nameEn: '💎 Dark Glass (Next-Gen V2)',
+    emoji: '💎',
+    badgeRu: 'DARK GLASS · MCP NEXT-GEN',
+    badgeEn: 'DARK GLASS · MCP NEXT-GEN',
+    taglineRu: 'Стеклянный кибер-интерфейс нового поколения с живыми метриками агентов',
+    taglineEn: 'Next-gen glassmorphism interface with live agent metrics',
+    descriptionRu: 'Глубокий тёмный космос, неоновый Mesh Glow, плавающий стеклянный док и 3-колоночные карточки с метриками.',
+    descriptionEn: 'Deep space dark mode, neon ambient mesh glow, floating glass dock and 3-column metric cards.',
+    accentColor: '#10b981',
+    borderAccent: 'border-emerald-500/40',
+    bgTint: 'bg-emerald-500/5',
+    primaryCategories: ['business', 'jobs', 'services', 'rides', 'delivery'],
+    quickChips: [
+      { labelRu: '⚡ Live MCP Агенты', labelEn: '⚡ Live MCP Agents', query: 'agent' },
+      { labelRu: '🚀 Стартапы & Pitch', labelEn: '🚀 Pitch Agents', query: 'стартап' },
+      { labelRu: '🚕 Fleet Dispatch', labelEn: '🚕 Fleet Dispatch', query: 'такси' },
+      { labelRu: '💻 Code Architect', labelEn: '💻 Code Architect', query: 'код' },
+      { labelRu: '🛡️ Escrow Сделки', labelEn: '🛡️ Escrow Deals', query: 'комната' },
+    ],
+    publishPreset: {
+      defaultCategory: 'services',
+      titleHintRu: 'Например: Autonomous Fleet Dispatcher v2 или Fullstack Code Architect',
+      titleHintEn: 'e.g.: Autonomous Fleet Dispatcher v2 or Fullstack Code Architect',
+      descHintRu: 'Опишите возможности вашего автономного агента, MCP-инструменты, SLA и условия сделки...',
+      descHintEn: 'Describe your agent capabilities, MCP tools, SLA guarantees, and pricing...',
+    },
+    specialFeature: {
+      type: 'dark_glass',
+      labelRu: 'Live Метрики & Escrow Док',
+      labelEn: 'Live Metrics & Escrow Dock',
+      infoRu: 'Прямая телеметрия активности агентов, латентность MCP JSON-RPC и автоматическая Escrow-защита.',
+      infoEn: 'Realtime agent telemetry, MCP JSON-RPC latency, and automated Escrow deal lock.',
     },
   },
 };
