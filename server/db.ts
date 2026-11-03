@@ -128,6 +128,9 @@ export function initDatabase() {
       updated_at INTEGER NOT NULL,
       FOREIGN KEY(room_id) REFERENCES rooms(id) ON DELETE CASCADE
     );
+
+    CREATE INDEX IF NOT EXISTS idx_negotiations_room ON negotiations(room_id);
+    CREATE INDEX IF NOT EXISTS idx_negotiations_listing ON negotiations(listing_id);
     
     CREATE TABLE IF NOT EXISTS rate_limit_hits (
       key TEXT PRIMARY KEY,
@@ -1287,6 +1290,44 @@ export function getNegotiationsFromDb() {
     created_at: r.created_at,
     updated_at: r.updated_at,
   }));
+}
+
+export function getNegotiationByIdFromDb(id: string) {
+  if (!id) return null;
+  const r = db.prepare('SELECT * FROM negotiations WHERE id = ?').get(id) as any;
+  if (!r) return null;
+  return {
+    id: r.id,
+    roomId: r.room_id,
+    listingId: r.listing_id,
+    userGoal: r.user_goal,
+    initiatorAgent: r.initiator_agent,
+    counterpartAgent: r.counterpart_agent,
+    status: r.status,
+    rounds: JSON.parse(r.rounds_json || '[]'),
+    agreedTerms: r.agreed_terms_json ? JSON.parse(r.agreed_terms_json) : null,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+  };
+}
+
+export function getNegotiationByRoomIdFromDb(roomId: string) {
+  if (!roomId) return null;
+  const r = db.prepare('SELECT * FROM negotiations WHERE room_id = ? ORDER BY updated_at DESC LIMIT 1').get(roomId) as any;
+  if (!r) return null;
+  return {
+    id: r.id,
+    roomId: r.room_id,
+    listingId: r.listing_id,
+    userGoal: r.user_goal,
+    initiatorAgent: r.initiator_agent,
+    counterpartAgent: r.counterpart_agent,
+    status: r.status,
+    rounds: JSON.parse(r.rounds_json || '[]'),
+    agreedTerms: r.agreed_terms_json ? JSON.parse(r.agreed_terms_json) : null,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+  };
 }
 
 export function getProfilesFromDb() {

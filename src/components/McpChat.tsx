@@ -497,16 +497,24 @@ export const McpChat: React.FC<McpChatProps> = ({
                         className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
                           m.negotiation.status === 'demo_preview'
                             ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300'
+                            : m.negotiation.status === 'agreed'
+                            ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
+                            : m.negotiation.status === 'declined'
+                            ? 'bg-red-100 dark:bg-red-950 text-red-800 dark:text-red-300'
                             : 'bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300'
                         }`}
                       >
                         {m.negotiation.status === 'demo_preview'
                           ? 'Демо · автору ничего не отправлено'
+                          : m.negotiation.status === 'agreed'
+                          ? '🤝 Согласовано (комната создана)'
                           : m.negotiation.status === 'no_match'
                           ? 'Совпадений нет'
+                          : m.negotiation.status === 'declined'
+                          ? 'Отклонено'
                           : m.negotiation.status === 'in_progress'
                           ? 'В процессе...'
-                          : 'Демо'}
+                          : 'Переговоры'}
                       </span>
                     </div>
                   </div>
@@ -547,6 +555,15 @@ export const McpChat: React.FC<McpChatProps> = ({
                         className="px-3 py-1.5 rounded-lg bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white font-semibold text-xs transition-colors cursor-pointer flex items-center gap-1"
                       >
                         <span>Открыть карточку и написать автору →</span>
+                      </button>
+                    )}
+                    {m.negotiation.roomId && onOpenRoom && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenRoom(m.negotiation!.roomId!)}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors cursor-pointer flex items-center gap-1"
+                      >
+                        <span>💬 Открыть переговорную комнату →</span>
                       </button>
                     )}
                   </div>
