@@ -18,9 +18,16 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'NODE_ENV=production npm run build && node -e "const { app } = await import(\'./server.ts\'); app.listen(3000);"',
+    command: 'npx tsx server.ts',
     url: 'http://127.0.0.1:3000/api/health',
     reuseExistingServer: !process.env.CI,
-    timeout: 30000,
+    timeout: 60000,
+    env: {
+      NODE_ENV: 'production',
+      PORT: '3000',
+      DATABASE_PATH: process.env.DATABASE_PATH || './data/test-playwright.db',
+      EMBEDDING_PROVIDER: 'disabled',
+      DEMO_SEED: '1',
+    },
   },
 });

@@ -65,6 +65,19 @@ jobs:
           grep -q 'search_listings' /tmp/mcp.json
           echo 'smoke ok'
 
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Playwright E2E tests
+        env:
+          CI: 'true'
+          NODE_ENV: production
+          PORT: '3000'
+          DATABASE_PATH: /tmp/rooms-playwright/mcp_rooms.db
+          EMBEDDING_PROVIDER: disabled
+          DEMO_SEED: '1'
+        run: npm run test:e2e
+
   docker:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
