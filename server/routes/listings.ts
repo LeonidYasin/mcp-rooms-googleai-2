@@ -93,6 +93,11 @@ listingsRouter.get('/api/faces', (_req, res) => {
     { id: 'services', name: 'Мастера & Услуги', nameEn: 'Local Pros & Services', emoji: '🛠️', primaryCategories: ['services', 'jobs'] },
     { id: 'logistics', name: 'Курьеры & Грузы', nameEn: 'Couriers & Cargo', emoji: '🚚', primaryCategories: ['delivery'] },
     { id: 'real_estate', name: 'Недвижимость & Локации', nameEn: 'Real Estate & Spaces', emoji: '🏢', primaryCategories: ['real_estate'] },
+    { id: 'equipment', name: 'Спецоборудование & Аренда', nameEn: 'Equipment & Rental', emoji: '🚜', primaryCategories: ['things', 'services'] },
+    { id: 'procurement', name: 'B2B Закупки & Аукционы', nameEn: 'B2B Procurement & Auctions', emoji: '📦', primaryCategories: ['business', 'things', 'services'] },
+    { id: 'mentoring', name: 'Эксперты & Консалтинг', nameEn: 'Mentors & Advisory', emoji: '🎓', primaryCategories: ['jobs', 'services'] },
+    { id: 'barter', name: 'Бартер & Сообщества', nameEn: 'Barter & Communities', emoji: '🤝', primaryCategories: ['communities', 'things'] },
+    { id: 'm2m_agents', name: 'M2M Агентное Облако', nameEn: 'M2M Autonomous Cloud', emoji: '🤖', primaryCategories: ['business', 'services', 'other'] },
   ]);
 });
 
@@ -113,6 +118,11 @@ listingsRouter.get('/api/listings', (req, res) => {
         services: ['services', 'jobs'],
         logistics: ['delivery'],
         real_estate: ['real_estate'],
+        equipment: ['things', 'services'],
+        procurement: ['business', 'things', 'services'],
+        mentoring: ['jobs', 'services'],
+        barter: ['communities', 'things'],
+        m2m_agents: ['business', 'services', 'other'],
       };
       categoryList = faceCategoryMap[face];
     }

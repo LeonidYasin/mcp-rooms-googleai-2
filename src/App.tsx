@@ -20,6 +20,7 @@ import { ApiKeyModal } from './components/ApiKeyModal';
 import { AboutModal } from './components/AboutModal';
 import { RoomsHub } from './components/RoomsHub';
 import { FaceBanner } from './components/FaceBanner';
+import { VerticalModuleWidget } from './components/VerticalModuleWidget';
 import {
   FaceId,
   getFaceConfig,
@@ -116,6 +117,17 @@ export const App: React.FC = () => {
   useEffect(() => {
     refreshDataFromDb();
   }, [refreshDataFromDb]);
+
+  // Synchronize dynamic visual skin on the <html> element
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      if (currentFace === 'general') {
+        document.documentElement.removeAttribute('data-face');
+      } else {
+        document.documentElement.setAttribute('data-face', currentFace);
+      }
+    }
+  }, [currentFace]);
 
   // Localized listings and rooms based on active language
   const localizedListings = useMemo(
@@ -513,6 +525,14 @@ export const App: React.FC = () => {
               onApplyChip={handleApplyChip}
               activeChipQuery={searchQuery}
               onOpenPublish={() => setIsPublishModalOpen(true)}
+            />
+
+            {/* Specialized Vertical Action Module */}
+            <VerticalModuleWidget
+              currentFace={currentFace}
+              onOpenPublish={() => setIsPublishModalOpen(true)}
+              onOpenRoom={handleOpenRoom}
+              onSelectFace={handleSelectFace}
             />
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">

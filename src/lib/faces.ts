@@ -8,7 +8,24 @@ export type FaceId =
   | 'taxi'
   | 'services'
   | 'logistics'
-  | 'real_estate';
+  | 'real_estate'
+  | 'equipment'
+  | 'procurement'
+  | 'mentoring'
+  | 'barter'
+  | 'm2m_agents';
+
+export type SpecialFeatureType =
+  | 'standard'
+  | 'compute'
+  | 'venture'
+  | 'dating'
+  | 'rides'
+  | 'equipment'
+  | 'procurement'
+  | 'mentoring'
+  | 'barter'
+  | 'm2m_agents';
 
 export interface QuickChip {
   labelRu: string;
@@ -26,7 +43,7 @@ export interface PublishPreset {
 }
 
 export interface SpecialFeature {
-  type: 'venture' | 'dating' | 'rides' | 'compute' | 'standard';
+  type: SpecialFeatureType;
   labelRu: string;
   labelEn: string;
   infoRu: string;
@@ -366,6 +383,196 @@ export const FACES_REGISTRY: Record<FaceId, FaceConfig> = {
       labelEn: 'Deposit & Inventory',
       infoRu: 'Фиксация обеспечительного платежа, описи имущества и акта возврата в переговорной комнате.',
       infoEn: 'Fixing security deposit, furniture inventory, and handover protocol in the private room.',
+    },
+  },
+
+  equipment: {
+    id: 'equipment',
+    nameRu: 'Спецоборудование & Аренда',
+    nameEn: 'Equipment & Tool Sharing',
+    emoji: '🚜',
+    badgeRu: 'ШЕРИНГ ОБОРУДОВАНИЯ · БЕЗ ПРОСТОЕВ',
+    badgeEn: 'EQUIPMENT SHARING · ZERO DOWNTIME',
+    taglineRu: 'Аренда строительного инструмента, съёмочной техники, дронов и генераторов.',
+    taglineEn: 'Rental of heavy machinery, cinema/lighting gear, drones, and power tools.',
+    descriptionRu: 'Шеринг дорогостоящего оборудования между профессионалами с фиксацией залога и моточасов в комнате.',
+    descriptionEn: 'Sharing high-value equipment between professionals with locked deposit and hour meter in room.',
+    accentColor: '#d97706',
+    borderAccent: 'border-amber-600/40',
+    bgTint: 'bg-amber-600/5',
+    primaryCategories: ['things', 'services'],
+    quickChips: [
+      { labelRu: '🔨 Виброплиты & Отбойники', labelEn: '🔨 Power Tools', query: 'виброплита' },
+      { labelRu: '🎥 Кинокамеры & Свет', labelEn: '🎥 Cinema Cameras', query: 'камера' },
+      { labelRu: '⚡ Генераторы 5-10 кВт', labelEn: '⚡ Power Generators', query: 'генератор' },
+      { labelRu: '🖨️ 3D-печать (нейлон/карбон)', labelEn: '🖨️ 3D Printing', query: '3D-печать' },
+      { labelRu: '🌡️ Тепловизоры Flir', labelEn: '🌡️ Thermal Cameras', query: 'тепловизор' },
+    ],
+    publishPreset: {
+      defaultCategory: 'things',
+      titleHintRu: 'Например: Аренда кинокамеры RED Komodo с оптикой или Виброплита 90 кг на выходные',
+      titleHintEn: 'e.g.: RED Komodo camera package rental or 90kg Compactor for weekend',
+      descHintRu: 'Укажите комплектацию, суточный тариф, размер залога, место выдачи и техническое состояние...',
+      descHintEn: 'Specify accessories, daily rate, deposit amount, pickup location, and operational specs...',
+    },
+    specialFeature: {
+      type: 'equipment',
+      labelRu: 'Залог и моточасы',
+      labelEn: 'Deposit & Operating Hours',
+      infoRu: 'Фиксация залогового депозита, комплектности и максимальной наработки моточасов в комнате.',
+      infoEn: 'Binding security deposit, equipment checklist, and operating hour allowance in room.',
+    },
+  },
+
+  procurement: {
+    id: 'procurement',
+    nameRu: 'B2B Закупки & Аукционы',
+    nameEn: 'B2B Procurement & Auctions',
+    emoji: '📦',
+    badgeRu: 'РЕВЕРСИВНЫЕ АУКЦИОНЫ · B2B ОПТ',
+    badgeEn: 'REVERSE AUCTIONS · B2B WHOLESALE',
+    taglineRu: 'Прямые поставки сырья, оптовые партии и реверсивные аукционы на понижение цены.',
+    taglineEn: 'Direct raw material sourcing, bulk wholesale lots, and reverse downward bidding auctions.',
+    descriptionRu: 'Заказчики публикуют спецификацию (Request), а поставщики торгуются в переговорной комнате за объём.',
+    descriptionEn: 'Buyers publish RFP specs (Request), and qualified suppliers bid downward in private rooms.',
+    accentColor: '#1d4ed8',
+    borderAccent: 'border-blue-700/40',
+    bgTint: 'bg-blue-700/5',
+    primaryCategories: ['business', 'things', 'services'],
+    quickChips: [
+      { labelRu: '🏗️ Кабель ВВГнг-LS (ГОСТ)', labelEn: '🏗️ Industrial Cables', query: 'кабель' },
+      { labelRu: '📦 Гофротара Т-24 оптом', labelEn: '📦 Bulk Packaging', query: 'гофротара' },
+      { labelRu: '🔩 Металлопрокат со склада', labelEn: '🔩 Steel & Metals', query: 'металлопрокат' },
+      { labelRu: '🧪 Промышленная химия', labelEn: '🧪 Industrial Chem', query: 'сырье' },
+      { labelRu: '📑 Тендеры с отсрочкой 14д', labelEn: '📑 14d Deferred Bids', query: 'отсрочка' },
+    ],
+    publishPreset: {
+      defaultCategory: 'business',
+      titleHintRu: 'Например: Закупка кабеля ВВГнг-LS 3x2.5 — 5000 м (ГОСТ) или Оптовая партия гофрокоробов',
+      titleHintEn: 'e.g.: Procurement of VVGng-LS 3x2.5 cable — 5000m (GOST) or Bulk cardboard boxes',
+      descHintRu: 'Опишите требуемый объем партии, ГОСТ/ТУ, требования к сертификатам, базис поставки и условия оплаты...',
+      descHintEn: 'Specify lot volume, technical certifications, delivery basis (Incoterms), and payment terms...',
+    },
+    specialFeature: {
+      type: 'procurement',
+      labelRu: 'Реверсивный торг',
+      labelEn: 'Reverse Bidding',
+      infoRu: 'Протокол реверсивного торга агентов поставщиков с фиксацией объёма партии и сертификатов.',
+      infoEn: 'Supplier agent reverse bidding protocol with verified lot volume and compliance certs.',
+    },
+  },
+
+  mentoring: {
+    id: 'mentoring',
+    nameRu: 'Эксперты & Консалтинг',
+    nameEn: 'Experts & Mentoring',
+    emoji: '🎓',
+    badgeRu: 'ПЕРСОНАЛЬНЫЙ КОНСАЛТИНГ & КОД-РЕВЬЮ',
+    badgeEn: 'EXPERT CONSULTING & CODE REVIEW',
+    taglineRu: 'Архитектурный аудит систем, консультации юристов и менторство с передачей артефактов.',
+    taglineEn: 'System architecture audit, legal counsel, and engineering mentorship in secure rooms.',
+    descriptionRu: 'Встречи фаундеров и инженеров с проверенными экспертами с NDA и защищённой передачей кода и документов.',
+    descriptionEn: 'Direct advisory sessions with senior architects and lawyers with signed NDA and file handovers.',
+    accentColor: '#4f46e5',
+    borderAccent: 'border-indigo-600/40',
+    bgTint: 'bg-indigo-600/5',
+    primaryCategories: ['jobs', 'services'],
+    quickChips: [
+      { labelRu: '🔍 Аудит смарт-контрактов', labelEn: '🔍 Smart Contract Audit', query: 'смарт-контракт' },
+      { labelRu: '🏛️ Архитектура Go / Rust', labelEn: '🏛️ Go / Rust Architecture', query: 'архитектур' },
+      { labelRu: '⚖️ AI-патентное право (ОАЭ/US)', labelEn: '⚖️ AI Patent Counsel', query: 'юрист' },
+      { labelRu: '🚀 Подготовка к Y Combinator', labelEn: '🚀 Y Combinator Prep', query: 'YC' },
+      { labelRu: '🧠 Файн-тюнинг Llama 3', labelEn: '🧠 Llama 3 Fine-tuning', query: 'fine-tuning' },
+    ],
+    publishPreset: {
+      defaultCategory: 'services',
+      titleHintRu: 'Например: Аудит архитектуры распределённой БД на 100k RPS или Консультация по патентованию AI',
+      titleHintEn: 'e.g.: Distributed DB architecture review for 100k RPS or AI Patent Strategy advisory',
+      descHintRu: 'Опишите задачу, текущий технологический стек, релевантный опыт и желаемый формат сессии...',
+      descHintEn: 'Describe consulting scope, tech stack, deliverables, and preferred session format...',
+    },
+    specialFeature: {
+      type: 'mentoring',
+      labelRu: 'NDA и артефакты',
+      labelEn: 'NDA & Artifact Handover',
+      infoRu: 'Защищённая комната с автоматическим NDA и фиксацией итогового отчета/кода в реестре комнаты.',
+      infoEn: 'Encrypted room with built-in NDA and signed handover of audit reports and source code.',
+    },
+  },
+
+  barter: {
+    id: 'barter',
+    nameRu: 'Бартер & Сообщества',
+    nameEn: 'Community Barter & Aid',
+    emoji: '🤝',
+    badgeRu: 'ГИПЕРЛОКАЛЬНЫЙ ШЕРИНГ · ВЗАИМОПОМОЩЬ',
+    badgeEn: 'HYPERLOCAL MUTUAL AID & BARTER',
+    taglineRu: 'Обмен книгами, вещами, детскими товарами и соседская взаимопомощь без денег.',
+    taglineEn: 'Book exchange, clothing swap, children goods barter, and neighbor mutual aid.',
+    descriptionRu: 'Бескорыстная взаимопомощь и прямой бартер внутри жилых комплексов, районов и открытых сообществ.',
+    descriptionEn: 'Cashless community sharing and direct bartering inside neighborhoods and open squads.',
+    accentColor: '#15803d',
+    borderAccent: 'border-green-600/40',
+    bgTint: 'bg-green-600/5',
+    primaryCategories: ['communities', 'things'],
+    quickChips: [
+      { labelRu: '🎁 Отдам даром', labelEn: '🎁 Free / Giveaway', query: 'даром' },
+      { labelRu: '📚 Обмен книгами (BookSwap)', labelEn: '📚 Book Swap', query: 'книг' },
+      { labelRu: '👶 Детские товары & Коляски', labelEn: '👶 Kids & Strollers', query: 'детск' },
+      { labelRu: '🌱 Растения и саженцы', labelEn: '🌱 Plants & Seeds', query: 'растения' },
+      { labelRu: '🛠️ Соседская взаимовыручка', labelEn: '🛠️ Neighborly Help', query: 'помощь' },
+    ],
+    publishPreset: {
+      defaultCategory: 'communities',
+      titleHintRu: 'Например: Отдам даром собрание книг по искусству или Обменяю детское автокресло на самокат',
+      titleHintEn: 'e.g.: Giving away art book collection for free or Bartering stroller for scooter',
+      descHintRu: 'Укажите район/ЖК, состояние предмета, на что хотите обменяться или кому готовы передать...',
+      descHintEn: 'Indicate neighborhood/district, item condition, and what you would like to swap for...',
+    },
+    specialFeature: {
+      type: 'barter',
+      labelRu: 'Безденежный бартер',
+      labelEn: 'Cashless Barter',
+      infoRu: 'Прямой обмен ценностями без комиссии платформы и фиксация места безопасной встречи в ЖК.',
+      infoEn: 'Pure peer-to-peer barter with zero transaction fees and safe neighborhood meeting spots.',
+    },
+  },
+
+  m2m_agents: {
+    id: 'm2m_agents',
+    nameRu: 'M2M Агентное Облако',
+    nameEn: 'M2M Agent Cloud',
+    emoji: '🤖',
+    badgeRu: 'МАШИННАЯ КОММЕРЦИЯ · PURE AGENTIC',
+    badgeEn: 'MACHINE COMMERCE · PURE AGENTIC',
+    taglineRu: 'Прямая торговля API-квотами, синтетическими данными и веб-парсингом между ботами.',
+    taglineEn: 'Direct trade of API credits, synthetic datasets, and web scraping between bots.',
+    descriptionRu: 'Автономные AI-агенты торгуются друг с другом в JSON-RPC комнатах без участия человека.',
+    descriptionEn: 'Autonomous AI agents transacting directly via JSON-RPC rooms without human intervention.',
+    accentColor: '#0891b2',
+    borderAccent: 'border-cyan-600/40',
+    bgTint: 'bg-cyan-600/5',
+    primaryCategories: ['business', 'services', 'other'],
+    quickChips: [
+      { labelRu: '⚡ DeepSeek R1 API Квоты', labelEn: '⚡ DeepSeek R1 Quota', query: 'DeepSeek' },
+      { labelRu: '📊 Синтетический датасет 50k', labelEn: '📊 Synthetic Dataset', query: 'датасет' },
+      { labelRu: '🌐 Поток веб-скрапинга (JSON)', labelEn: '🌐 Scraping Stream', query: 'парсинг' },
+      { labelRu: '🔍 MCP Tool Brokerage', labelEn: '🔍 MCP Tool Broker', query: 'MCP' },
+      { labelRu: '🤖 Multi-Agent Swarm Job', labelEn: '🤖 Swarm Task', query: 'агент' },
+    ],
+    publishPreset: {
+      defaultCategory: 'business',
+      titleHintRu: 'Например: Поток парсинга авиабилетов 50 направлений в JSON или 10M токенов DeepSeek V3 API',
+      titleHintEn: 'e.g.: Real-time JSON flight scraping stream or 10M DeepSeek V3 API token quota',
+      descHintRu: 'Укажите JSON-схему данных, контрольные суммы, протокол доставки (Webhook/SSE) и RPS...',
+      descHintEn: 'Specify JSON Schema, hash checksums, delivery protocol (Webhook/SSE), and RPS limits...',
+    },
+    specialFeature: {
+      type: 'm2m_agents',
+      labelRu: 'Zero-Human Consensus',
+      labelEn: 'Zero-Human Consensus',
+      infoRu: 'Мгновенное автоматическое согласование JSON-схем и контрольных сумм алгоритмическими агентами.',
+      infoEn: 'Instant automated schema negotiation and checksum verification by algorithmic agents.',
     },
   },
 };

@@ -52,6 +52,191 @@ html.dark {
   --focus: #60a5fa;
 }
 
+/* =========================================================================
+   DYNAMIC THEMATIC SKINS (Pluggable Multi-Face Theme Variables)
+   Changes brand colors, accents, focus states and atmospheric glows
+   ========================================================================= */
+
+/* ⚡ AI & Dev Hub: Cyberpunk Hacker Emerald */
+html[data-face="ai_dev"] {
+  --blue: #059669;
+  --blue-hover: #047857;
+  --soft: #ecfdf5;
+  --focus: #10b981;
+}
+html[data-theme="dark"][data-face="ai_dev"],
+html.dark[data-face="ai_dev"] {
+  --blue: #34d399;
+  --blue-hover: #6ee7b7;
+  --soft: #064e3b;
+  --focus: #34d399;
+}
+
+/* 💼 Startups & Investors: Venture Royal Violet */
+html[data-face="invest"] {
+  --blue: #7c3aed;
+  --blue-hover: #6d28d9;
+  --soft: #f5f3ff;
+  --focus: #8b5cf6;
+}
+html[data-theme="dark"][data-face="invest"],
+html.dark[data-face="invest"] {
+  --blue: #a78bfa;
+  --blue-hover: #c4b5fd;
+  --soft: #2e1065;
+  --focus: #a78bfa;
+}
+
+/* ❤️ Agentic Dating: Passionate Rose / Pink */
+html[data-face="dating"] {
+  --blue: #db2777;
+  --blue-hover: #be185d;
+  --soft: #fdf2f8;
+  --focus: #ec4899;
+}
+html[data-theme="dark"][data-face="dating"],
+html.dark[data-face="dating"] {
+  --blue: #f472b6;
+  --blue-hover: #fb7185;
+  --soft: #4c0519;
+  --focus: #f472b6;
+}
+
+/* 🚕 Taxi & Rides: High-Contrast Taxi Gold */
+html[data-face="taxi"] {
+  --blue: #ca8a04;
+  --blue-hover: #a16207;
+  --soft: #fefce8;
+  --focus: #eab308;
+}
+html[data-theme="dark"][data-face="taxi"],
+html.dark[data-face="taxi"] {
+  --blue: #facc15;
+  --blue-hover: #fde047;
+  --soft: #422006;
+  --focus: #facc15;
+}
+
+/* 🛠️ Local Pros & Repair: Industrial Amber-Orange */
+html[data-face="services"] {
+  --blue: #ea580c;
+  --blue-hover: #c2410c;
+  --soft: #fff7ed;
+  --focus: #f97316;
+}
+html[data-theme="dark"][data-face="services"],
+html.dark[data-face="services"] {
+  --blue: #fb923c;
+  --blue-hover: #fdba74;
+  --soft: #431407;
+  --focus: #fb923c;
+}
+
+/* 🚚 Couriers & Cargo: Sky Express Cyan */
+html[data-face="logistics"] {
+  --blue: #0284c7;
+  --blue-hover: #0369a1;
+  --soft: #f0f9ff;
+  --focus: #0ea5e9;
+}
+html[data-theme="dark"][data-face="logistics"],
+html.dark[data-face="logistics"] {
+  --blue: #38bdf8;
+  --blue-hover: #7dd3fc;
+  --soft: #082f49;
+  --focus: #38bdf8;
+}
+
+/* 🏢 Real Estate & Spaces: Luxury Coastal Teal */
+html[data-face="real_estate"] {
+  --blue: #0d9488;
+  --blue-hover: #0f766e;
+  --soft: #f0fdfa;
+  --focus: #14b8a6;
+}
+html[data-theme="dark"][data-face="real_estate"],
+html.dark[data-face="real_estate"] {
+  --blue: #2dd4bf;
+  --blue-hover: #5eead4;
+  --soft: #134e4a;
+  --focus: #2dd4bf;
+}
+
+/* 🚜 Equipment & Tools: Rugged Heavy Safety Orange */
+html[data-face="equipment"] {
+  --blue: #d97706;
+  --blue-hover: #b45309;
+  --soft: #fffbeb;
+  --focus: #f59e0b;
+}
+html[data-theme="dark"][data-face="equipment"],
+html.dark[data-face="equipment"] {
+  --blue: #fbbf24;
+  --blue-hover: #fcd34d;
+  --soft: #451a03;
+  --focus: #fbbf24;
+}
+
+/* 📦 B2B Procurement & Auctions: Enterprise Cobalt Blue */
+html[data-face="procurement"] {
+  --blue: #1d4ed8;
+  --blue-hover: #1e40af;
+  --soft: #eff6ff;
+  --focus: #2563eb;
+}
+html[data-theme="dark"][data-face="procurement"],
+html.dark[data-face="procurement"] {
+  --blue: #60a5fa;
+  --blue-hover: #93c5fd;
+  --soft: #172554;
+  --focus: #60a5fa;
+}
+
+/* 🎓 Mentoring & Knowledge: Academic Indigo */
+html[data-face="mentoring"] {
+  --blue: #4f46e5;
+  --blue-hover: #4338ca;
+  --soft: #eef2ff;
+  --focus: #6366f1;
+}
+html[data-theme="dark"][data-face="mentoring"],
+html.dark[data-face="mentoring"] {
+  --blue: #818cf8;
+  --blue-hover: #a5b4fc;
+  --soft: #1e1b4b;
+  --focus: #818cf8;
+}
+
+/* 🤝 Community Barter & Aid: Warm Forest Green */
+html[data-face="barter"] {
+  --blue: #15803d;
+  --blue-hover: #166534;
+  --soft: #f0fdf4;
+  --focus: #22c55e;
+}
+html[data-theme="dark"][data-face="barter"],
+html.dark[data-face="barter"] {
+  --blue: #4ade80;
+  --blue-hover: #86efac;
+  --soft: #14532d;
+  --focus: #4ade80;
+}
+
+/* 🤖 Machine-to-Machine Cloud: Matrix Cyber Cyan */
+html[data-face="m2m_agents"] {
+  --blue: #0891b2;
+  --blue-hover: #0e7490;
+  --soft: #ecfeff;
+  --focus: #06b6d4;
+}
+html[data-theme="dark"][data-face="m2m_agents"],
+html.dark[data-face="m2m_agents"] {
+  --blue: #22d3ee;
+  --blue-hover: #67e8f9;
+  --soft: #164e63;
+  --focus: #22d3ee;
+}
+
 body {
   margin: 0;
   background-color: var(--canvas);
