@@ -258,9 +258,19 @@ export const Header: React.FC<HeaderProps> = ({
                 {/* Vertical Divider */}
                 <div className="w-[1px] h-4 bg-[var(--line)] my-auto mx-1 shrink-0" />
 
-                {/* Reactive Live Search Input */}
+                {/* Reactive Live Search Input with Functional SVG Submit Button */}
                 <div className="flex-1 flex items-center relative min-w-0">
-                  <span className="text-[var(--muted)] text-xs pl-1.5 pr-1 shrink-0 select-none">🔍</span>
+                  <button
+                    type="submit"
+                    aria-label={isEn ? 'Search' : 'Найти'}
+                    title={isEn ? 'Search' : 'Искать'}
+                    className="h-7 w-7 rounded-lg flex items-center justify-center text-[var(--muted)] hover:text-[var(--blue)] hover:bg-[var(--raised)] transition-colors cursor-pointer shrink-0 ml-0.5"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                  </button>
                   <input
                     ref={searchInputRef}
                     type="search"
@@ -440,7 +450,17 @@ export const Header: React.FC<HeaderProps> = ({
 
               <div className="w-[1px] h-3.5 bg-[var(--line)] my-auto mx-1 shrink-0" />
 
-              <span className="text-[var(--muted)] text-[10px] pl-1 pr-1 select-none">🔍</span>
+              <button
+                type="submit"
+                aria-label={isEn ? 'Search' : 'Найти'}
+                title={isEn ? 'Search' : 'Искать'}
+                className="h-6 w-6 rounded-md flex items-center justify-center text-[var(--muted)] hover:text-[var(--blue)] cursor-pointer shrink-0"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+              </button>
 
               <input
                 type="search"

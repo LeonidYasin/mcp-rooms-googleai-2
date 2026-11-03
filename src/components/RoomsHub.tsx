@@ -330,7 +330,12 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full h-9 pl-9 pr-3 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-sm text-[var(--ink)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--blue)]"
           />
-          <span className="absolute left-2.5 top-2.5 text-xs text-[var(--muted)]">🔍</span>
+          <span className="absolute left-2.5 top-2.5 text-[var(--muted)] pointer-events-none">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          </span>
         </div>
       </div>
 
