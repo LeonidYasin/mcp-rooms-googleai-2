@@ -175,6 +175,8 @@ CREATE TABLE IF NOT EXISTS audit_logs (
       updated_at INTEGER NOT NULL
     );
 
+    CREATE INDEX IF NOT EXISTS idx_listings_owner_title ON listings(owner, category, kind, title);
+
   `);
 
   // Safe migration for existing listings table
@@ -251,14 +253,14 @@ export function demoSeedEnabled(): boolean {
   return process.env.DEMO_SEED === '1';
 }
 
-function ensureNewCategoriesSeeded() {
+export function ensureNewCategoriesSeeded(dbInstance: any = db) {
   try {
-    const count = db.prepare(`SELECT COUNT(*) as cnt FROM listings WHERE category IN ('real_estate', 'communities')`).get() as { cnt: number };
-    const realEstateCount = db.prepare(`SELECT COUNT(*) as cnt FROM listings WHERE category = 'real_estate'`).get() as { cnt: number };
-    const communitiesCount = db.prepare(`SELECT COUNT(*) as cnt FROM listings WHERE category = 'communities'`).get() as { cnt: number };
+    const count = dbInstance.prepare(`SELECT COUNT(*) as cnt FROM listings WHERE category IN ('real_estate', 'communities')`).get() as { cnt: number };
+    const realEstateCount = dbInstance.prepare(`SELECT COUNT(*) as cnt FROM listings WHERE category = 'real_estate'`).get() as { cnt: number };
+    const communitiesCount = dbInstance.prepare(`SELECT COUNT(*) as cnt FROM listings WHERE category = 'communities'`).get() as { cnt: number };
     if (count.cnt === 0 || realEstateCount.cnt === 0 || communitiesCount.cnt === 0) {
-      const insertListing = db.prepare(`
-        INSERT OR IGNORE INTO listings (
+      const insertListing = dbInstance.prepare(`
+        INSERT INTO listings (
           id, owner, author_name, title, description, category, subcategory,
           kind, modes, locality, region, country, price_minor, currency, condition,
           status, visibility, revision, created_at, updated_at, expires_at, photos_json, responses_count
@@ -267,6 +269,24 @@ function ensureNewCategoriesSeeded() {
           @kind, @modes, @locality, @region, @country, @price_minor, @currency, @condition,
           @status, @visibility, @revision, @created_at, @updated_at, @expires_at, @photos_json, @responses_count
         )
+        ON CONFLICT(id) DO UPDATE SET
+          owner = excluded.owner,
+          author_name = excluded.author_name,
+          title = excluded.title,
+          description = excluded.description,
+          category = excluded.category,
+          subcategory = excluded.subcategory,
+          kind = excluded.kind,
+          modes = excluded.modes,
+          locality = excluded.locality,
+          region = excluded.region,
+          country = excluded.country,
+          price_minor = excluded.price_minor,
+          currency = excluded.currency,
+          condition = excluded.condition,
+          status = excluded.status,
+          visibility = excluded.visibility,
+          updated_at = excluded.updated_at
       `);
 
       const now = Date.now();
@@ -386,133 +406,147 @@ function ensureNewCategoriesSeeded() {
   }
 }
 
-function seedProfilesIfEmpty() {
-  const profileCount = db.prepare('SELECT COUNT(*) as cnt FROM profiles').get() as { cnt: number };
-  if (profileCount.cnt === 0) {
-    const now = Date.now();
-    const profiles = [
-      {
-        id: 'user:founder-alex',
-        type: 'individual',
-        name: 'Алексей Мельников',
-        headline: 'AI Systems Architect & Фаундер',
-        bio: '10 лет в IT, разрабатываю LLM-агентов и распределённые протоколы. Ищу коммерческого кофаундера для B2B платформы.',
-        avatar_url: '',
-        locality: 'Казань',
-        verified: 1,
-        reputation_score: 4.9,
-        contact_protocols: JSON.stringify(['mcp_room', 'telegram']),
-        created_at: now - 3600000 * 50,
-      },
-      {
-        id: 'user:hr-lead-tech',
-        type: 'company',
-        name: 'TechFin Solutions',
-        headline: 'Финтех-платформа нового поколения',
-        bio: 'Создаем высоконагруженные финансовые решения. Стек: Node.js, TypeScript, Go, distributed microservices.',
-        avatar_url: '',
-        locality: 'Москва',
-        verified: 1,
-        reputation_score: 5.0,
-        contact_protocols: JSON.stringify(['mcp_room']),
-        created_at: now - 3600000 * 120,
-      },
-      {
-        id: 'user:master-marat',
-        type: 'individual',
-        name: 'Марат Хабибуллин',
-        headline: 'Мастер сантехники и комплексного ремонта',
-        bio: 'Опыт более 12 лет. Профессиональный инструмент, договор, официальная гарантия 3 года. Бесплатный замер по Казани.',
-        avatar_url: '',
-        locality: 'Казань',
-        verified: 1,
-        reputation_score: 4.95,
-        contact_protocols: JSON.stringify(['mcp_room']),
-        created_at: now - 3600000 * 90,
-      },
-      {
-        id: 'user:daria-nature',
-        type: 'individual',
-        name: 'Дарья Лебедева',
-        headline: 'Организатор походов и веловыездов',
-        bio: 'Люблю горы, Волгу и настольные игры. Безопасность и открытое общение. Организую велопрогулки и треккинг.',
-        avatar_url: '',
-        locality: 'Казань',
-        verified: 1,
-        reputation_score: 4.9,
-        contact_protocols: JSON.stringify(['mcp_room']),
-        created_at: now - 3600000 * 60,
-      },
-      {
-        id: 'user:kazan-cyclist',
-        type: 'individual',
-        name: 'Ильдар Сафиуллин',
-        headline: 'Велоэнтузиаст и триатлет',
-        bio: 'Бережно отношусь к технике. Велосипед обслуживался перед каждым сезоном.',
-        avatar_url: '',
-        locality: 'Казань',
-        verified: 1,
-        reputation_score: 4.85,
-        contact_protocols: JSON.stringify(['mcp_room']),
-        created_at: now - 3600000 * 40,
-      },
-      {
-        id: 'user:timur-driver',
-        type: 'individual',
-        name: 'Тимур Валиев',
-        headline: 'Водитель с комфортным кроссовером',
-        bio: 'Стаж вождения 9 лет, аккуратная езда, чистый салон, кондиционер.',
-        avatar_url: '',
-        locality: 'Казань',
-        verified: 1,
-        reputation_score: 4.9,
-        contact_protocols: JSON.stringify(['mcp_room']),
-        created_at: now - 3600000 * 25,
-      },
-      {
-        id: 'user:courier-express',
-        type: 'company',
-        name: 'Экспресс Доставка Татарстан',
-        headline: 'Срочная курьерская служба',
-        bio: 'Быстрая доставка документов, посылок и малогабаритных грузов по Казани за 60-90 минут.',
-        avatar_url: '',
-        locality: 'Казань',
-        verified: 1,
-        reputation_score: 4.75,
-        contact_protocols: JSON.stringify(['mcp_room']),
-        created_at: now - 3600000 * 15,
-      },
-      {
-        id: 'user:buyer-77',
-        type: 'individual',
-        name: 'Константин Смирнов',
-        headline: 'Пользователь MCP ROOMS',
-        bio: 'Поиск товаров, услуг и партнерств через персонального Агента-Ангела.',
-        avatar_url: '',
-        locality: 'Казань',
-        verified: 0,
-        reputation_score: 5.0,
-        contact_protocols: JSON.stringify(['mcp_room']),
-        created_at: now - 3600000 * 10,
-      },
-    ];
+export function seedProfiles(dbInstance: any = db) {
+  const now = Date.now();
+  const profiles = [
+    {
+      id: 'user:founder-alex',
+      type: 'individual',
+      name: 'Алексей Мельников',
+      headline: 'AI Systems Architect & Фаундер',
+      bio: '10 лет в IT, разрабатываю LLM-агентов и распределённые протоколы. Ищу коммерческого кофаундера для B2B платформы.',
+      avatar_url: '',
+      locality: 'Казань',
+      verified: 1,
+      reputation_score: 4.9,
+      contact_protocols: JSON.stringify(['mcp_room', 'telegram']),
+      created_at: now - 3600000 * 50,
+    },
+    {
+      id: 'user:hr-lead-tech',
+      type: 'company',
+      name: 'TechFin Solutions',
+      headline: 'Финтех-платформа нового поколения',
+      bio: 'Создаем высоконагруженные финансовые решения. Стек: Node.js, TypeScript, Go, distributed microservices.',
+      avatar_url: '',
+      locality: 'Москва',
+      verified: 1,
+      reputation_score: 5.0,
+      contact_protocols: JSON.stringify(['mcp_room']),
+      created_at: now - 3600000 * 120,
+    },
+    {
+      id: 'user:master-marat',
+      type: 'individual',
+      name: 'Марат Хабибуллин',
+      headline: 'Мастер сантехники и комплексного ремонта',
+      bio: 'Опыт более 12 лет. Профессиональный инструмент, договор, официальная гарантия 3 года. Бесплатный замер по Казани.',
+      avatar_url: '',
+      locality: 'Казань',
+      verified: 1,
+      reputation_score: 4.95,
+      contact_protocols: JSON.stringify(['mcp_room']),
+      created_at: now - 3600000 * 90,
+    },
+    {
+      id: 'user:daria-nature',
+      type: 'individual',
+      name: 'Дарья Лебедева',
+      headline: 'Организатор походов и веловыездов',
+      bio: 'Люблю горы, Волгу и настольные игры. Безопасность и открытое общение. Организую велопрогулки и треккинг.',
+      avatar_url: '',
+      locality: 'Казань',
+      verified: 1,
+      reputation_score: 4.9,
+      contact_protocols: JSON.stringify(['mcp_room']),
+      created_at: now - 3600000 * 60,
+    },
+    {
+      id: 'user:kazan-cyclist',
+      type: 'individual',
+      name: 'Ильдар Сафиуллин',
+      headline: 'Велоэнтузиаст и триатлет',
+      bio: 'Бережно отношусь к технике. Велосипед обслуживался перед каждым сезоном.',
+      avatar_url: '',
+      locality: 'Казань',
+      verified: 1,
+      reputation_score: 4.85,
+      contact_protocols: JSON.stringify(['mcp_room']),
+      created_at: now - 3600000 * 40,
+    },
+    {
+      id: 'user:timur-driver',
+      type: 'individual',
+      name: 'Тимур Валиев',
+      headline: 'Водитель с комфортным кроссовером',
+      bio: 'Стаж вождения 9 лет, аккуратная езда, чистый салон, кондиционер.',
+      avatar_url: '',
+      locality: 'Казань',
+      verified: 1,
+      reputation_score: 4.9,
+      contact_protocols: JSON.stringify(['mcp_room']),
+      created_at: now - 3600000 * 25,
+    },
+    {
+      id: 'user:courier-express',
+      type: 'company',
+      name: 'Экспресс Доставка Татарстан',
+      headline: 'Срочная курьерская служба',
+      bio: 'Быстрая доставка документов, посылок и малогабаритных грузов по Казани за 60-90 минут.',
+      avatar_url: '',
+      locality: 'Казань',
+      verified: 1,
+      reputation_score: 4.75,
+      contact_protocols: JSON.stringify(['mcp_room']),
+      created_at: now - 3600000 * 15,
+    },
+    {
+      id: 'user:buyer-77',
+      type: 'individual',
+      name: 'Константин Смирнов',
+      headline: 'Пользователь MCP ROOMS',
+      bio: 'Поиск товаров, услуг и партнерств через персонального Агента-Ангела.',
+      avatar_url: '',
+      locality: 'Казань',
+      verified: 0,
+      reputation_score: 5.0,
+      contact_protocols: JSON.stringify(['mcp_room']),
+      created_at: now - 3600000 * 10,
+    },
+  ];
 
-    const insertP = db.prepare(`
-      INSERT INTO profiles (
-        id, type, name, headline, bio, avatar_url, locality, verified, reputation_score, contact_protocols, created_at
-      ) VALUES (
-        @id, @type, @name, @headline, @bio, @avatar_url, @locality, @verified, @reputation_score, @contact_protocols, @created_at
-      )
-    `);
+  const insertP = dbInstance.prepare(`
+    INSERT INTO profiles (
+      id, type, name, headline, bio, avatar_url, locality, verified, reputation_score, contact_protocols, created_at
+    ) VALUES (
+      @id, @type, @name, @headline, @bio, @avatar_url, @locality, @verified, @reputation_score, @contact_protocols, @created_at
+    )
+    ON CONFLICT(id) DO UPDATE SET
+      type = excluded.type,
+      name = excluded.name,
+      headline = excluded.headline,
+      bio = excluded.bio,
+      avatar_url = excluded.avatar_url,
+      locality = excluded.locality,
+      verified = excluded.verified,
+      reputation_score = excluded.reputation_score,
+      contact_protocols = excluded.contact_protocols
+  `);
 
-    for (const p of profiles) {
-      insertP.run(p);
-    }
+  for (const p of profiles) {
+    insertP.run(p);
   }
 }
 
-function seedInitialData() {
-  const insertListing = db.prepare(`
+export function seedProfilesIfEmpty(dbInstance: any = db) {
+  const profileCount = dbInstance.prepare('SELECT COUNT(*) as cnt FROM profiles').get() as { cnt: number };
+  if (profileCount.cnt === 0) {
+    seedProfiles(dbInstance);
+  }
+}
+
+export function seedInitialData(dbInstance: any = db) {
+  const insertListing = dbInstance.prepare(`
     INSERT INTO listings (
       id, owner, author_name, title, description, category, subcategory,
       kind, modes, locality, region, country, price_minor, currency, condition,
@@ -522,6 +556,24 @@ function seedInitialData() {
       @kind, @modes, @locality, @region, @country, @price_minor, @currency, @condition,
       @status, @visibility, @revision, @created_at, @updated_at, @expires_at, @photos_json, @responses_count
     )
+    ON CONFLICT(id) DO UPDATE SET
+      owner = excluded.owner,
+      author_name = excluded.author_name,
+      title = excluded.title,
+      description = excluded.description,
+      category = excluded.category,
+      subcategory = excluded.subcategory,
+      kind = excluded.kind,
+      modes = excluded.modes,
+      locality = excluded.locality,
+      region = excluded.region,
+      country = excluded.country,
+      price_minor = excluded.price_minor,
+      currency = excluded.currency,
+      condition = excluded.condition,
+      status = excluded.status,
+      visibility = excluded.visibility,
+      updated_at = excluded.updated_at
   `);
 
   const now = Date.now();
@@ -718,15 +770,23 @@ function seedInitialData() {
     },
   ];
 
-  const insertMany = db.transaction((items: any[]) => {
+  const insertMany = dbInstance.transaction((items: any[]) => {
     for (const item of items) insertListing.run(item);
   });
   insertMany(seedItems);
 
   // Seed sample rooms and messages
-  const insertRoom = db.prepare(`
+  const insertRoom = dbInstance.prepare(`
     INSERT INTO rooms (id, listing_id, listing_title, category, participants_json, visibility, status, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      listing_id = excluded.listing_id,
+      listing_title = excluded.listing_title,
+      category = excluded.category,
+      participants_json = excluded.participants_json,
+      visibility = excluded.visibility,
+      status = excluded.status,
+      updated_at = excluded.updated_at
   `);
   insertRoom.run(
     'room-bike-negotiation-01',
@@ -740,9 +800,12 @@ function seedInitialData() {
     now - 3600000 * 1
   );
 
-  const insertMessage = db.prepare(`
+  const insertMessage = dbInstance.prepare(`
     INSERT INTO messages (id, room_id, sender, role, text, tool_call_json, timestamp)
     VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      text = excluded.text,
+      tool_call_json = excluded.tool_call_json
   `);
   insertMessage.run(
     'msg-1',
@@ -1739,3 +1802,6 @@ export function getRoomEventsSinceInDb(roomId: string, lastEventId?: string): Pe
     timestamp: r.timestamp,
   }));
 }
+
+export * from './dedup';
+
