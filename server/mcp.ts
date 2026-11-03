@@ -599,21 +599,21 @@ export async function executeMcpToolCall(
 
     case 'submit_feedback':
     case 'send_support_message': {
-      if (!principalId) return AUTH_REQUIRED;
+      if (!ctx.principalId) return AUTH_REQUIRED;
       if (!args?.message || typeof args.message !== 'string' || !args.message.trim()) {
         return { error: 'invalid_params', message: 'Параметр message обязателен и должен быть непустой строкой' };
       }
       const ticketId = 'fb-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
       const ticket = saveFeedbackInDb({
         id: ticketId,
-        authorId: principalId,
+        authorId: ctx.principalId,
         category: typeof args.category === 'string' ? args.category.trim() : 'feedback',
         message: args.message.trim(),
         contact: typeof args.contact === 'string' ? args.contact.trim() : undefined,
         metadata: args.metadata && typeof args.metadata === 'object' ? args.metadata : undefined,
       });
 
-      addAuditLog('feedback.submit', principalId, ticketId, {
+      addAuditLog('feedback.submit', ctx.principalId, ticketId, {
         category: ticket.category,
         hasContact: Boolean(ticket.contact),
       });
