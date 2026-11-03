@@ -78,6 +78,7 @@ export const App: React.FC = () => {
   const [contactModalListing, setContactModalListing] = useState<Listing | null>(null);
   const [agentModalListing, setAgentModalListing] = useState<Listing | null>(null);
   const [contextListing, setContextListing] = useState<Listing | null>(null);
+  const [realPingMs, setRealPingMs] = useState<number | null>(null);
 
   const handleOpenRoom = useCallback((roomId: string) => {
     setSelectedRoomId(roomId);
@@ -89,12 +90,15 @@ export const App: React.FC = () => {
   const refreshDataFromDb = useCallback(async () => {
     try {
       const hasKey = Boolean(getStoredApiKey());
+      const t0 = performance.now();
       const [listingsRes, roomsRes] = await Promise.all([
         fetch('/api/listings'),
         hasKey
           ? fetch('/api/rooms?include_public=true', { headers: authHeaders() })
           : fetch('/api/public/rooms'),
       ]);
+      const t1 = performance.now();
+      setRealPingMs(Math.round(t1 - t0));
       if (listingsRes.ok) {
         const data = await listingsRes.json();
         if (Array.isArray(data)) {
@@ -161,6 +165,12 @@ export const App: React.FC = () => {
     () => rooms.map((r) => getLocalizedRoom(r, locale)),
     [rooms, locale]
   );
+
+  const realAgentCount = useMemo(() => {
+    return listings.filter((l) =>
+      Boolean(l.author_name?.startsWith('agent:') || l.author_name?.toLowerCase().includes('agent'))
+    ).length;
+  }, [listings]);
 
   const activeSelectedListing = useMemo(() => {
     if (!selectedListing) return null;
@@ -669,6 +679,12 @@ export const App: React.FC = () => {
               onOpenPublish={() => setIsPublishModalOpen(true)}
               onOpenRoom={handleOpenRoom}
               onSelectFace={handleSelectFace}
+              realStats={{
+                totalListings: listings.length,
+                agentCount: realAgentCount,
+                roomsCount: rooms.length,
+                pingMs: realPingMs,
+              }}
             />
 
             {/* Elegant Horizontal Category Carousel or Centered Floating Pill Dock */}

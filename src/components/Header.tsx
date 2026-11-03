@@ -110,7 +110,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="bg-[var(--surface)] border-b border-[var(--line)] py-1.5 px-3 sm:px-4 text-xs transition-colors">
         <div className="max-w-[1240px] mx-auto flex items-center justify-between gap-2 sm:gap-3">
           {/* Left: Location Picker + Face / Slogan Badge */}
-          <div className="flex items-center gap-2 sm:gap-3 truncate">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {/* Location Selector (now positioned in Top Bar like Avito/CIAN) */}
             <div className="flex items-center gap-1 text-[11px] font-semibold text-[var(--muted)] hover:text-[var(--ink)] bg-[var(--canvas)]/80 border border-[var(--line)] px-2 py-0.5 rounded-lg shrink-0">
               <span className="text-xs">📍</span>
@@ -127,15 +127,15 @@ export const Header: React.FC<HeaderProps> = ({
               </select>
             </div>
 
-            <div className="flex items-center gap-2 truncate">
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
               <span className="text-sm leading-none shrink-0">{activeFace.emoji}</span>
               <strong
-                className="font-bold text-[11px] sm:text-xs tracking-tight truncate"
+                className="font-bold text-[11px] sm:text-xs tracking-tight shrink-0 whitespace-nowrap"
                 style={{ color: currentFace !== 'general' ? activeFace.accentColor : 'var(--blue)' }}
               >
                 {currentFace !== 'general' ? (isEn ? activeFace.badgeEn : activeFace.badgeRu) : t('site.badge')}
               </strong>
-              <span className="text-[var(--muted)] text-[11px] hidden xl:inline truncate">
+              <span className="text-[var(--muted)] text-[11px] hidden 2xl:inline truncate min-w-0">
                 {currentFace !== 'general' ? (isEn ? activeFace.taglineEn : activeFace.taglineRu) : t('site.badge_sub')}
               </span>
             </div>
