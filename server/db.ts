@@ -192,6 +192,20 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
     CREATE INDEX IF NOT EXISTS idx_agent_webhooks_agent ON agent_webhooks(agent_id);
 
+    CREATE TABLE IF NOT EXISTS feedback_tickets (
+      id TEXT PRIMARY KEY,
+      author_id TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'feedback',
+      message TEXT NOT NULL,
+      contact TEXT,
+      metadata_json TEXT,
+      status TEXT NOT NULL DEFAULT 'open',
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_feedback_author ON feedback_tickets(author_id);
+    CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback_tickets(status);
+
     CREATE INDEX IF NOT EXISTS idx_listings_owner_title ON listings(owner, category, kind, title);
 
   `);
@@ -1443,6 +1457,92 @@ export function updateWebhookDeliveryStatsInDb(id: string, success: boolean): vo
       WHERE id = ?
     `).run(id);
   }
+}
+
+export interface FeedbackTicket {
+  id: string;
+  authorId: string;
+  category: string;
+  message: string;
+  contact?: string;
+  metadata?: Record<string, any>;
+  status: 'open' | 'reviewed' | 'resolved';
+  createdAt: number;
+}
+
+export function saveFeedbackInDb(ticket: {
+  id: string;
+  authorId: string;
+  category?: string;
+  message: string;
+  contact?: string;
+  metadata?: any;
+  status?: 'open' | 'reviewed' | 'resolved';
+}): FeedbackTicket {
+  const now = Date.now();
+  const category = ticket.category || 'feedback';
+  const status = ticket.status || 'open';
+  const metadataJson = ticket.metadata ? JSON.stringify(ticket.metadata) : null;
+
+  db.prepare(`
+    INSERT INTO feedback_tickets (id, author_id, category, message, contact, metadata_json, status, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      category = excluded.category,
+      message = excluded.message,
+      contact = excluded.contact,
+      metadata_json = excluded.metadata_json,
+      status = excluded.status
+  `).run(ticket.id, ticket.authorId, category, ticket.message, ticket.contact || null, metadataJson, status, now);
+
+  return getFeedbackByIdFromDb(ticket.id)!;
+}
+
+export function getFeedbackByIdFromDb(id: string): FeedbackTicket | null {
+  if (!id) return null;
+  const r = db.prepare('SELECT * FROM feedback_tickets WHERE id = ?').get(id) as any;
+  if (!r) return null;
+  return {
+    id: r.id,
+    authorId: r.author_id,
+    category: r.category,
+    message: r.message,
+    contact: r.contact || undefined,
+    metadata: r.metadata_json ? JSON.parse(r.metadata_json) : undefined,
+    status: r.status as 'open' | 'reviewed' | 'resolved',
+    createdAt: r.created_at,
+  };
+}
+
+export function getFeedbackFromDb(options?: { authorId?: string; status?: string; limit?: number }): FeedbackTicket[] {
+  let query = 'SELECT * FROM feedback_tickets WHERE 1=1';
+  const params: any[] = [];
+  if (options?.authorId) {
+    query += ' AND author_id = ?';
+    params.push(options.authorId);
+  }
+  if (options?.status) {
+    query += ' AND status = ?';
+    params.push(options.status);
+  }
+  query += ' ORDER BY created_at DESC';
+  if (options?.limit && options.limit > 0) {
+    query += ' LIMIT ?';
+    params.push(options.limit);
+  } else {
+    query += ' LIMIT 100';
+  }
+  const rows = db.prepare(query).all(...params) as any[];
+  return rows.map((r) => ({
+    id: r.id,
+    authorId: r.author_id,
+    category: r.category,
+    message: r.message,
+    contact: r.contact || undefined,
+    metadata: r.metadata_json ? JSON.parse(r.metadata_json) : undefined,
+    status: r.status as 'open' | 'reviewed' | 'resolved',
+    createdAt: r.created_at,
+  }));
 }
 
 export function getProfilesFromDb() {

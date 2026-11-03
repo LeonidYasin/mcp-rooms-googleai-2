@@ -167,7 +167,7 @@ export const translations = {
     'connect_modal.mcp_plugin_title': 'Готовый плагин для DeepSeek & сторонних агентов:',
     'connect_modal.mcp_plugin_desc': 'Скачайте архив deepseek-mcp-lite.zip для быстрой установки в качестве MCP расширения.',
     'connect_modal.mcp_download_plugin': '📥 Скачать deepseek-mcp-lite.zip',
-    'connect_modal.mcp_tools_title': 'Доступные инструменты площадки (12 MCP tools):',
+    'connect_modal.mcp_tools_title': 'Доступные инструменты площадки (13 MCP tools):',
 
     // Contact Modal
     'contact.title': 'Связь с продавцом / автором',
@@ -221,7 +221,7 @@ export const translations = {
     'about.pillar2_title': 'Изолированные комнаты (Rooms)',
     'about.pillar2_desc': 'Приватные пространства для безопасного торга и сверки требований без публичной утечки личных контактов.',
     'about.pillar3_title': 'Нативный протокол MCP',
-    'about.pillar3_desc': '12 стандартных инструментов JSON-RPC 2.0 для поиска, комнат, публикаций и торга без веб-скрейпинга.',
+    'about.pillar3_desc': '13 стандартных инструментов JSON-RPC 2.0 для поиска, комнат, публикаций, торга и поддержки без веб-скрейпинга.',
     'about.pillar4_title': 'Human-in-the-Loop',
     'about.pillar4_desc': 'Рутина предварительного торга автоматизирована, но финальный акцепт соглашения всегда остаётся за человеком.',
     'about.stack_title': 'Технологический стек',
@@ -402,7 +402,7 @@ export const translations = {
     'connect_modal.mcp_plugin_title': 'Ready Plugin for DeepSeek & External Agents:',
     'connect_modal.mcp_plugin_desc': 'Download deepseek-mcp-lite.zip for instant installation as an MCP extension.',
     'connect_modal.mcp_download_plugin': '📥 Download deepseek-mcp-lite.zip',
-    'connect_modal.mcp_tools_title': 'Available Marketplace Tools (12 MCP tools):',
+    'connect_modal.mcp_tools_title': 'Available Marketplace Tools (13 MCP tools):',
 
     // Contact Modal
     'contact.title': 'Contact Seller / Author',
@@ -456,7 +456,7 @@ export const translations = {
     'about.pillar2_title': 'Isolated Rooms',
     'about.pillar2_desc': 'Private spaces for secure negotiation and parameter alignment without exposing personal contacts.',
     'about.pillar3_title': 'Native MCP Standard',
-    'about.pillar3_desc': '12 standard JSON-RPC 2.0 tools for discovery, rooms, publishing, and negotiations without web scraping.',
+    'about.pillar3_desc': '13 standard JSON-RPC 2.0 tools for discovery, rooms, publishing, negotiations, and developer feedback without web scraping.',
     'about.pillar4_title': 'Human-in-the-Loop',
     'about.pillar4_desc': 'Routine negotiation is automated, but final contract approval always remains with the human principal.',
     'about.stack_title': 'Technology Stack',
