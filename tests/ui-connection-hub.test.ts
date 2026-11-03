@@ -20,9 +20,13 @@ describe('Connection & AI Settings Hub API endpoints', () => {
   let testKey: string;
   const run = Date.now().toString(36);
 
-  const originalGeminiKey = process.env.GEMINI_API_KEY;
+  const originalEnv = {
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+    EMBEDDING_PROVIDER: process.env.EMBEDDING_PROVIDER,
+  };
 
   beforeAll(async () => {
+    process.env.EMBEDDING_PROVIDER = 'google';
     initDatabase();
     testKey = issueTestKey(`user:hub-tester-${run}`).key;
     await new Promise<void>((resolve) => {
@@ -33,10 +37,15 @@ describe('Connection & AI Settings Hub API endpoints', () => {
   });
 
   afterAll(async () => {
-    if (originalGeminiKey !== undefined) {
-      process.env.GEMINI_API_KEY = originalGeminiKey;
+    if (originalEnv.GEMINI_API_KEY !== undefined) {
+      process.env.GEMINI_API_KEY = originalEnv.GEMINI_API_KEY;
     } else {
       delete process.env.GEMINI_API_KEY;
+    }
+    if (originalEnv.EMBEDDING_PROVIDER !== undefined) {
+      process.env.EMBEDDING_PROVIDER = originalEnv.EMBEDDING_PROVIDER;
+    } else {
+      delete process.env.EMBEDDING_PROVIDER;
     }
     deleteSystemConfig('gemini_api_key');
     resetEmbeddingClient();
@@ -46,6 +55,7 @@ describe('Connection & AI Settings Hub API endpoints', () => {
   });
 
   beforeEach(() => {
+    process.env.EMBEDDING_PROVIDER = 'google';
     vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
@@ -75,7 +85,7 @@ describe('Connection & AI Settings Hub API endpoints', () => {
 
     it('identifies 1-click guest sessions correctly', async () => {
       const guestRes = await fetch(`${baseUrl}/api/auth/guest`, { method: 'POST' });
-      expect(guestRes.status).toBe(200);
+      expect(guestRes.status).toBe(201);
       const guestData = await guestRes.json();
       expect(guestData.key).toBeDefined();
 
