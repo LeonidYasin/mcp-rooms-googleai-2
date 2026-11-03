@@ -40,17 +40,23 @@ export const ListingCard: React.FC<ListingCardProps> = ({
   const locationText = [content.locality, modesText].filter(Boolean).join(' · ');
   const isAgent = Boolean(author_name?.startsWith('agent:') || author_name?.toLowerCase().includes('agent'));
 
-  // 💎 V2 Mockup Dark Metric Card Variant (3-Column Grid)
+  // 💎 V2 Mockup Dark Metric Card Variant (3-Column Grid with STRICTLY REAL DATA)
   if (variant === 'metric') {
     return (
       <article className="glass-card rounded-2xl p-5 md:p-6 flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 group relative">
         <div>
-          {/* Top Row: Live Status + Kind Badge */}
+          {/* Top Row: Honest Status Badge + Kind Badge */}
           <div className="flex items-center justify-between gap-2 mb-3">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-xs">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Live</span>
-            </div>
+            {isAgent ? (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Live AI Agent</span>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-800/80 text-slate-300 border border-white/10">
+                <span>👤 {author_name || (locale === 'en' ? 'User' : 'Пользователь')}</span>
+              </div>
+            )}
             <span className="text-[11px] font-mono text-slate-400 bg-slate-800/60 px-2 py-0.5 rounded-md border border-white/5">
               {kindLabel}
             </span>
@@ -69,27 +75,33 @@ export const ListingCard: React.FC<ListingCardProps> = ({
             {content.description}
           </p>
 
-          {/* 4-Row Metrics Grid (Mockup signature style) */}
+          {/* 4-Row Metrics Grid (Strictly REAL factual data from SQLite record) */}
           <div className="bg-slate-950/50 rounded-xl p-3 border border-white/5 space-y-2 mb-3.5 text-xs font-mono">
             <div className="flex items-center justify-between">
-              <span className="text-slate-400">{locale === 'en' ? 'Active Status:' : 'Статус агента:'}</span>
-              <span className="font-semibold text-emerald-400">{isAgent ? '● Autonomous' : '✓ Verified Peer'}</span>
+              <span className="text-slate-400">{locale === 'en' ? 'Author Type:' : 'Тип автора:'}</span>
+              <span className={isAgent ? 'font-semibold text-emerald-400' : 'font-medium text-slate-300'}>
+                {isAgent ? '● Автономный агент' : '👤 Автор-человек'}
+              </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-400">{locale === 'en' ? 'Protocol:' : 'Протокол:'}</span>
-              <span className="font-semibold text-slate-200">MCP JSON-RPC</span>
+              <span className="text-slate-400">{locale === 'en' ? 'Locality & Mode:' : 'Локация и формат:'}</span>
+              <span className="font-semibold text-slate-200 truncate max-w-[150px]">{locationText || t('card.location_any')}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-400">{locale === 'en' ? 'Security & Escrow:' : 'Безопасность:'}</span>
-              <span className="font-semibold text-slate-200">{profile?.verified ? 'A+ Verified' : 'Escrow Room'}</span>
+              <span className="text-slate-400">{locale === 'en' ? 'Active Rooms:' : 'Комнат сделки:'}</span>
+              <span className="font-semibold text-cyan-400">
+                {responses_count > 0 ? `${responses_count}` : (locale === 'en' ? '0 active' : 'Ожидает откликов')}
+              </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-400">{locale === 'en' ? 'Response Latency:' : 'Скорость отклика:'}</span>
-              <span className="font-semibold text-emerald-400">&lt; 1.2s (98%)</span>
+              <span className="text-slate-400">{locale === 'en' ? 'Profile Status:' : 'Статус профиля:'}</span>
+              <span className={profile?.verified ? 'font-semibold text-emerald-400' : 'text-slate-400'}>
+                {profile?.verified ? '✓ Верифицирован' : (locale === 'en' ? 'Open Profile' : 'Открытый профиль')}
+              </span>
             </div>
           </div>
 
-          {/* Tag Chips */}
+          {/* Tag Chips (Real tags only) */}
           <div className="flex flex-wrap gap-1.5 mb-4">
             <span className="px-2 py-0.5 rounded-md text-[10px] font-mono bg-slate-800/80 text-slate-300 border border-white/5">
               {catLabel}
@@ -99,9 +111,11 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                 {m}
               </span>
             ))}
-            <span className="px-2 py-0.5 rounded-md text-[10px] font-mono bg-emerald-950/40 text-emerald-400 border border-emerald-500/20">
-              MCP Realtime
-            </span>
+            {isAgent && (
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-mono bg-emerald-950/40 text-emerald-400 border border-emerald-500/20">
+                MCP Agent
+              </span>
+            )}
           </div>
         </div>
 

@@ -2,17 +2,26 @@ import React, { useState } from 'react';
 import { FaceId, getFaceConfig } from '../lib/faces';
 import { useI18n } from '../i18n';
 
+export interface RealMarketplaceStats {
+  totalListings: number;
+  agentCount: number;
+  roomsCount: number;
+  pingMs: number | null;
+}
+
 interface VerticalModuleWidgetProps {
   currentFace: FaceId;
   onOpenPublish: () => void;
   onOpenRoom?: (roomId: string) => void;
   onSelectFace: (face: FaceId) => void;
+  realStats?: RealMarketplaceStats;
 }
 
 export const VerticalModuleWidget: React.FC<VerticalModuleWidgetProps> = ({
   currentFace,
   onOpenPublish,
   onOpenRoom,
+  realStats,
 }) => {
   const { locale } = useI18n();
   const isEn = locale === 'en';
@@ -675,8 +684,13 @@ export const VerticalModuleWidget: React.FC<VerticalModuleWidgetProps> = ({
     );
   }
 
-  // 💎 7. DARK GLASS LIVE TELEMETRY WIDGET (V2 Mockup)
+  // 💎 7. DARK GLASS REAL TELEMETRY WIDGET (Strictly Real Data from SQLite & API Ping)
   if (currentFace === 'dark_glass') {
+    const agents = realStats?.agentCount ?? 0;
+    const total = realStats?.totalListings ?? 0;
+    const rooms = realStats?.roomsCount ?? 0;
+    const ping = realStats?.pingMs;
+
     return (
       <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-slate-900/70 border border-emerald-500/30 text-white shadow-lg backdrop-blur-xl transition-all animate-in fade-in">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 border-b border-white/10 pb-2.5">
@@ -684,40 +698,44 @@ export const VerticalModuleWidget: React.FC<VerticalModuleWidgetProps> = ({
             <span className="text-xl">💎</span>
             <div>
               <h3 className="text-sm font-bold tracking-tight text-white flex items-center gap-2">
-                <span>{isEn ? 'Dark Glass Live Network Telemetry' : 'Телеметрия сети Dark Glass & Live MCP'}</span>
+                <span>{isEn ? 'Dark Glass Real Live Telemetry' : 'Реальная телеметрия Dark Glass & SQLite'}</span>
                 <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   LIVE
                 </span>
               </h3>
               <p className="text-[11px] text-slate-400">
-                {isEn ? 'Realtime peer-to-peer MCP connections, active agent dispatchers and room locks.' : 'Активные MCP-комнаты, распределённая сеть автономных агентов и автоматический Escrow.'}
+                {isEn
+                  ? 'Factual metrics directly from local SQLite database and live /api/health round-trip ping.'
+                  : 'Фактические метрики из локальной базы SQLite и реальный сетевой пинг к серверу.'}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] font-mono text-slate-400 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-white/5">
-              MCP JSON-RPC 2.0
+              SQLite WAL · MCP JSON-RPC
             </span>
           </div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-3 text-xs font-mono">
           <div className="p-2.5 rounded-xl bg-slate-950/60 border border-white/5">
-            <span className="text-[10px] text-slate-400 block mb-0.5">{isEn ? 'Active Agents:' : 'Активные агенты:'}</span>
-            <span className="text-base font-bold text-emerald-400">1,450+</span>
+            <span className="text-[10px] text-slate-400 block mb-0.5">{isEn ? 'AI Agents in DB:' : 'AI-агенты в SQLite:'}</span>
+            <span className="text-base font-bold text-emerald-400">{agents}</span>
           </div>
           <div className="p-2.5 rounded-xl bg-slate-950/60 border border-white/5">
-            <span className="text-[10px] text-slate-400 block mb-0.5">{isEn ? 'Avg Latency:' : 'Средний отклик:'}</span>
-            <span className="text-base font-bold text-cyan-400">38 ms</span>
+            <span className="text-[10px] text-slate-400 block mb-0.5">{isEn ? 'Total Listings:' : 'Всего объявлений:'}</span>
+            <span className="text-base font-bold text-cyan-400">{total}</span>
           </div>
           <div className="p-2.5 rounded-xl bg-slate-950/60 border border-white/5">
-            <span className="text-[10px] text-slate-400 block mb-0.5">{isEn ? 'Protected Rooms:' : 'Защищённые комнаты:'}</span>
-            <span className="text-base font-bold text-purple-400">100% Escrow</span>
+            <span className="text-[10px] text-slate-400 block mb-0.5">{isEn ? 'Active Rooms:' : 'Активных комнат:'}</span>
+            <span className="text-base font-bold text-purple-400">{rooms}</span>
           </div>
           <div className="p-2.5 rounded-xl bg-slate-950/60 border border-white/5">
-            <span className="text-[10px] text-slate-400 block mb-0.5">{isEn ? 'SLA Guarantee:' : 'SLA консенсуса:'}</span>
-            <span className="text-base font-bold text-emerald-400">99.8%</span>
+            <span className="text-[10px] text-slate-400 block mb-0.5">{isEn ? 'Live Health Ping:' : 'Реальный пинг API:'}</span>
+            <span className="text-base font-bold text-emerald-400">
+              {ping !== null && ping !== undefined ? `${ping} ms` : (isEn ? 'measuring...' : 'измерение...')}
+            </span>
           </div>
         </div>
       </div>
