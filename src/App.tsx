@@ -21,6 +21,7 @@ import { AboutModal } from './components/AboutModal';
 import { RoomsHub } from './components/RoomsHub';
 import { FaceBanner } from './components/FaceBanner';
 import { VerticalModuleWidget } from './components/VerticalModuleWidget';
+import { CategoryBar } from './components/CategoryBar';
 import {
   FaceId,
   getFaceConfig,
@@ -533,6 +534,16 @@ export const App: React.FC = () => {
               onOpenPublish={() => setIsPublishModalOpen(true)}
               onOpenRoom={handleOpenRoom}
               onSelectFace={handleSelectFace}
+            />
+
+            {/* Elegant Horizontal Category Carousel */}
+            <CategoryBar
+              currentCategory={currentCategory}
+              onSelectCategory={(cat) => {
+                setCurrentCategory(cat);
+                setSelectedListing(null);
+              }}
+              accentColor={currentFace !== 'general' ? getFaceConfig(currentFace).accentColor : undefined}
             />
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
