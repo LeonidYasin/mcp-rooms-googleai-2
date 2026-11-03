@@ -14,6 +14,7 @@ import {
   getProfileByIdFromDb,
   toPublicListing,
   classifyMessageInsertError,
+  saveFeedbackInDb,
 } from './db';
 import {
   matchListingAsymmetric,
@@ -205,6 +206,25 @@ export const MCP_TOOLS_MANIFEST = [
         },
       },
       required: ['goal'],
+    },
+  },
+  {
+    name: 'send_support_message',
+    description:
+      'Отправляет разработчикам и в службу поддержки платформы сообщение с пожеланием по доработке, идеей фичи, баг-репортом или вопросом.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', description: 'Текст обращения, идея улучшения или описание проблемы' },
+        category: {
+          type: 'string',
+          enum: ['feedback', 'feature_request', 'bug_report', 'support', 'other'],
+          description: 'Категория обращения (по умолчанию: feedback)',
+        },
+        contact: { type: 'string', description: 'Контактные данные для связи (Telegram, email или никнейм)' },
+        metadata: { type: 'object', description: 'Дополнительные технические детали (ID комнаты, объявления, логи и т.д.)' },
+      },
+      required: ['message'],
     },
   },
 ];
@@ -574,6 +594,36 @@ export async function executeMcpToolCall(
         agreed_terms: negotiationResult.agreedTerms ?? null,
         summary: negotiationResult.summary,
         steps: negotiationResult.steps,
+      };
+    }
+
+    case 'submit_feedback':
+    case 'send_support_message': {
+      if (!ctx.principalId) return AUTH_REQUIRED;
+      if (!args?.message || typeof args.message !== 'string' || !args.message.trim()) {
+        return { error: 'invalid_params', message: 'Параметр message обязателен и должен быть непустой строкой' };
+      }
+      const ticketId = 'fb-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+      const ticket = saveFeedbackInDb({
+        id: ticketId,
+        authorId: ctx.principalId,
+        category: typeof args.category === 'string' ? args.category.trim() : 'feedback',
+        message: args.message.trim(),
+        contact: typeof args.contact === 'string' ? args.contact.trim() : undefined,
+        metadata: args.metadata && typeof args.metadata === 'object' ? args.metadata : undefined,
+      });
+
+      addAuditLog('feedback.submit', ctx.principalId, ticketId, {
+        category: ticket.category,
+        hasContact: Boolean(ticket.contact),
+      });
+
+      return {
+        success: true,
+        ticket_id: ticket.id,
+        category: ticket.category,
+        status: ticket.status,
+        message: 'Ваше обращение успешно передано команде платформы и разработчикам. Спасибо за обратную связь!',
       };
     }
 

@@ -687,6 +687,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSav
                     'negotiate_agreement',
                     'get_profile',
                     'get_embedding_status',
+                    'send_support_message',
                   ].map((toolName) => (
                     <span
                       key={toolName}
