@@ -28,7 +28,14 @@ import {
 } from './server/db';
 import { handleMcpJsonRpcRequest, executeMcpToolCall, MCP_TOOLS_MANIFEST } from './server/mcp';
 import { runAutonomousNegotiation } from './server/negotiator';
-import { getEmbeddingProviderStatus, matchListingAsymmetric, indexListingEmbedding } from './server/embeddings';
+import {
+  getEmbeddingProviderStatus,
+  matchListingAsymmetric,
+  indexListingEmbedding,
+  testGeminiApiKey,
+  setCustomGeminiApiKey,
+  reindexAllListings,
+} from './server/embeddings';
 import { roomEventBus } from './server/events';
 import {
   isRoomParticipant,
@@ -38,6 +45,7 @@ import {
   consumeSseTicket,
   issueApiKey,
   Principal,
+  principalFromRequest,
 } from './server/auth';
 import {
   JSON_BODY_LIMIT,
@@ -284,10 +292,85 @@ app.post('/api/auth/guest', rateLimit('guest_auth', 'RATE_LIMIT_CHAT_PER_MINUTE'
   }
 });
 
+app.get('/api/auth/me', (req, res) => {
+  try {
+    const principal = principalFromRequest(req);
+    if (!principal) {
+      res.json({ authenticated: false, principal: null });
+      return;
+    }
+    const isGuest = principal.principalId.startsWith('user:guest-');
+    res.json({
+      authenticated: true,
+      principal: {
+        principalId: principal.principalId,
+        keyId: principal.keyId,
+        scopes: principal.scopes,
+        isGuest,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/embedding/status', (_req, res) => {
   try {
     const status = getEmbeddingProviderStatus();
     res.json(status);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/embedding/configure', async (req, res) => {
+  try {
+    const apiKey = typeof req.body?.apiKey === 'string' ? req.body.apiKey.trim() : '';
+
+    if (!apiKey) {
+      // Clear custom key and revert to autonomous fallback
+      setCustomGeminiApiKey(null);
+      const status = getEmbeddingProviderStatus();
+      res.json({
+        success: true,
+        cleared: true,
+        message: 'Google Gemini API ключ сброшен. Активирован автономный локальный режим поиска.',
+        status,
+      });
+      return;
+    }
+
+    // Live probe key against Google GenAI embedding model
+    const testResult = await testGeminiApiKey(apiKey);
+    if (!testResult.valid) {
+      res.status(400).json({
+        error: 'invalid_key',
+        message: testResult.error || 'Недействительный ключ Google Gemini API',
+      });
+      return;
+    }
+
+    setCustomGeminiApiKey(apiKey);
+    const status = getEmbeddingProviderStatus();
+    res.json({
+      success: true,
+      message: 'Google Gemini API ключ успешно проверен и сохранён!',
+      status,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/embedding/reindex', async (req, res) => {
+  try {
+    const force = Boolean(req.body?.force);
+    const result = await reindexAllListings({ force });
+    res.json({
+      success: true,
+      ...result,
+      status: getEmbeddingProviderStatus(),
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

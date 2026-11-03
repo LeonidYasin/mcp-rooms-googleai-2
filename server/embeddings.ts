@@ -1,11 +1,20 @@
 import { GoogleGenAI } from '@google/genai';
-import { saveListingEmbeddingInDb, getListingsFromDb } from './db';
+import {
+  saveListingEmbeddingInDb,
+  getListingsFromDb,
+  getSystemConfig,
+  setSystemConfig,
+  deleteSystemConfig,
+} from './db';
 
 export interface EmbeddingProviderStatus {
   provider: 'google' | 'disabled' | 'fallback';
   model: string;
   isAvailable: boolean;
   reason?: string;
+  hasCustomKey?: boolean;
+  keyMasked?: string;
+  isConfiguredViaWeb?: boolean;
 }
 
 export interface MatchResultItem {
@@ -50,10 +59,23 @@ function getAiClient(): GoogleGenAI | null {
   return aiClient;
 }
 
+function maskApiKey(key: string): string {
+  if (!key || key.length < 8) return '***';
+  return `${key.slice(0, 6)}...${key.slice(-4)}`;
+}
+
 export function getEmbeddingProviderStatus(): EmbeddingProviderStatus {
   const rawProvider = (process.env.EMBEDDING_PROVIDER || 'google').toLowerCase().trim();
   const model = process.env.EMBEDDING_MODEL || 'text-embedding-004';
   const apiKey = (process.env.GEMINI_API_KEY || process.env.API_KEY || '').trim();
+  const hasCustomKey = Boolean(apiKey && apiKey.length >= 15 && !apiKey.includes('YOUR_'));
+  const keyMasked = hasCustomKey ? maskApiKey(apiKey) : undefined;
+  let isConfiguredViaWeb = false;
+  try {
+    isConfiguredViaWeb = Boolean(getSystemConfig('gemini_api_key'));
+  } catch {
+    // ignore
+  }
 
   if (rawProvider === 'disabled' || rawProvider === 'none' || rawProvider === 'false' || rawProvider === 'off') {
     return {
@@ -61,6 +83,9 @@ export function getEmbeddingProviderStatus(): EmbeddingProviderStatus {
       model,
       isAvailable: false,
       reason: 'Отключено через конфигурацию EMBEDDING_PROVIDER=disabled',
+      hasCustomKey,
+      keyMasked,
+      isConfiguredViaWeb,
     };
   }
 
@@ -70,6 +95,8 @@ export function getEmbeddingProviderStatus(): EmbeddingProviderStatus {
       model,
       isAvailable: false,
       reason: 'API-ключ Gemini не задан, активен лексический семантический поиск',
+      hasCustomKey: false,
+      isConfiguredViaWeb,
     };
   }
 
@@ -79,6 +106,9 @@ export function getEmbeddingProviderStatus(): EmbeddingProviderStatus {
       model,
       isAvailable: false,
       reason: 'API-ключ недействителен, активен лексический семантический поиск',
+      hasCustomKey,
+      keyMasked,
+      isConfiguredViaWeb,
     };
   }
 
@@ -87,7 +117,54 @@ export function getEmbeddingProviderStatus(): EmbeddingProviderStatus {
     model,
     isAvailable: true,
     reason: 'Google Embeddings API активен (text-embedding-004)',
+    hasCustomKey,
+    keyMasked,
+    isConfiguredViaWeb,
   };
+}
+
+export async function testGeminiApiKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
+  const trimmed = (apiKey || '').trim();
+  if (!trimmed || trimmed.length < 15 || trimmed.includes('YOUR_')) {
+    return { valid: false, error: 'Ключ слишком короткий или содержит шаблонное значение' };
+  }
+
+  try {
+    const probeClient = new GoogleGenAI({
+      apiKey: trimmed,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
+
+    const response = await probeClient.models.embedContent({
+      model: process.env.EMBEDDING_MODEL || 'text-embedding-004',
+      contents: 'mcp-rooms probe',
+    });
+
+    if (response?.embedding?.values && response.embedding.values.length > 0) {
+      return { valid: true };
+    }
+    return { valid: false, error: 'Google AI не вернул вектор эмбеддинга' };
+  } catch (err: any) {
+    const msg = err?.message || 'Ошибка проверки ключа Google AI';
+    return { valid: false, error: msg };
+  }
+}
+
+export function setCustomGeminiApiKey(apiKey: string | null): void {
+  if (!apiKey || !apiKey.trim()) {
+    delete process.env.GEMINI_API_KEY;
+    deleteSystemConfig('gemini_api_key');
+    resetEmbeddingClient();
+  } else {
+    const trimmed = apiKey.trim();
+    process.env.GEMINI_API_KEY = trimmed;
+    setSystemConfig('gemini_api_key', trimmed);
+    resetEmbeddingClient();
+  }
 }
 
 /**
