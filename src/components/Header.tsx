@@ -203,17 +203,18 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={onGoHome}
-              className="text-left cursor-pointer transition-transform hover:opacity-95 focus:outline-none shrink-0 max-w-[150px] sm:max-w-[200px] truncate"
-              title={currentFace !== 'general' ? `${activeFace.emoji} ${isEn ? activeFace.nameEn : activeFace.nameRu}` : t('site.title')}
+              className="text-left cursor-pointer transition-transform hover:opacity-95 focus:outline-none shrink-0 max-w-[140px] sm:max-w-[180px] truncate"
+              title={t('site.title')}
             >
               <Logo
                 size="sm"
-                title={currentFace !== 'general' ? `${activeFace.emoji} ${isEn ? activeFace.nameEn : activeFace.nameRu}` : t('site.title')}
+                title={t('site.title')}
+                subtitle=""
               />
             </button>
 
-            {/* Desktop Unified Search Capsule (visible on md+) */}
-            <div className="hidden md:flex flex-1 max-w-xl mx-2 min-w-0">
+            {/* Desktop Unified Search Capsule (visible on lg+) */}
+            <div className="hidden lg:flex flex-1 max-w-xl mx-2 min-w-0">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -261,7 +262,9 @@ export const Header: React.FC<HeaderProps> = ({
                     onChange={(e) => onSearchChange(e.target.value)}
                     placeholder={
                       currentCategory === 'all'
-                        ? t('nav.search_placeholder')
+                        ? isEn
+                          ? 'Search listings, services...'
+                          : 'Поиск объявлений, услуг...'
                         : isEn
                         ? `Search in ${getCategoryLabel(currentCategory)}...`
                         : `Искать в «${getCategoryLabel(currentCategory)}»...`
@@ -390,8 +393,8 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* Mobile Search Row (аккуратно на экранах < md) */}
-          <div className="mt-2 md:hidden">
+          {/* Responsive Search Row (на экранах < lg под шапкой) */}
+          <div className="mt-2 lg:hidden">
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -399,7 +402,7 @@ export const Header: React.FC<HeaderProps> = ({
               }}
               className="w-full flex items-center bg-[var(--surface)] border border-[var(--line)] focus-within:border-[var(--blue)] rounded-xl h-8 px-1 shadow-2xs relative"
             >
-              {/* Category Picker Popover Trigger (Mobile) */}
+              {/* Category Picker Popover Trigger (Mobile/Tablet) */}
               <div className="relative shrink-0" ref={mobileRef}>
                 <button
                   type="button"
@@ -407,7 +410,7 @@ export const Header: React.FC<HeaderProps> = ({
                   className="h-6 px-1.5 rounded-md flex items-center gap-1 text-[11px] font-semibold text-[var(--ink)] hover:bg-[var(--raised)] cursor-pointer select-none"
                 >
                   <span>{CATEGORY_ICONS[currentCategory] || '📁'}</span>
-                  <span className="max-w-[70px] truncate">{getCategoryLabel(currentCategory)}</span>
+                  <span className="max-w-[80px] truncate">{getCategoryLabel(currentCategory)}</span>
                   <svg
                     className={`w-2.5 h-2.5 text-[var(--muted)] transition-transform duration-200 ${
                       categoriesOpen ? 'rotate-180' : ''
@@ -432,7 +435,15 @@ export const Header: React.FC<HeaderProps> = ({
                 type="search"
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
-                placeholder={t('nav.search_placeholder')}
+                placeholder={
+                  currentCategory === 'all'
+                    ? isEn
+                      ? 'Search listings...'
+                      : 'Поиск объявлений...'
+                    : isEn
+                    ? `Search in ${getCategoryLabel(currentCategory)}...`
+                    : `Искать в «${getCategoryLabel(currentCategory)}»...`
+                }
                 className="flex-1 bg-transparent text-xs text-[var(--ink)] placeholder-[var(--muted)] outline-none py-1 px-1 min-w-0"
               />
 

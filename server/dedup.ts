@@ -37,18 +37,19 @@ export interface DeduplicationReport {
 }
 
 /**
- * Scans the database for duplicate listings (same owner, trimmed lowercase title, category, kind).
+ * Scans the database for duplicate listings (same owner/demo/test accounts, normalized title, category, kind, or matching descriptions).
  * Uses JavaScript Unicode normalization to safely handle Cyrillic and multilingual text.
  */
 export function findDuplicateListings(dbInstance: any = db): DuplicateGroup[] {
   const allListings = dbInstance.prepare(`
-    SELECT id, owner, title, category, kind, locality, created_at, status, revision, embedding_json
+    SELECT id, owner, title, description, category, kind, locality, created_at, status, revision, embedding_json, responses_count
     FROM listings
     ORDER BY created_at ASC, id ASC
   `).all() as Array<{
     id: string;
     owner: string;
     title: string;
+    description: string;
     category: string;
     kind: string;
     locality: string;
@@ -56,18 +57,35 @@ export function findDuplicateListings(dbInstance: any = db): DuplicateGroup[] {
     status: string;
     revision: number;
     embedding_json: string | null;
+    responses_count?: number;
   }>;
 
   const groupMap = new Map<string, typeof allListings>();
 
   for (const item of allListings) {
     const normTitle = (item.title || '').trim().toLowerCase();
-    const key = `${item.owner}:::${item.category}:::${item.kind}:::${normTitle}`;
-    const list = groupMap.get(key);
-    if (!list) {
-      groupMap.set(key, [item]);
+    const normDesc = (item.description || '').trim().toLowerCase().slice(0, 80);
+    const titleKey = `${item.category}:::${item.kind}:::${normTitle}`;
+
+    // Check if item fits an existing cluster under titleKey
+    let matchedGroupKey: string | null = null;
+    for (const [key, existingItems] of groupMap.entries()) {
+      if (!key.startsWith(`${titleKey}:::`)) continue;
+      const first = existingItems[0];
+      const sameOwner = first.owner === item.owner;
+      const sameDesc = (first.description || '').trim().toLowerCase().slice(0, 80) === normDesc;
+      const isTestOrDemo = item.owner.startsWith('user:') && first.owner.startsWith('user:');
+      if (sameOwner || sameDesc || isTestOrDemo || !normDesc) {
+        matchedGroupKey = key;
+        break;
+      }
+    }
+
+    if (matchedGroupKey) {
+      groupMap.get(matchedGroupKey)!.push(item);
     } else {
-      list.push(item);
+      const newKey = `${titleKey}:::${item.owner}:::${normDesc.slice(0, 30)}`;
+      groupMap.set(newKey, [item]);
     }
   }
 
@@ -75,10 +93,21 @@ export function findDuplicateListings(dbInstance: any = db): DuplicateGroup[] {
 
   for (const [, items] of groupMap.entries()) {
     if (items.length > 1) {
-      // Prefer 'active' listings as canonical; otherwise oldest created
+      // Pick canonical listing:
+      // 1) Highest responses count
+      // 2) 'active' over others
+      // 3) Known canonical fixture IDs (no 'listing-' prefix)
+      // 4) Oldest created_at
       const sorted = [...items].sort((a, b) => {
+        const aResp = a.responses_count || 0;
+        const bResp = b.responses_count || 0;
+        if (aResp !== bResp) return bResp - aResp;
         if (a.status === 'active' && b.status !== 'active') return -1;
         if (b.status === 'active' && a.status !== 'active') return 1;
+        const isCanonicalA = !a.id.startsWith('listing-');
+        const isCanonicalB = !b.id.startsWith('listing-');
+        if (isCanonicalA && !isCanonicalB) return -1;
+        if (!isCanonicalA && isCanonicalB) return 1;
         return a.created_at - b.created_at;
       });
 

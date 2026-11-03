@@ -43,6 +43,13 @@ export const CategoryBar: React.FC<CategoryBarProps> = ({
 }) => {
   const { t } = useI18n();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = React.useState(false);
+
+  const checkScroll = () => {
+    if (scrollContainerRef.current) {
+      setCanScrollLeft(scrollContainerRef.current.scrollLeft > 10);
+    }
+  };
 
   const handleScroll = (direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
@@ -51,6 +58,7 @@ export const CategoryBar: React.FC<CategoryBarProps> = ({
         left: direction === 'left' ? -scrollAmount : scrollAmount,
         behavior: 'smooth',
       });
+      setTimeout(checkScroll, 200);
     }
   };
 
@@ -60,19 +68,22 @@ export const CategoryBar: React.FC<CategoryBarProps> = ({
 
   return (
     <div className="relative mb-6 group">
-      {/* Scroll Left Button */}
-      <button
-        type="button"
-        onClick={() => handleScroll('left')}
-        aria-label="Scroll categories left"
-        className="hidden md:flex absolute -left-3 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-[var(--surface)] border border-[var(--line)] shadow-md items-center justify-center text-[var(--muted)] hover:text-[var(--ink)] hover:scale-105 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
-      >
-        ‹
-      </button>
+      {/* Scroll Left Button (только когда есть скролл влево, чтобы не перекрывать первый раздел) */}
+      {canScrollLeft && (
+        <button
+          type="button"
+          onClick={() => handleScroll('left')}
+          aria-label="Scroll categories left"
+          className="hidden md:flex absolute -left-2 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-[var(--surface)] border border-[var(--line)] shadow-md items-center justify-center text-[var(--muted)] hover:text-[var(--ink)] hover:scale-105 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+        >
+          ‹
+        </button>
+      )}
 
       {/* Horizontal Carousel Container */}
       <div
         ref={scrollContainerRef}
+        onScroll={checkScroll}
         role="tablist"
         aria-label={t('nav.sections')}
         className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth py-1 px-1 -mx-1"
