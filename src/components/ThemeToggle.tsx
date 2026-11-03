@@ -3,9 +3,10 @@ import { useI18n, ThemeMode } from '../i18n';
 
 interface ThemeToggleProps {
   className?: string;
+  showLabel?: boolean;
 }
 
-export const ThemeToggle: React.FC<ThemeToggleProps> = ({ className = '' }) => {
+export const ThemeToggle: React.FC<ThemeToggleProps> = ({ className = '', showLabel = false }) => {
   const { theme, setTheme, resolvedTheme, t } = useI18n();
 
   const cycleTheme = () => {
@@ -16,14 +17,7 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({ className = '' }) => {
 
   const getIcon = () => {
     if (theme === 'system') {
-      return (
-        <span className="flex items-center gap-1">
-          <span className="text-xs">💻</span>
-          <span className="hidden xl:inline text-[11px] font-medium text-[var(--muted)]">
-            {resolvedTheme === 'dark' ? '🌙' : '☀️'}
-          </span>
-        </span>
-      );
+      return <span>💻</span>;
     }
     return theme === 'dark' ? <span>🌙</span> : <span>☀️</span>;
   };
@@ -40,12 +34,14 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({ className = '' }) => {
       onClick={cycleTheme}
       title={`${t('theme.toggle')}: ${getLabel()}`}
       aria-label={`${t('theme.toggle')}: ${getLabel()}`}
-      className={`h-8 px-2 sm:px-2.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--raised)] text-[var(--ink)] text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer select-none ${className}`}
+      className={`h-7 px-2 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--raised)] text-[var(--ink)] text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer select-none ${className}`}
     >
       {getIcon()}
-      <span className="hidden lg:inline capitalize">
-        {theme === 'system' ? t('theme.system') : getLabel()}
-      </span>
+      {showLabel && (
+        <span className="capitalize text-[11px]">
+          {theme === 'system' ? t('theme.system') : getLabel()}
+        </span>
+      )}
     </button>
   );
 };
