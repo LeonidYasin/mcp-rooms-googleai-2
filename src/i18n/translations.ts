@@ -38,6 +38,17 @@ export const translations = {
     'theme.system': 'Системная',
     'theme.toggle': 'Сменить тему',
 
+    // Faces / Thematic Verticals
+    'face.switcher_title': 'Тематические витрины',
+    'face.all': 'Все категории',
+    'face.ai_dev': 'AI & Dev Hub',
+    'face.invest': 'Стартапы & Инвесторы',
+    'face.dating': 'Знакомства & Дейтинг',
+    'face.taxi': 'Такси & Поездки',
+    'face.services': 'Мастера & Услуги',
+    'face.logistics': 'Курьеры & Грузы',
+    'face.real_estate': 'Недвижимость & Локации',
+
     // Language
     'lang.current': 'Русский',
     'lang.toggle': 'Switch to English',
@@ -272,6 +283,17 @@ export const translations = {
     'theme.dark': 'Dark',
     'theme.system': 'System',
     'theme.toggle': 'Toggle theme',
+
+    // Faces / Thematic Verticals
+    'face.switcher_title': 'Marketplace Themes',
+    'face.all': 'All Categories',
+    'face.ai_dev': 'AI & Dev Hub',
+    'face.invest': 'Startups & Investors',
+    'face.dating': 'Agentic Dating',
+    'face.taxi': 'Taxi & Rides On-Demand',
+    'face.services': 'Local Pros & Services',
+    'face.logistics': 'Couriers & Cargo',
+    'face.real_estate': 'Real Estate & Spaces',
 
     // Language
     'lang.current': 'English',

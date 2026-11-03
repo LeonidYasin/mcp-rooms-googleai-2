@@ -31,4 +31,18 @@ test.describe('MCP Rooms Marketplace E2E Visual & Functional Flow', () => {
     const root = page.locator('#root');
     await expect(root).toBeVisible();
   });
+
+  test('switches thematic face to startups and investors via UI switcher', async ({ page }) => {
+    await page.goto('/');
+
+    const switcherBtn = page.getByRole('button', { name: /сменить витрину|switch theme|все категории|all categories/i }).first();
+    await expect(switcherBtn).toBeVisible();
+    await switcherBtn.click();
+
+    const investOption = page.getByRole('menuitem', { name: /стартапы & инвесторы|startups & investors/i }).first();
+    await expect(investOption).toBeVisible();
+    await investOption.click();
+
+    expect(page.url()).toContain('face=invest');
+  });
 });

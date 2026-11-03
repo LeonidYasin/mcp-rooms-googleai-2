@@ -4,6 +4,8 @@ import { useI18n, TranslationKey } from '../i18n';
 import { Logo } from './Logo';
 import { ThemeToggle } from './ThemeToggle';
 import { LangToggle } from './LangToggle';
+import { FaceSwitcher } from './FaceSwitcher';
+import { FaceId, getFaceConfig } from '../lib/faces';
 
 interface HeaderProps {
   currentCategory: ListingCategory | 'all';
@@ -20,6 +22,8 @@ interface HeaderProps {
   hasApiKey: boolean;
   onOpenApiKey: () => void;
   onOpenAbout: () => void;
+  currentFace?: FaceId;
+  onSelectFace?: (face: FaceId) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -37,8 +41,12 @@ export const Header: React.FC<HeaderProps> = ({
   hasApiKey,
   onOpenApiKey,
   onOpenAbout,
+  currentFace = 'general',
+  onSelectFace = () => {},
 }) => {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const isEn = locale === 'en';
+  const activeFace = getFaceConfig(currentFace);
   const [categoriesOpen, setCategoriesOpen] = React.useState(false);
 
   const categoriesList: Array<ListingCategory | 'all'> = [
@@ -65,11 +73,12 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="bg-[var(--surface)] border-b border-[var(--line)] text-sm py-2 px-4 transition-colors">
         <div className="max-w-[1120px] mx-auto flex flex-wrap items-center justify-between gap-3 text-xs md:text-sm">
           <div className="flex items-center gap-2">
+            <span className="text-base sm:text-lg leading-none">{activeFace.emoji}</span>
             <strong className="text-[var(--blue)] font-bold tracking-wide text-[11px] md:text-xs">
-              {t('site.badge')}
+              {currentFace !== 'general' ? (isEn ? activeFace.badgeEn : activeFace.badgeRu) : t('site.badge')}
             </strong>
             <span className="text-[var(--muted)] text-[11px] md:text-xs hidden sm:inline">
-              {t('site.badge_sub')}
+              {currentFace !== 'general' ? (isEn ? activeFace.taglineEn : activeFace.taglineRu) : t('site.badge_sub')}
             </span>
           </div>
 
@@ -135,13 +144,16 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Logo
                 size="md"
-                title={t('site.title')}
-                subtitle={t('site.subtitle')}
+                title={currentFace !== 'general' ? `${activeFace.emoji} ${isEn ? activeFace.nameEn : activeFace.nameRu}` : t('site.title')}
+                subtitle={currentFace !== 'general' ? (isEn ? activeFace.taglineEn : activeFace.taglineRu) : t('site.subtitle')}
               />
             </button>
 
             {/* Actions Bar: Controls, Theme, Lang, Key, Publish */}
             <div className="flex items-center gap-2 sm:gap-2.5">
+              {/* Thematic Face Switcher */}
+              <FaceSwitcher currentFace={currentFace} onSelectFace={onSelectFace} />
+
               {/* Location Select (hidden on small mobile) */}
               <div className="hidden lg:flex items-center gap-1.5 text-xs text-[var(--muted)] bg-[var(--surface)] border border-[var(--line)] px-2.5 py-1.5 rounded-lg h-9">
                 <span>{t('nav.location')}</span>

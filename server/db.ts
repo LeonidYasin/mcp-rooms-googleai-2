@@ -289,7 +289,8 @@ export function ensureNewCategoriesSeeded(dbInstance: any = db) {
     const count = dbInstance.prepare(`SELECT COUNT(*) as cnt FROM listings WHERE category IN ('real_estate', 'communities')`).get() as { cnt: number };
     const realEstateCount = dbInstance.prepare(`SELECT COUNT(*) as cnt FROM listings WHERE category = 'real_estate'`).get() as { cnt: number };
     const communitiesCount = dbInstance.prepare(`SELECT COUNT(*) as cnt FROM listings WHERE category = 'communities'`).get() as { cnt: number };
-    if (count.cnt === 0 || realEstateCount.cnt === 0 || communitiesCount.cnt === 0) {
+    const hasInvest = dbInstance.prepare(`SELECT COUNT(*) as cnt FROM listings WHERE id = 'invest-startup-pitch-01'`).get() as { cnt: number };
+    if (count.cnt === 0 || realEstateCount.cnt === 0 || communitiesCount.cnt === 0 || hasInvest.cnt === 0) {
       const insertListing = dbInstance.prepare(`
         INSERT INTO listings (
           id, owner, author_name, title, description, category, subcategory,
@@ -425,6 +426,136 @@ export function ensureNewCategoriesSeeded(dbInstance: any = db) {
           expires_at: now + 3600000 * 24 * 60,
           photos_json: '[]',
           responses_count: 4,
+        },
+        {
+          id: 'invest-startup-pitch-01',
+          owner: 'user:founder-alex',
+          author_name: 'Алексей Мельников (AI Architect)',
+          title: 'Pre-Seed стартап в области Agentic AI: привлекаем $75,000 за 6% SAFE',
+          description:
+            'Разрабатываем автономный B2B-слой координации AI-агентов на базе MCP. Готов работающий MVP, 200+ активных пользователей, $12k MRR. Ищем профильного бизнес-ангела со связями в Enterprise. Согласование условий Term Sheet в переговорной комнате.',
+          category: 'business',
+          subcategory: 'Инвестиции и стартапы (Pre-Seed)',
+          kind: 'request',
+          modes: JSON.stringify(['online']),
+          locality: 'Казань',
+          region: 'Татарстан',
+          country: 'Россия',
+          price_minor: 750000000,
+          currency: 'RUB',
+          condition: 'Действующий MVP, Traction: $12k MRR',
+          status: 'active',
+          visibility: 'public',
+          revision: 1,
+          created_at: now - 3600000 * 12,
+          updated_at: now - 3600000 * 1,
+          expires_at: now + 3600000 * 24 * 90,
+          photos_json: '[]',
+          responses_count: 5,
+        },
+        {
+          id: 'invest-angel-syndicate-02',
+          owner: 'user:founder-alex',
+          author_name: 'Venture Angel Syndicate',
+          title: 'Smart Money инвестиции в B2B SaaS и агентные AI-системы ($25k–$100k)',
+          description:
+            'Инвестируем в ранние технологические стартапы с сильной инженерной командой. Помогаем с выходом на зарубежные рынки, корпоративными пилотами и архитектурой. Готовы обсуждать питчи и структуру сделки (SAFE, конвертируемый заем).',
+          category: 'business',
+          subcategory: 'Венчурные инвестиции (Angels)',
+          kind: 'offer',
+          modes: JSON.stringify(['online']),
+          locality: 'Москва',
+          region: 'Москва',
+          country: 'Россия',
+          price_minor: 500000000,
+          currency: 'RUB',
+          condition: 'Синдикат бизнес-ангелов, чек $25k-$100k',
+          status: 'active',
+          visibility: 'public',
+          revision: 1,
+          created_at: now - 3600000 * 16,
+          updated_at: now - 3600000 * 2,
+          expires_at: now + 3600000 * 24 * 90,
+          photos_json: '[]',
+          responses_count: 8,
+        },
+        {
+          id: 'dating-companion-art-01',
+          owner: 'user:buyer-77',
+          author_name: 'Алина (Архитектор)',
+          title: 'Ищу спутника для посещения выставок современного искусства и неспешных бесед',
+          description:
+            '26 лет. Люблю архитектуру баухаус, современное искусство, джаз и пешие прогулки по историческому центру Казани. Ищу близкого по духу человека с чувством юмора и открытым взглядом на мир. Без бесконечных переписок — первое знакомство за чашкой кофе.',
+          category: 'dating',
+          subcategory: 'Культура, искусство и прогулки',
+          kind: 'request',
+          modes: JSON.stringify(['pickup']),
+          locality: 'Казань',
+          region: 'Татарстан',
+          country: 'Россия',
+          price_minor: null,
+          currency: 'RUB',
+          condition: 'Личная встреча в общественном месте',
+          status: 'active',
+          visibility: 'public',
+          revision: 1,
+          created_at: now - 3600000 * 14,
+          updated_at: now - 3600000 * 1,
+          expires_at: now + 3600000 * 24 * 60,
+          photos_json: '[]',
+          responses_count: 3,
+        },
+        {
+          id: 'taxi-express-airport-01',
+          owner: 'user:buyer-77',
+          author_name: 'Игорь (Пассажир)',
+          title: 'Срочно такси: Центр (ул. Кремлёвская) → Аэропорт Казани (2 чемодана)',
+          description:
+            'Требуется комфортный автомобиль до аэропорта, выезд через 20 минут. 2 взрослых пассажира, 2 больших чемодана. Чистый салон, кондиционер. Готов к быстрому согласованию цены в переговорной комнате.',
+          category: 'rides',
+          subcategory: 'Трансфер в аэропорт',
+          kind: 'request',
+          modes: JSON.stringify(['pickup']),
+          locality: 'Казань',
+          region: 'Татарстан',
+          country: 'Россия',
+          price_minor: 150000,
+          currency: 'RUB',
+          condition: 'Срочный выезд в течение 20 минут',
+          status: 'active',
+          visibility: 'public',
+          revision: 1,
+          created_at: now - 3600000 * 10,
+          updated_at: now - 3600000 * 1,
+          expires_at: now + 3600000 * 24 * 30,
+          photos_json: '[]',
+          responses_count: 4,
+        },
+        {
+          id: 'taxi-comfort-driver-02',
+          owner: 'user:timur-driver',
+          author_name: 'Тимур Валиев (Водитель)',
+          title: 'Комфорт+ поездки по Казани, трансферы в аэропорт и Иннополис на Geely Monjaro',
+          description:
+            'Новый комфортабельный кроссовер 2024 года. Просторный чистый салон, климат-контроль, вода, детское кресло Isofix, зарядки для всех телефонов. Стаж 9 лет, аккуратное вождение. Быстрый динамический торг без комиссий агрегаторов.',
+          category: 'rides',
+          subcategory: 'Комфорт+ и трансферы',
+          kind: 'offer',
+          modes: JSON.stringify(['pickup']),
+          locality: 'Казань',
+          region: 'Татарстан',
+          country: 'Россия',
+          price_minor: 120000,
+          currency: 'RUB',
+          condition: 'Geely Monjaro 2024, идеальное состояние',
+          status: 'active',
+          visibility: 'public',
+          revision: 1,
+          created_at: now - 3600000 * 8,
+          updated_at: now - 3600000 * 1,
+          expires_at: now + 3600000 * 24 * 60,
+          photos_json: '[]',
+          responses_count: 7,
         },
       ];
 
@@ -952,6 +1083,7 @@ export function seedInitialData(dbInstance: any = db) {
 // Database helper functions
 export function getListingsFromDb(filters: {
   category?: string;
+  categories?: string[];
   kind?: string;
   locality?: string;
   query?: string;
@@ -962,6 +1094,13 @@ export function getListingsFromDb(filters: {
   if (filters.category && filters.category !== 'all') {
     sql += ' AND category = ?';
     params.push(filters.category);
+  } else if (filters.categories && Array.isArray(filters.categories) && filters.categories.length > 0) {
+    const validCats = filters.categories.filter((c) => c && c !== 'all');
+    if (validCats.length > 0) {
+      const placeholders = validCats.map(() => '?').join(', ');
+      sql += ` AND category IN (${placeholders})`;
+      params.push(...validCats);
+    }
   }
   if (filters.kind && filters.kind !== 'all') {
     sql += ' AND kind = ?';
