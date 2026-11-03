@@ -11,6 +11,8 @@ import { MCP_TOOLS_MANIFEST } from '../server/mcp';
  * 3. Checks that all MCP tools in MCP_TOOLS_MANIFEST are properly documented in README.md.
  */
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 const DOCS_DIR = path.join(ROOT_DIR, 'docs');
 
@@ -139,8 +141,7 @@ function main() {
   );
 }
 
-const currentFilePath = fileURLToPath(import.meta.url);
 const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : '';
-if (invokedPath && (invokedPath === currentFilePath || invokedPath.includes('validate-docs'))) {
+if (invokedPath && (invokedPath === __filename || invokedPath.includes('validate-docs'))) {
   main();
 }

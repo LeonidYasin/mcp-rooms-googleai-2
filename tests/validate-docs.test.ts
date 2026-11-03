@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   validateAllDocs,
   validateMcpToolsDocumentation,
@@ -8,6 +9,9 @@ import {
   getMarkdownFiles,
 } from '../scripts/validate-docs';
 import { MCP_TOOLS_MANIFEST } from '../server/mcp';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 describe('TASK-13: Documentation Integrity & Doc-Linter (validate-docs)', () => {
   it('validates that all markdown files in repo have valid links and existing targets', () => {
