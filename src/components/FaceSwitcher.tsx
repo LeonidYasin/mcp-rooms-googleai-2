@@ -56,7 +56,11 @@ export const FaceSwitcher: React.FC<FaceSwitcherProps> = ({
         aria-haspopup="true"
         aria-expanded={isOpen}
         aria-label={isEn ? 'Switch Theme' : 'Сменить витрину'}
-        title={isEn ? `Current Theme: ${activeConfig.nameEn}. Click to switch.` : `Текущая витрина: ${activeConfig.nameRu}. Нажмите для смены.`}
+        title={
+          isEn
+            ? `Thematic Skin: ${activeConfig.nameEn}. Click to switch between 13 specialized marketplace skins (Ozon, Real Estate, AI Dev, etc.)`
+            : `Тематическая витрина: ${activeConfig.nameRu}. Нажмите для выбора одного из 13 скинов (Озон, Недвижимость, AI Dev, Дейтинг и др.)`
+        }
         className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 h-8 rounded-lg border text-xs font-bold transition-all cursor-pointer shadow-2xs select-none active:scale-98 shrink-0 min-w-0 ${
           currentFace === 'general'
             ? 'bg-[var(--surface)] hover:bg-[var(--raised)] border-[var(--line)] text-[var(--ink)]'

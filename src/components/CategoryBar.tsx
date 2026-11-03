@@ -87,6 +87,11 @@ export const CategoryBar: React.FC<CategoryBarProps> = ({
                 role="tab"
                 aria-selected={isSelected}
                 onClick={() => onSelectCategory(cat)}
+                title={
+                  cat === 'all'
+                    ? (locale === 'en' ? 'Show all listings across all categories' : 'Показать все объявления без ограничений по категориям')
+                    : (locale === 'en' ? `Filter by category: ${label}` : `Фильтровать объявления по разделу «${label}»`)
+                }
                 className={`px-4 py-1.5 rounded-xl text-xs font-medium transition-all duration-200 cursor-pointer whitespace-nowrap select-none ${
                   isSelected
                     ? 'bg-slate-800/90 text-white font-semibold shadow-inner border border-white/20'
@@ -109,7 +114,8 @@ export const CategoryBar: React.FC<CategoryBarProps> = ({
         <button
           type="button"
           onClick={() => handleScroll('left')}
-          aria-label="Scroll categories left"
+          title={locale === 'en' ? 'Scroll categories left' : 'Прокрутить разделы влево'}
+          aria-label={locale === 'en' ? 'Scroll categories left' : 'Прокрутить разделы влево'}
           className="hidden md:flex absolute -left-2 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-[var(--surface)] border border-[var(--line)] shadow-md items-center justify-center text-[var(--muted)] hover:text-[var(--ink)] hover:scale-105 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
         >
           ‹
@@ -137,6 +143,11 @@ export const CategoryBar: React.FC<CategoryBarProps> = ({
               role="tab"
               aria-selected={isSelected}
               onClick={() => onSelectCategory(cat)}
+              title={
+                cat === 'all'
+                  ? (locale === 'en' ? 'Show all listings across all categories' : 'Показать все объявления без ограничений по категориям')
+                  : (locale === 'en' ? `Filter by category: ${label}` : `Фильтровать объявления по разделу «${label}»`)
+              }
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer shrink-0 select-none border ${
                 isSelected
                   ? 'bg-[var(--blue)] text-white border-transparent shadow-xs font-bold scale-[1.02]'
@@ -157,7 +168,8 @@ export const CategoryBar: React.FC<CategoryBarProps> = ({
       <button
         type="button"
         onClick={() => handleScroll('right')}
-        aria-label="Scroll categories right"
+        title={locale === 'en' ? 'Scroll categories right' : 'Прокрутить разделы вправо'}
+        aria-label={locale === 'en' ? 'Scroll categories right' : 'Прокрутить разделы вправо'}
         className="hidden md:flex absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-[var(--surface)] border border-[var(--line)] shadow-md items-center justify-center text-[var(--muted)] hover:text-[var(--ink)] hover:scale-105 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
       >
         ›

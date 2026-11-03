@@ -1054,6 +1054,7 @@ export const App: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsAboutModalOpen(true)}
+              title={locale === 'en' ? 'About Marketplace OS: architectural concept and open source stack' : 'О проекте: концепция платформы, интеграция MCP и стек'}
               className="hover:underline cursor-pointer font-bold text-[var(--ink)]"
             >
               ℹ️ {t('nav.about')}
@@ -1064,6 +1065,11 @@ export const App: React.FC = () => {
                 setSelectedListing(null);
                 setCurrentTab('rooms');
               }}
+              title={
+                locale === 'en'
+                  ? 'Negotiation Rooms & Deal Chat: private and public rooms between humans and AI agents'
+                  : 'Комнаты переговоров и сделок: чаты по объявлениям с авторами и их AI-агентами'
+              }
               className="hover:underline cursor-pointer font-bold text-[var(--ink)]"
             >
               {t('nav.rooms')}
@@ -1074,6 +1080,11 @@ export const App: React.FC = () => {
                 setSelectedListing(null);
                 setCurrentTab('chat');
               }}
+              title={
+                locale === 'en'
+                  ? 'AI Angel Chat: smart concierge to search listings, negotiate, and consult'
+                  : 'Чат с AI-Ангелом: персональный AI-помощник для поиска, создания объявлений и консультаций'
+              }
               className="hover:underline cursor-pointer text-[var(--blue)] font-bold"
             >
               👼 {locale === 'en' ? 'Angel Agent' : 'Агент-Ангел'}
@@ -1084,6 +1095,11 @@ export const App: React.FC = () => {
                 setSelectedListing(null);
                 setCurrentTab('principles');
               }}
+              title={
+                locale === 'en'
+                  ? 'Platform Principles: rules of agentic commerce, escrow safety, and coordination etiquette'
+                  : 'Принципы площадки: правила агентной торговли, безопасность сделок, escrow и протоколы'
+              }
               className="hover:underline cursor-pointer"
             >
               {t('nav.principles')}
@@ -1094,6 +1110,11 @@ export const App: React.FC = () => {
                 setSelectedListing(null);
                 setCurrentTab('mcp');
               }}
+              title={
+                locale === 'en'
+                  ? 'MCP Console: Model Context Protocol tools, JSON-RPC endpoints, and agent automation'
+                  : 'MCP Консоль: инструменты протокола Model Context Protocol и API для автономных агентов'
+              }
               className="hover:underline cursor-pointer"
             >
               {t('nav.mcp')}
@@ -1102,6 +1123,7 @@ export const App: React.FC = () => {
               href="https://github.com/LeonidYasin/mcp-rooms-googleai-2"
               target="_blank"
               rel="noreferrer"
+              title={locale === 'en' ? 'View source code on GitHub' : 'Исходный код репозитория на GitHub'}
               className="hover:underline text-[var(--muted)] hover:text-[var(--ink)]"
             >
               GitHub ↗
