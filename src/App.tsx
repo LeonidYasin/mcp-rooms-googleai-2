@@ -599,6 +599,9 @@ export const App: React.FC = () => {
         }}
         currentTab={currentTab}
         onChangeTab={(tab) => {
+          if (tab === 'rooms') {
+            setSelectedRoomId('');
+          }
           setCurrentTab(tab);
           setSelectedListing(null);
         }}
@@ -1063,6 +1066,7 @@ export const App: React.FC = () => {
               type="button"
               onClick={() => {
                 setSelectedListing(null);
+                setSelectedRoomId('');
                 setCurrentTab('rooms');
               }}
               title={

@@ -52,8 +52,8 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
 
   // Sync selectedRoomId if prop changes
   useEffect(() => {
+    setSelectedRoomId(initialSelectedRoomId || '');
     if (initialSelectedRoomId) {
-      setSelectedRoomId(initialSelectedRoomId);
       const targetRoom = rooms.find((r) => r.id === initialSelectedRoomId);
       if (targetRoom?.visibility) {
         setActiveTab(targetRoom.visibility);
@@ -83,13 +83,6 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
 
     return true;
   });
-
-  // Default select first room if none selected
-  useEffect(() => {
-    if (!selectedRoomId && filteredRooms.length > 0) {
-      setSelectedRoomId(filteredRooms[0].id);
-    }
-  }, [filteredRooms, selectedRoomId]);
 
   const activeRoom = rooms.find((r) => r.id === selectedRoomId);
 
@@ -260,8 +253,7 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
           type="button"
           onClick={() => {
             setActiveTab('public');
-            const first = rooms.find((r) => r.visibility === 'public');
-            if (first) setSelectedRoomId(first.id);
+            setSelectedRoomId('');
           }}
           title={
             locale === 'en'
@@ -284,8 +276,7 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
           type="button"
           onClick={() => {
             setActiveTab('private');
-            const first = rooms.find((r) => (r.visibility || 'private') === 'private');
-            if (first) setSelectedRoomId(first.id);
+            setSelectedRoomId('');
           }}
           title={
             locale === 'en'
@@ -359,7 +350,9 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
       {/* Two-Column Grid: Topics Catalog (Left) + Active Conversation (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[620px] items-start">
         {/* Left Column: Topics List */}
-        <div className="lg:col-span-5 space-y-3 max-h-[720px] overflow-y-auto pr-1">
+        <div className={`lg:col-span-5 space-y-3 max-h-[720px] overflow-y-auto pr-1 ${
+          activeRoom ? 'hidden lg:block' : 'block'
+        }`}>
           {filteredRooms.length === 0 ? (
             <div className="p-8 text-center border border-[var(--line)] rounded-2xl bg-[var(--surface)] text-[var(--muted)]">
               <span className="text-3xl block mb-2">📭</span>
@@ -454,13 +447,26 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
         </div>
 
         {/* Right Column: Active Conversation */}
-        <div className="lg:col-span-7 border border-[var(--line)] rounded-2xl bg-[var(--canvas)] flex flex-col h-[720px] shadow-xs overflow-hidden">
+        <div className={`lg:col-span-7 border border-[var(--line)] rounded-2xl bg-[var(--canvas)] flex flex-col h-[720px] shadow-xs overflow-hidden ${
+          !activeRoom ? 'hidden lg:flex' : 'flex'
+        }`}>
           {activeRoom ? (
             <>
               {/* Conversation Header */}
               <div className="p-4 border-b border-[var(--line)] bg-[var(--surface)] flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedRoomId('');
+                        if (onSelectRoom) onSelectRoom('');
+                      }}
+                      className="text-xs font-bold text-[var(--blue)] hover:underline flex items-center gap-1 cursor-pointer mr-1"
+                      title={locale === 'en' ? 'Deselect room and return to topics list' : 'Закрыть просмотр и вернуться к списку всех тем'}
+                    >
+                      ← {locale === 'en' ? 'All Topics' : 'Все темы'}
+                    </button>
                     <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[var(--soft)] text-[var(--blue)]">
                       {t(`cat.${(activeRoom.category ||
                         listings.find((l) => l.id === activeRoom.listingId)?.content?.category ||
@@ -665,16 +671,32 @@ export const RoomsHub: React.FC<RoomsHubProps> = ({
             </>
           ) : (
             <div className="h-full flex items-center justify-center p-8 text-center text-[var(--muted)]">
-              <div>
+              <div className="max-w-md">
                 <span className="text-4xl block mb-3">💬</span>
                 <p className="font-bold text-base text-[var(--ink)]">
-                  {locale === 'en' ? 'Select a room to begin conversation' : 'Выберите комнату для диалога'}
+                  {locale === 'en' ? 'Topics Catalog & Deal Rooms' : 'Каталог тем и переговорных комнат'}
                 </p>
-                <p className="text-xs mt-1 max-w-sm">
+                <p className="text-xs mt-2 leading-relaxed">
                   {locale === 'en'
-                    ? 'Select an open topic from catalog on the left or create a new discussion.'
-                    : 'Выберите открытую тему из каталога слева или создайте новое обсуждение.'}
+                    ? 'Select an open topic from the catalog on the left to read or participate, or choose your private room from the list.'
+                    : 'Выберите открытую тему из каталога слева для участия в обсуждении или перейдите в свои приватные переговоры.'}
                 </p>
+                <div className="mt-5 flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!getStoredApiKey()) {
+                        onRequireKey(locale === 'en' ? 'API Key required to create a room.' : 'Создание комнаты требует API-ключ.');
+                      } else {
+                        setShowCreateModal(true);
+                      }
+                    }}
+                    className="px-4 py-2 rounded-xl bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white font-semibold text-xs transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <span>➕</span>
+                    <span>{locale === 'en' ? 'Open New Topic' : 'Создать новую тему'}</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}
