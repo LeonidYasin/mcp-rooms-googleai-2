@@ -40,7 +40,7 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({ className = '' }) => {
       onClick={cycleTheme}
       title={`${t('theme.toggle')}: ${getLabel()}`}
       aria-label={`${t('theme.toggle')}: ${getLabel()}`}
-      className={`h-9 px-2.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--raised)] text-[var(--ink)] text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer select-none ${className}`}
+      className={`h-8 px-2 sm:px-2.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--raised)] text-[var(--ink)] text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer select-none ${className}`}
     >
       {getIcon()}
       <span className="hidden lg:inline capitalize">

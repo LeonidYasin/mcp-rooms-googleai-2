@@ -35,7 +35,7 @@ test.describe('MCP Rooms Marketplace E2E Visual & Functional Flow', () => {
   test('switches thematic face to startups and investors via UI switcher', async ({ page }) => {
     await page.goto('/');
 
-    const switcherBtn = page.getByRole('button', { name: /сменить витрину|switch theme|все категории|all categories/i }).first();
+    const switcherBtn = page.getByRole('button', { name: /сменить витрину|switch theme/i }).first();
     await expect(switcherBtn).toBeVisible();
     await switcherBtn.click();
 
@@ -45,5 +45,17 @@ test.describe('MCP Rooms Marketplace E2E Visual & Functional Flow', () => {
 
     expect(page.url()).toContain('face=invest');
     await expect(page.locator('html')).toHaveAttribute('data-face', 'invest');
+  });
+
+  test('interacts with CategoryBar carousel in catalog view', async ({ page }) => {
+    await page.goto('/');
+
+    const categoryCarousel = page.locator('[role="tablist"]');
+    await expect(categoryCarousel).toBeVisible();
+
+    const servicesTab = categoryCarousel.getByRole('tab', { name: /услуги|services/i }).first();
+    await expect(servicesTab).toBeVisible();
+    await servicesTab.click();
+    await expect(servicesTab).toHaveAttribute('aria-selected', 'true');
   });
 });
