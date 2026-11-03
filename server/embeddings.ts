@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import { saveListingEmbeddingInDb, getListingsFromDb } from './db';
 
 export interface EmbeddingProviderStatus {
   provider: 'google' | 'disabled' | 'fallback';
@@ -17,6 +18,12 @@ export interface MatchResultItem {
 let aiClient: GoogleGenAI | null = null;
 let isGeminiEmbeddingKeyValid = true;
 let lastInvalidEmbeddingKey: string | null = null;
+
+export function resetEmbeddingClient(): void {
+  aiClient = null;
+  isGeminiEmbeddingKeyValid = true;
+  lastInvalidEmbeddingKey = null;
+}
 
 function getAiClient(): GoogleGenAI | null {
   const apiKey = (process.env.GEMINI_API_KEY || process.env.API_KEY || '').trim();
@@ -298,4 +305,99 @@ export async function matchListingAsymmetric(
   results.sort((a, b) => b.similarityScore - a.similarityScore);
 
   return results.slice(0, limit);
+}
+
+/**
+ * Constructs semantic text representation for a listing to compute its vector.
+ */
+export function buildListingEmbeddingText(listing: any): string {
+  if (!listing) return '';
+  const content = listing.content || listing;
+  const parts = [
+    content.title,
+    content.description,
+    content.category,
+    content.subcategory,
+    content.locality,
+  ].filter((p): p is string => typeof p === 'string' && p.trim().length > 0);
+  return parts.join(' · ');
+}
+
+/**
+ * Computes embedding for a listing and stores it in SQLite if provider is active.
+ * Safe and non-blocking: returns boolean indicating whether embedding was computed and stored.
+ */
+export async function indexListingEmbedding(listing: any): Promise<boolean> {
+  if (!listing || !listing.id) return false;
+  const status = getEmbeddingProviderStatus();
+  if (!status.isAvailable) return false;
+
+  const text = buildListingEmbeddingText(listing);
+  if (!text) return false;
+
+  const vector = await computeEmbedding(text);
+  if (!vector || vector.length === 0) return false;
+
+  const listingId = String(listing.id);
+  const kind = (listing.kind || listing.content?.kind || 'offer') as 'request' | 'offer';
+
+  saveListingEmbeddingInDb({
+    id: `emb_${listingId}`,
+    listing_id: listingId,
+    kind,
+    provider: status.provider,
+    model: status.model,
+    dimensions: vector.length,
+    vector,
+  });
+
+  return true;
+}
+
+/**
+ * Batch reindexer for all listings in the SQLite database.
+ * Supports rate-limiting pause between calls to respect Google AI Studio quotas.
+ */
+export async function reindexAllListings(options?: {
+  force?: boolean;
+  batchDelayMs?: number;
+  onProgress?: (processed: number, total: number, listingId: string, status: 'indexed' | 'skipped' | 'error') => void;
+}): Promise<{ total: number; indexed: number; skipped: number; errors: number }> {
+  const force = options?.force ?? false;
+  const delayMs = options?.batchDelayMs ?? 50;
+
+  const allListings = getListingsFromDb();
+  const total = allListings.length;
+  let indexed = 0;
+  let skipped = 0;
+  let errors = 0;
+
+  for (let i = 0; i < total; i++) {
+    const item = allListings[i];
+    if (!force && item.embedding_json) {
+      skipped++;
+      options?.onProgress?.(i + 1, total, item.id, 'skipped');
+      continue;
+    }
+
+    try {
+      const ok = await indexListingEmbedding(item);
+      if (ok) {
+        indexed++;
+        options?.onProgress?.(i + 1, total, item.id, 'indexed');
+      } else {
+        skipped++;
+        options?.onProgress?.(i + 1, total, item.id, 'skipped');
+      }
+    } catch {
+      errors++;
+      options?.onProgress?.(i + 1, total, item.id, 'error');
+    }
+
+    if (delayMs > 0 && i < total - 1) {
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+
+  return { total, indexed, skipped, errors };
 }
