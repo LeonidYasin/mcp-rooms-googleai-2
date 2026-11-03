@@ -1,4 +1,5 @@
 import { addRoomEventToDb } from './db.js';
+import { dispatchWebhooksForEvent } from './webhooks.js';
 
 export interface RoomEvent {
   id: string;
@@ -50,6 +51,13 @@ class RoomEventBus {
           // Ignore failing listeners
         }
       });
+    }
+
+    // Forward to subscribed agent webhooks
+    try {
+      dispatchWebhooksForEvent(type, data, { roomId });
+    } catch (err) {
+      // Non-fatal
     }
 
     return event;

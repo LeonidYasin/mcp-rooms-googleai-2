@@ -178,6 +178,20 @@ CREATE TABLE IF NOT EXISTS audit_logs (
       updated_at INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS agent_webhooks (
+      id TEXT PRIMARY KEY,
+      agent_id TEXT NOT NULL,
+      target_url TEXT NOT NULL,
+      secret TEXT NOT NULL,
+      events_json TEXT NOT NULL DEFAULT '["*"]',
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at INTEGER NOT NULL,
+      last_delivered_at INTEGER,
+      failure_count INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_agent_webhooks_agent ON agent_webhooks(agent_id);
+
     CREATE INDEX IF NOT EXISTS idx_listings_owner_title ON listings(owner, category, kind, title);
 
   `);
@@ -1328,6 +1342,107 @@ export function getNegotiationByRoomIdFromDb(roomId: string) {
     created_at: r.created_at,
     updated_at: r.updated_at,
   };
+}
+
+export interface AgentWebhook {
+  id: string;
+  agentId: string;
+  targetUrl: string;
+  secret: string;
+  events: string[];
+  status: 'active' | 'disabled';
+  createdAt: number;
+  lastDeliveredAt?: number;
+  failureCount: number;
+}
+
+export function saveWebhookInDb(webhook: {
+  id: string;
+  agentId: string;
+  targetUrl: string;
+  secret: string;
+  events: string[];
+  status?: 'active' | 'disabled';
+}): AgentWebhook {
+  const now = Date.now();
+  const status = webhook.status || 'active';
+  const eventsJson = JSON.stringify(webhook.events || ['*']);
+
+  db.prepare(`
+    INSERT INTO agent_webhooks (id, agent_id, target_url, secret, events_json, status, created_at, failure_count)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+    ON CONFLICT(id) DO UPDATE SET
+      target_url = excluded.target_url,
+      secret = excluded.secret,
+      events_json = excluded.events_json,
+      status = excluded.status
+  `).run(webhook.id, webhook.agentId, webhook.targetUrl, webhook.secret, eventsJson, status, now);
+
+  return getWebhookByIdFromDb(webhook.id)!;
+}
+
+export function getWebhookByIdFromDb(id: string): AgentWebhook | null {
+  if (!id) return null;
+  const r = db.prepare('SELECT * FROM agent_webhooks WHERE id = ?').get(id) as any;
+  if (!r) return null;
+  return {
+    id: r.id,
+    agentId: r.agent_id,
+    targetUrl: r.target_url,
+    secret: r.secret,
+    events: JSON.parse(r.events_json || '["*"]'),
+    status: r.status as 'active' | 'disabled',
+    createdAt: r.created_at,
+    lastDeliveredAt: r.last_delivered_at || undefined,
+    failureCount: r.failure_count || 0,
+  };
+}
+
+export function getWebhooksFromDb(agentId?: string): AgentWebhook[] {
+  let rows: any[];
+  if (agentId) {
+    rows = db.prepare('SELECT * FROM agent_webhooks WHERE agent_id = ? ORDER BY created_at DESC').all(agentId) as any[];
+  } else {
+    rows = db.prepare('SELECT * FROM agent_webhooks ORDER BY created_at DESC').all() as any[];
+  }
+  return rows.map((r) => ({
+    id: r.id,
+    agentId: r.agent_id,
+    targetUrl: r.target_url,
+    secret: r.secret,
+    events: JSON.parse(r.events_json || '["*"]'),
+    status: r.status as 'active' | 'disabled',
+    createdAt: r.created_at,
+    lastDeliveredAt: r.last_delivered_at || undefined,
+    failureCount: r.failure_count || 0,
+  }));
+}
+
+export function deleteWebhookFromDb(id: string, agentId?: string): boolean {
+  let result;
+  if (agentId) {
+    result = db.prepare('DELETE FROM agent_webhooks WHERE id = ? AND agent_id = ?').run(id, agentId);
+  } else {
+    result = db.prepare('DELETE FROM agent_webhooks WHERE id = ?').run(id);
+  }
+  return result.changes > 0;
+}
+
+export function updateWebhookDeliveryStatsInDb(id: string, success: boolean): void {
+  const now = Date.now();
+  if (success) {
+    db.prepare(`
+      UPDATE agent_webhooks
+      SET last_delivered_at = ?, failure_count = 0
+      WHERE id = ?
+    `).run(now, id);
+  } else {
+    db.prepare(`
+      UPDATE agent_webhooks
+      SET failure_count = failure_count + 1
+      WHERE id = ?
+    `).run(id);
+  }
 }
 
 export function getProfilesFromDb() {
