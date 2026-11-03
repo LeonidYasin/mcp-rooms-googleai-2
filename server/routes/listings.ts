@@ -83,10 +83,40 @@ function normalizeListingInput(
   };
 }
 
+listingsRouter.get('/api/faces', (_req, res) => {
+  res.json([
+    { id: 'general', name: 'Все категории', nameEn: 'All Categories', emoji: '🌐', primaryCategories: ['real_estate', 'communities', 'business', 'jobs', 'services', 'things', 'dating', 'rides', 'delivery', 'other'] },
+    { id: 'ai_dev', name: 'AI & Dev Hub', nameEn: 'AI & Dev Hub', emoji: '⚡', primaryCategories: ['business', 'jobs', 'services'] },
+    { id: 'invest', name: 'Стартапы & Инвесторы', nameEn: 'Startups & Investors', emoji: '💼', primaryCategories: ['business', 'jobs', 'communities'] },
+    { id: 'dating', name: 'Знакомства & Дейтинг', nameEn: 'Agentic Dating', emoji: '❤️', primaryCategories: ['dating', 'communities'] },
+    { id: 'taxi', name: 'Такси & Поездки', nameEn: 'Taxi & Rides On-Demand', emoji: '🚕', primaryCategories: ['rides'] },
+    { id: 'services', name: 'Мастера & Услуги', nameEn: 'Local Pros & Services', emoji: '🛠️', primaryCategories: ['services', 'jobs'] },
+    { id: 'logistics', name: 'Курьеры & Грузы', nameEn: 'Couriers & Cargo', emoji: '🚚', primaryCategories: ['delivery'] },
+    { id: 'real_estate', name: 'Недвижимость & Локации', nameEn: 'Real Estate & Spaces', emoji: '🏢', primaryCategories: ['real_estate'] },
+  ]);
+});
+
 listingsRouter.get('/api/listings', (req, res) => {
   try {
-    const { category, kind, locality, query } = req.query as any;
-    const listings = getListingsFromDb({ category, kind, locality, query });
+    const { category, kind, locality, query, categories, face } = req.query as any;
+    let categoryList: string[] | undefined = undefined;
+    if (typeof categories === 'string' && categories.trim()) {
+      categoryList = categories.split(',').map((c: string) => c.trim()).filter(Boolean);
+    } else if (Array.isArray(categories)) {
+      categoryList = categories.map(String);
+    } else if (face && typeof face === 'string') {
+      const faceCategoryMap: Record<string, string[]> = {
+        ai_dev: ['business', 'jobs', 'services'],
+        invest: ['business', 'jobs', 'communities'],
+        dating: ['dating', 'communities'],
+        taxi: ['rides'],
+        services: ['services', 'jobs'],
+        logistics: ['delivery'],
+        real_estate: ['real_estate'],
+      };
+      categoryList = faceCategoryMap[face];
+    }
+    const listings = getListingsFromDb({ category, categories: categoryList, kind, locality, query });
     res.json(listings.map(toPublicListing));
   } catch (err: any) {
     res.status(500).json({ error: err.message });

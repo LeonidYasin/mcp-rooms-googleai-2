@@ -8,22 +8,28 @@ import {
 } from '../types';
 import { formatPrice } from './ListingCard';
 import { useI18n, TranslationKey } from '../i18n';
+import { FaceId, getFaceConfig } from '../lib/faces';
 
 interface PublishModalProps {
   isOpen: boolean;
   onClose: () => void;
   onPublish: (listing: Listing) => void;
+  currentFace?: FaceId;
 }
 
 export const PublishModal: React.FC<PublishModalProps> = ({
   isOpen,
   onClose,
   onPublish,
+  currentFace = 'general',
 }) => {
   const { t, locale } = useI18n();
+  const faceConfig = getFaceConfig(currentFace);
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
   const [kind, setKind] = useState<ListingKind>('offer');
-  const [category, setCategory] = useState<ListingCategory>('things');
+  const [category, setCategory] = useState<ListingCategory>(() =>
+    currentFace !== 'general' ? faceConfig.publishPreset.defaultCategory : 'things'
+  );
   const [subcategory, setSubcategory] = useState('');
   const [title, setTitle] = useState('');
   const [isPriceNegotiable, setIsPriceNegotiable] = useState(false);
@@ -278,7 +284,11 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   maxLength={120}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder={locale === 'en' ? 'E.g.: City commuter bicycle, Size M' : 'Например: Шоссейный велосипед Merida Scultura'}
+                  placeholder={
+                    currentFace !== 'general'
+                      ? (locale === 'en' ? faceConfig.publishPreset.titleHintEn : faceConfig.publishPreset.titleHintRu)
+                      : (locale === 'en' ? 'E.g.: City commuter bicycle, Size M' : 'Например: Шоссейный велосипед Merida Scultura')
+                  }
                   className="w-full h-10 px-3 border border-[var(--line)] rounded-lg bg-[var(--surface)] text-[var(--ink)] text-sm outline-none"
                 />
                 <div className="text-right text-xs text-[var(--muted)] mt-1">
@@ -370,9 +380,11 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder={
-                    locale === 'en'
-                      ? 'Describe the item or service, specifications, reason for selling and any known defects...'
-                      : 'Опишите вещь или услугу, характеристики, причину продажи и дефекты при их наличии...'
+                    currentFace !== 'general'
+                      ? (locale === 'en' ? faceConfig.publishPreset.descHintEn : faceConfig.publishPreset.descHintRu)
+                      : (locale === 'en'
+                          ? 'Describe the item or service, specifications, reason for selling and any known defects...'
+                          : 'Опишите вещь или услугу, характеристики, причину продажи и дефекты при их наличии...')
                   }
                   className="w-full p-3 border border-[var(--line)] rounded-lg bg-[var(--surface)] text-[var(--ink)] text-sm outline-none"
                 />

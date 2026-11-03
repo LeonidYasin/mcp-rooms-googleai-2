@@ -19,6 +19,15 @@ import { McpChat } from './components/McpChat';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { AboutModal } from './components/AboutModal';
 import { RoomsHub } from './components/RoomsHub';
+import { FaceBanner } from './components/FaceBanner';
+import {
+  FaceId,
+  getFaceConfig,
+  getStoredFace,
+  setStoredFace,
+  getFaceFromUrl,
+  QuickChip,
+} from './lib/faces';
 import { useI18n, TranslationKey, getLocalizedListing, getLocalizedRoom } from './i18n';
 import {
   authHeaders,
@@ -30,6 +39,8 @@ import {
 export const App: React.FC = () => {
   const { t, locale } = useI18n();
   const [listings, setListings] = useState<Listing[]>(INITIAL_LISTINGS);
+  // Thematic Face state initialized from URL or localStorage
+  const [currentFace, setCurrentFace] = useState<FaceId>(() => getFaceFromUrl() || getStoredFace());
   // Rooms are private: they only come from the server for the current key.
   const [rooms, setRooms] = useState<McpRoom[]>([]);
   const [apiKey, setApiKey] = useState<string>(getStoredApiKey());
@@ -125,7 +136,12 @@ export const App: React.FC = () => {
 
   // Filtered listings
   const filteredListings = useMemo(() => {
+    const faceConfig = getFaceConfig(currentFace);
     return localizedListings.filter((item) => {
+      // Thematic Face filter
+      if (currentFace !== 'general' && !faceConfig.primaryCategories.includes(item.content.category)) {
+        return false;
+      }
       // Category filter
       if (currentCategory !== 'all' && item.content.category !== currentCategory) {
         return false;
@@ -156,7 +172,32 @@ export const App: React.FC = () => {
       }
       return true;
     });
-  }, [localizedListings, currentCategory, filterKind, selectedLocality, searchQuery, t]);
+  }, [localizedListings, currentFace, currentCategory, filterKind, selectedLocality, searchQuery, t]);
+
+  const handleSelectFace = useCallback((face: FaceId) => {
+    setCurrentFace(face);
+    setStoredFace(face);
+    setCurrentCategory('all');
+    setSearchQuery('');
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (face === 'general') {
+        url.searchParams.delete('face');
+        url.searchParams.delete('theme');
+        url.searchParams.delete('niche');
+      } else {
+        url.searchParams.set('face', face);
+      }
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, []);
+
+  const handleApplyChip = useCallback((chip: QuickChip) => {
+    setSearchQuery(chip.query);
+    if (chip.category) {
+      setCurrentCategory(chip.category);
+    }
+  }, []);
 
   const handleOpenListing = (listing: Listing) => {
     const raw = listings.find((l) => l.id === listing.id) || listing;
@@ -410,6 +451,8 @@ export const App: React.FC = () => {
         hasApiKey={Boolean(apiKey)}
         onOpenApiKey={() => openApiKeyModal()}
         onOpenAbout={() => setIsAboutModalOpen(true)}
+        currentFace={currentFace}
+        onSelectFace={handleSelectFace}
       />
 
       {/* Main Content Area */}
@@ -463,12 +506,28 @@ export const App: React.FC = () => {
         ) : (
           /* Catalog View */
           <div className="max-w-[1120px] mx-auto px-4 md:px-8 py-6">
+            {/* Thematic Face Banner */}
+            <FaceBanner
+              currentFace={currentFace}
+              onSelectFace={handleSelectFace}
+              onApplyChip={handleApplyChip}
+              activeChipQuery={searchQuery}
+              onOpenPublish={() => setIsPublishModalOpen(true)}
+            />
+
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <div>
-                <h1 className="text-2xl md:text-3xl font-black text-[var(--ink)] tracking-tight">
-                  {currentCategory === 'all'
-                    ? t('cat.all')
-                    : t(`cat.${currentCategory}` as TranslationKey)}
+                <h1 className="text-2xl md:text-3xl font-black text-[var(--ink)] tracking-tight flex items-center gap-2">
+                  {currentFace !== 'general' && currentCategory === 'all' ? (
+                    <>
+                      <span>{getFaceConfig(currentFace).emoji}</span>
+                      <span>{locale === 'en' ? getFaceConfig(currentFace).nameEn : getFaceConfig(currentFace).nameRu}</span>
+                    </>
+                  ) : currentCategory === 'all' ? (
+                    t('cat.all')
+                  ) : (
+                    t(`cat.${currentCategory}` as TranslationKey)
+                  )}
                 </h1>
                 <p className="text-xs md:text-sm text-[var(--muted)] mt-1">
                   {locale === 'en'
@@ -596,6 +655,7 @@ export const App: React.FC = () => {
         isOpen={isPublishModalOpen}
         onClose={() => setIsPublishModalOpen(false)}
         onPublish={handlePublishListing}
+        currentFace={currentFace}
       />
 
       <ContactModal

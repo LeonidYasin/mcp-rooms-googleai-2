@@ -19,6 +19,28 @@ export interface NegotiationTerms {
   guarantees?: string;
   sla?: string;
   notes?: string;
+  investment?: {
+    valuation?: string;
+    ticketSize?: string;
+    instrument?: string;
+    equityShare?: string;
+  };
+  dating?: {
+    venue?: string;
+    activity?: string;
+    datingGoal?: string;
+  };
+  ride?: {
+    origin?: string;
+    destination?: string;
+    vehicleClass?: string;
+    departureTime?: string;
+  };
+  compute?: {
+    gpuModel?: string;
+    vramGb?: string;
+    rentalHours?: string;
+  };
 }
 
 export interface NegotiationRound {
@@ -465,6 +487,10 @@ export async function runRealNegotiation(
     guarantees: options?.proposedTerms?.guarantees || 'Фиксация взаимных обязательств в реестре сделки',
     sla: options?.proposedTerms?.sla || 'Реакция контрагента в течение 24 часов',
     notes: options?.proposedTerms?.notes || userPrompt.trim(),
+    investment: options?.proposedTerms?.investment,
+    dating: options?.proposedTerms?.dating,
+    ride: options?.proposedTerms?.ride,
+    compute: options?.proposedTerms?.compute,
   };
 
   const initiatorTime = now + 100;
