@@ -78,6 +78,15 @@ jobs:
           DEMO_SEED: '1'
         run: npm run test:e2e
 
+      - name: Upload Playwright Navigation Screenshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-navigation-screenshots
+          path: tests/e2e/screenshots/
+          if-no-files-found: warn
+          retention-days: 7
+
   docker:
     runs-on: ubuntu-24.04
     timeout-minutes: 25

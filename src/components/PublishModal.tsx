@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Listing,
   ListingCategory,
@@ -43,6 +43,17 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const [authorName, setAuthorName] = useState(locale === 'en' ? 'Platform User' : 'Пользователь площадки');
   const [photos, setPhotos] = useState<ListingPhoto[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Close on Escape key
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
