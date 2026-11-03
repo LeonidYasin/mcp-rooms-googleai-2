@@ -225,20 +225,64 @@ export const Header: React.FC<HeaderProps> = ({
                   e.preventDefault();
                   onSearchSubmit();
                 }}
-                className="w-full flex items-center bg-[var(--surface)] hover:bg-[var(--surface)]/95 focus-within:bg-[var(--canvas)] border border-[var(--line)] focus-within:border-[var(--blue)] focus-within:ring-2 focus-within:ring-[var(--focus)] rounded-xl transition-all h-9 px-1 shadow-2xs relative"
+                className="w-full flex items-center bg-[var(--surface)] hover:bg-[var(--surface)]/95 focus-within:bg-[var(--canvas)] border border-[var(--line)] focus-within:border-[var(--blue)] focus-within:ring-2 focus-within:ring-[var(--focus)] rounded-xl transition-all h-9 px-1.5 shadow-2xs relative gap-1"
               >
-                {/* Category Picker Popover Trigger */}
-                <div className="relative shrink-0" ref={desktopRef}>
+                {/* 1. Leading Functional SVG Search Button */}
+                <button
+                  type="submit"
+                  aria-label={isEn ? 'Search' : 'Найти'}
+                  title={isEn ? 'Search' : 'Искать'}
+                  className="h-7 w-7 rounded-lg flex items-center justify-center text-[var(--muted)] hover:text-[var(--blue)] hover:bg-[var(--raised)] transition-colors cursor-pointer shrink-0"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                </button>
+
+                {/* 2. Wide Responsive Input */}
+                <input
+                  ref={searchInputRef}
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => onSearchChange(e.target.value)}
+                  placeholder={
+                    currentCategory === 'all'
+                      ? isEn
+                        ? 'Search listings, services...'
+                        : 'Поиск объявлений, услуг...'
+                      : isEn
+                      ? `Search in ${getCategoryLabel(currentCategory)}...`
+                      : `Искать в «${getCategoryLabel(currentCategory)}»...`
+                  }
+                  maxLength={120}
+                  className="flex-1 bg-transparent text-xs text-[var(--ink)] placeholder-[var(--muted)] outline-none py-1 px-1 min-w-0"
+                />
+
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => onSearchChange('')}
+                    aria-label="Очистить поиск"
+                    className="text-[var(--muted)] hover:text-[var(--ink)] text-xs p-1 hover:bg-[var(--raised)] rounded-md cursor-pointer shrink-0 mr-1"
+                  >
+                    ✕
+                  </button>
+                )}
+
+                {/* 3. Category Filter Popover Trigger (Clean & Compact on the right) */}
+                <div className="relative shrink-0 flex items-center" ref={desktopRef}>
+                  <div className="w-[1px] h-4 bg-[var(--line)] mr-1 shrink-0" />
                   <button
                     type="button"
                     onClick={() => setCategoriesOpen((prev) => !prev)}
                     aria-expanded={categoriesOpen}
                     aria-haspopup="true"
-                    title={isEn ? 'Filter search by section' : 'Фильтр поиска по разделу'}
-                    className="h-7 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold text-[var(--ink)] hover:bg-[var(--raised)] transition-colors cursor-pointer select-none"
+                    title={isEn ? `Section: ${getCategoryLabel(currentCategory)}. Click to switch.` : `Раздел: ${getCategoryLabel(currentCategory)}. Нажмите для выбора.`}
+                    className="h-7 px-2 rounded-lg flex items-center gap-1 text-xs font-semibold text-[var(--ink)] hover:bg-[var(--raised)] transition-colors cursor-pointer select-none"
                   >
                     <span>{CATEGORY_ICONS[currentCategory] || '📁'}</span>
-                    <span className="max-w-[95px] lg:max-w-[120px] truncate">{getCategoryLabel(currentCategory)}</span>
+                    <span className="hidden xl:inline max-w-[100px] truncate">{getCategoryLabel(currentCategory)}</span>
                     <svg
                       className={`w-3 h-3 text-[var(--muted)] transition-transform duration-200 ${
                         categoriesOpen ? 'rotate-180' : ''
@@ -255,55 +299,12 @@ export const Header: React.FC<HeaderProps> = ({
                   {categoriesOpen && renderCategoryDropdownMenu()}
                 </div>
 
-                {/* Vertical Divider */}
-                <div className="w-[1px] h-4 bg-[var(--line)] my-auto mx-1 shrink-0" />
-
-                {/* Reactive Live Search Input with Functional SVG Submit Button */}
-                <div className="flex-1 flex items-center relative min-w-0">
-                  <button
-                    type="submit"
-                    aria-label={isEn ? 'Search' : 'Найти'}
-                    title={isEn ? 'Search' : 'Искать'}
-                    className="h-7 w-7 rounded-lg flex items-center justify-center text-[var(--muted)] hover:text-[var(--blue)] hover:bg-[var(--raised)] transition-colors cursor-pointer shrink-0 ml-0.5"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="11" cy="11" r="8" />
-                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                    </svg>
-                  </button>
-                  <input
-                    ref={searchInputRef}
-                    type="search"
-                    value={searchQuery}
-                    onChange={(e) => onSearchChange(e.target.value)}
-                    placeholder={
-                      currentCategory === 'all'
-                        ? isEn
-                          ? 'Search listings, services...'
-                          : 'Поиск объявлений, услуг...'
-                        : isEn
-                        ? `Search in ${getCategoryLabel(currentCategory)}...`
-                        : `Искать в «${getCategoryLabel(currentCategory)}»...`
-                    }
-                    maxLength={120}
-                    className="w-full bg-transparent text-xs text-[var(--ink)] placeholder-[var(--muted)] outline-none py-1 pr-1 truncate"
-                  />
-                  {!searchQuery && (
-                    <div className="hidden sm:flex items-center gap-0.5 text-[10px] text-[var(--muted)] font-mono bg-[var(--surface)] border border-[var(--line)] px-1.5 py-0.5 rounded select-none mr-1">
-                      <span className="text-[11px]">⌘</span>K
-                    </div>
-                  )}
-                  {searchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => onSearchChange('')}
-                      aria-label="Очистить поиск"
-                      className="text-[var(--muted)] hover:text-[var(--ink)] text-xs p-1 hover:bg-[var(--raised)] rounded-md cursor-pointer shrink-0 mr-1"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
+                {/* 4. Keyboard Shortcut Badge */}
+                {!searchQuery && (
+                  <div className="hidden sm:flex items-center gap-0.5 text-[10px] text-[var(--muted)] font-mono bg-[var(--surface)] border border-[var(--line)] px-1.5 py-0.5 rounded select-none shrink-0">
+                    <span className="text-[11px]">⌘</span>K
+                  </div>
+                )}
               </form>
             </div>
 
@@ -421,42 +422,16 @@ export const Header: React.FC<HeaderProps> = ({
                 e.preventDefault();
                 onSearchSubmit();
               }}
-              className="w-full flex items-center bg-[var(--surface)] border border-[var(--line)] focus-within:border-[var(--blue)] rounded-xl h-8 px-1 shadow-2xs relative"
+              className="w-full flex items-center bg-[var(--surface)] border border-[var(--line)] focus-within:border-[var(--blue)] rounded-xl h-8 px-1.5 shadow-2xs relative gap-1"
             >
-              {/* Category Picker Popover Trigger (Mobile/Tablet) */}
-              <div className="relative shrink-0" ref={mobileRef}>
-                <button
-                  type="button"
-                  onClick={() => setCategoriesOpen((prev) => !prev)}
-                  className="h-6 px-1.5 rounded-md flex items-center gap-1 text-[11px] font-semibold text-[var(--ink)] hover:bg-[var(--raised)] cursor-pointer select-none"
-                >
-                  <span>{CATEGORY_ICONS[currentCategory] || '📁'}</span>
-                  <span className="max-w-[80px] truncate">{getCategoryLabel(currentCategory)}</span>
-                  <svg
-                    className={`w-2.5 h-2.5 text-[var(--muted)] transition-transform duration-200 ${
-                      categoriesOpen ? 'rotate-180' : ''
-                    }`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-
-                {/* Mobile Dropdown Popover */}
-                {categoriesOpen && renderCategoryDropdownMenu()}
-              </div>
-
-              <div className="w-[1px] h-3.5 bg-[var(--line)] my-auto mx-1 shrink-0" />
-
+              {/* Leading Functional SVG Submit Button */}
               <button
                 type="submit"
                 aria-label={isEn ? 'Search' : 'Найти'}
                 title={isEn ? 'Search' : 'Искать'}
                 className="h-6 w-6 rounded-md flex items-center justify-center text-[var(--muted)] hover:text-[var(--blue)] cursor-pointer shrink-0"
               >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="11" cy="11" r="8" />
                   <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>
@@ -488,6 +463,32 @@ export const Header: React.FC<HeaderProps> = ({
                   ✕
                 </button>
               )}
+
+              {/* Category Picker Popover Trigger (Mobile/Tablet on the right) */}
+              <div className="relative shrink-0 flex items-center" ref={mobileRef}>
+                <div className="w-[1px] h-3.5 bg-[var(--line)] mr-1 shrink-0" />
+                <button
+                  type="button"
+                  onClick={() => setCategoriesOpen((prev) => !prev)}
+                  className="h-6 px-1.5 rounded-md flex items-center gap-1 text-[11px] font-semibold text-[var(--ink)] hover:bg-[var(--raised)] cursor-pointer select-none"
+                >
+                  <span>{CATEGORY_ICONS[currentCategory] || '📁'}</span>
+                  <span className="max-w-[75px] truncate">{getCategoryLabel(currentCategory)}</span>
+                  <svg
+                    className={`w-2.5 h-2.5 text-[var(--muted)] transition-transform duration-200 ${
+                      categoriesOpen ? 'rotate-180' : ''
+                    }`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {/* Mobile Dropdown Popover */}
+                {categoriesOpen && renderCategoryDropdownMenu()}
+              </div>
             </form>
           </div>
         </div>
