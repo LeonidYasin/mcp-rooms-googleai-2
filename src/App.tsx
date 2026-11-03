@@ -130,11 +130,24 @@ export const App: React.FC = () => {
     }
   }, [currentFace]);
 
-  // Localized listings and rooms based on active language
-  const localizedListings = useMemo(
-    () => listings.map((l) => getLocalizedListing(l, locale)),
-    [listings, locale]
-  );
+  // Localized listings and rooms based on active language (with strict deduplication guard)
+  const localizedListings = useMemo(() => {
+    const seenIds = new Set<string>();
+    const seenTitles = new Set<string>();
+    const unique: Listing[] = [];
+
+    for (const raw of listings) {
+      if (!raw || seenIds.has(raw.id)) continue;
+      const loc = getLocalizedListing(raw, locale);
+      const titleKey = `${loc.content?.category}:::${loc.content?.kind}:::${(loc.content?.title || '').trim().toLowerCase()}`;
+      if (seenTitles.has(titleKey)) continue;
+
+      seenIds.add(raw.id);
+      seenTitles.add(titleKey);
+      unique.push(loc);
+    }
+    return unique;
+  }, [listings, locale]);
 
   const localizedRooms = useMemo(
     () => rooms.map((r) => getLocalizedRoom(r, locale)),

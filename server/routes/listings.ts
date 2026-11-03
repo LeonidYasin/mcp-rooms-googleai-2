@@ -7,6 +7,8 @@ import {
   publishListingInDb,
   withdrawListingInDb,
   toPublicListing,
+  cleanupDuplicateListings,
+  db,
 } from '../db';
 import { requireAuth } from '../auth';
 import { rateLimit } from '../http-guard';
@@ -128,6 +130,16 @@ listingsRouter.get('/api/listings', (req, res) => {
     }
     const listings = getListingsFromDb({ category, categories: categoryList, kind, locality, query });
     res.json(listings.map(toPublicListing));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+listingsRouter.post('/api/listings/dedup', (req, res) => {
+  try {
+    const dryRun = Boolean(req.body?.dryRun);
+    const report = cleanupDuplicateListings({ dryRun, dbInstance: db });
+    res.json({ success: true, report });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

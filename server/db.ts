@@ -1,6 +1,7 @@
 import DatabaseModule from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import { cleanupDuplicateListings } from './dedup';
 
 const Database = (DatabaseModule as any).default || DatabaseModule;
 
@@ -262,6 +263,13 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     // Real estate / communities were added later than the original seed set, so
     // they must be ensured on every init, not only when the table already has rows.
     ensureNewCategoriesSeeded();
+
+    // Automatic deduplication and data hygiene: clean any duplicate or redundant listings
+    try {
+      cleanupDuplicateListings({ dbInstance: db });
+    } catch {
+      // Non-fatal
+    }
   }
 
   // Restore persistent settings (e.g. Gemini API key configured via Web UI)
@@ -878,7 +886,7 @@ export function seedInitialData(dbInstance: any = db) {
     },
     // 6. Rides / Поездки
     {
-      id: 'ride-kazan-chelny-05',
+      id: 'ride-kazan-chelny-04',
       owner: 'user:driver-artur',
       author_name: 'Артур К.',
       title: 'Поездка Казань → Набережные Челны (3 свободных места)',
@@ -905,7 +913,7 @@ export function seedInitialData(dbInstance: any = db) {
     },
     // 7. Delivery / Доставка
     {
-      id: 'delivery-express-06',
+      id: 'courier-service-05',
       owner: 'user:fast-courier',
       author_name: 'Служба бережной доставки',
       title: 'Срочная доставка документов и малогабаритных грузов по городу',
@@ -1128,6 +1136,24 @@ export function getListingByIdFromDb(id: string) {
 }
 
 export function createListingInDb(listing: any) {
+  // Pre-insert deduplication guard: if an identical active listing already exists for the owner, return it
+  const normTitle = (listing.content?.title || listing.title || '').trim().toLowerCase();
+  const category = listing.content?.category || listing.category;
+  const kind = listing.content?.kind || listing.kind;
+  const owner = listing.owner;
+
+  if (normTitle && category && kind && owner) {
+    const existing = db.prepare(`
+      SELECT * FROM listings
+      WHERE LOWER(TRIM(title)) = ? AND category = ? AND kind = ? AND owner = ? AND status = 'active'
+      ORDER BY created_at ASC LIMIT 1
+    `).get(normTitle, category, kind, owner) as any;
+
+    if (existing) {
+      return formatListingRow(existing);
+    }
+  }
+
   const stmt = db.prepare(`
     INSERT INTO listings (
       id, owner, author_name, title, description, category, subcategory,

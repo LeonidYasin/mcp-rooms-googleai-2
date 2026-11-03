@@ -245,5 +245,80 @@ describe('demo seed mode & deduplication (TASK-11)', () => {
 
       db.close();
     });
+
+    it('cleans cross-owner test duplicates with identical titles and matching descriptions', async () => {
+      const dbModule = await loadFreshDatabase({ demoSeed: false });
+      const { db, initDatabase, findDuplicateListings, cleanupDuplicateListings } = dbModule;
+      initDatabase();
+
+      const now = Date.now();
+      const insertListingStmt = db.prepare(`
+        INSERT INTO listings (
+          id, owner, author_name, title, description, category, subcategory,
+          kind, modes, locality, price_minor, currency, status, visibility, revision, created_at, updated_at, expires_at, photos_json, responses_count
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      // 1. Two listings from different test owners with identical title and description
+      insertListingStmt.run(
+        'ride-kazan-chelny-04',
+        'user:intercity-driver',
+        'Артур К.',
+        'Поездка Казань → Набережные Челны (3 свободных места)',
+        'Выезжаю в пятницу в 18:30 от метро Проспект Победы.',
+        'rides',
+        'Межгород',
+        'offer',
+        '["pickup"]',
+        'Казань',
+        75000,
+        'RUB',
+        'active',
+        'public',
+        1,
+        now - 10000,
+        now - 10000,
+        now + 86400000,
+        '[]',
+        5
+      );
+
+      insertListingStmt.run(
+        'ride-kazan-chelny-05',
+        'user:driver-artur',
+        'Артур К.',
+        'Поездка Казань → Набережные Челны (3 свободных места)',
+        'Выезжаю в пятницу в 18:30 от метро Проспект Победы.',
+        'rides',
+        'Межгород',
+        'offer',
+        '["pickup"]',
+        'Казань',
+        75000,
+        'RUB',
+        'active',
+        'public',
+        1,
+        now - 5000,
+        now - 5000,
+        now + 86400000,
+        '[]',
+        1
+      );
+
+      const duplicates = findDuplicateListings(db);
+      expect(duplicates).toHaveLength(1);
+      expect(duplicates[0].count).toBe(2);
+      expect(duplicates[0].canonicalId).toBe('ride-kazan-chelny-04');
+
+      const report = cleanupDuplicateListings({ dryRun: false, dbInstance: db });
+      expect(report.duplicatesRemoved).toBe(1);
+
+      const remaining = db.prepare('SELECT id FROM listings').all() as Array<{ id: string }>;
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0].id).toBe('ride-kazan-chelny-04');
+
+      db.close();
+    });
   });
 });
