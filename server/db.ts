@@ -6,7 +6,7 @@ const Database = (DatabaseModule as any).default || DatabaseModule;
 
 // Ensure data directory exists for persistent SQLite database on disk
 const defaultDataDir = path.resolve(process.cwd(), 'data');
-const dbPath = process.env.DATABASE_PATH || path.join(defaultDataDir, 'mcp_rooms.db');
+export const dbPath = process.env.DATABASE_PATH || path.join(defaultDataDir, 'mcp_rooms.db');
 const dbDir = path.dirname(dbPath);
 if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
