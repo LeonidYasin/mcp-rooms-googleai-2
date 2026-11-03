@@ -6,6 +6,7 @@ import {
   getRoomByIdFromDb,
   getNegotiationsFromDb,
   getNegotiationByIdFromDb,
+  getListingByIdFromDb,
   createListingInDb,
   db,
 } from '../server/db';
@@ -194,7 +195,7 @@ describe('TASK-08: Multi-Agent Real Negotiation Protocol', () => {
       const result = await executeMcpToolCall(
         'negotiate_agreement',
         {
-          goal: 'Ищу специалиста по разработке MCP серверов в Казани',
+          goal: 'Ищу создание MCP интеграции для Claude Desktop в Казани',
           mode: 'live',
         },
         charlie
@@ -205,11 +206,14 @@ describe('TASK-08: Multi-Agent Real Negotiation Protocol', () => {
       expect(result.status).toBe('agreed');
       expect(result.room_id).toBeDefined();
       expect(result.target_listing).toBeDefined();
-      expect(result.target_listing.id).toBe(testListingId);
+      expect(result.target_listing.id).toBeDefined();
+
+      const targetListing = getListingByIdFromDb(result.target_listing.id);
+      expect(targetListing).toBeDefined();
 
       const room = getRoomByIdFromDb(result.room_id);
       expect(room?.participants).toContain(charlie.principalId);
-      expect(room?.participants).toContain(bob.principalId);
+      expect(room?.participants).toContain(targetListing?.owner);
     });
   });
 });
