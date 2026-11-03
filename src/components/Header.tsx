@@ -203,13 +203,12 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={onGoHome}
-              className="text-left cursor-pointer transition-transform hover:opacity-95 focus:outline-none shrink-0"
-              title={t('site.title')}
+              className="text-left cursor-pointer transition-transform hover:opacity-95 focus:outline-none shrink-0 max-w-[150px] sm:max-w-[200px] truncate"
+              title={currentFace !== 'general' ? `${activeFace.emoji} ${isEn ? activeFace.nameEn : activeFace.nameRu}` : t('site.title')}
             >
               <Logo
                 size="sm"
                 title={currentFace !== 'general' ? `${activeFace.emoji} ${isEn ? activeFace.nameEn : activeFace.nameRu}` : t('site.title')}
-                subtitle={currentFace !== 'general' ? (isEn ? activeFace.taglineEn : activeFace.taglineRu) : undefined}
               />
             </button>
 
