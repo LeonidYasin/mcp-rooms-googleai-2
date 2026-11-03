@@ -73,8 +73,8 @@ export interface FaceConfig {
 export const FACES_REGISTRY: Record<FaceId, FaceConfig> = {
   general: {
     id: 'general',
-    nameRu: 'Все категории',
-    nameEn: 'All Categories',
+    nameRu: 'Все темы (Универсальная)',
+    nameEn: 'All Themes (Universal)',
     emoji: '🌐',
     badgeRu: 'УНИВЕРСАЛЬНЫЙ РЕЕСТР · MCP ROOMS',
     badgeEn: 'UNIVERSAL REGISTRY · MCP ROOMS',

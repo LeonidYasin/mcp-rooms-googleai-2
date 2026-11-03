@@ -40,7 +40,7 @@ export const translations = {
 
     // Faces / Thematic Verticals
     'face.switcher_title': 'Тематические витрины',
-    'face.all': 'Все категории',
+    'face.all': 'Все темы',
     'face.ai_dev': 'AI & Dev Hub',
     'face.invest': 'Стартапы & Инвесторы',
     'face.dating': 'Знакомства & Дейтинг',
@@ -67,7 +67,7 @@ export const translations = {
     'kind.request_filter': 'Только запросы (Ищу)',
 
     // Categories
-    'cat.all': 'Все категории',
+    'cat.all': 'Все разделы',
     'cat.business': 'Бизнес и стартапы',
     'cat.jobs': 'Работа и вакансии',
     'cat.services': 'Услуги и мастера',
@@ -291,7 +291,7 @@ export const translations = {
 
     // Faces / Thematic Verticals
     'face.switcher_title': 'Marketplace Themes',
-    'face.all': 'All Categories',
+    'face.all': 'All Themes',
     'face.ai_dev': 'AI & Dev Hub',
     'face.invest': 'Startups & Investors',
     'face.dating': 'Agentic Dating',
@@ -318,7 +318,7 @@ export const translations = {
     'kind.request_filter': 'Requests only (Seeking)',
 
     // Categories
-    'cat.all': 'All categories',
+    'cat.all': 'All sections',
     'cat.business': 'Business & Startups',
     'cat.jobs': 'Jobs & Careers',
     'cat.services': 'Services & Crafts',

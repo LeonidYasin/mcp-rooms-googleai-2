@@ -54,23 +54,33 @@ export const Header: React.FC<HeaderProps> = ({
   const desktopRef = useRef<HTMLDivElement>(null);
   const mobileRef = useRef<HTMLDivElement>(null);
 
+  // Mobile / Tablet "More Options" Menu Popover
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       const target = event.target as Node;
       const isOutsideDesktop = !desktopRef.current || !desktopRef.current.contains(target);
       const isOutsideMobile = !mobileRef.current || !mobileRef.current.contains(target);
+      const isOutsideMore = !moreMenuRef.current || !moreMenuRef.current.contains(target);
 
       if (isOutsideDesktop && isOutsideMobile) {
         setCategoriesOpen(false);
       }
-    }
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        setCategoriesOpen(false);
+      if (isOutsideMore) {
+        setMoreMenuOpen(false);
       }
     }
 
-    if (categoriesOpen) {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setCategoriesOpen(false);
+        setMoreMenuOpen(false);
+      }
+    }
+
+    if (categoriesOpen || moreMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('keydown', handleKeyDown);
     }
@@ -78,7 +88,7 @@ export const Header: React.FC<HeaderProps> = ({
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [categoriesOpen]);
+  }, [categoriesOpen, moreMenuOpen]);
 
   const getCategoryLabel = (cat: ListingCategory | 'all'): string => {
     return t(`cat.${cat}` as TranslationKey);
@@ -87,10 +97,10 @@ export const Header: React.FC<HeaderProps> = ({
   const renderCategoryDropdownMenu = () => (
     <div
       role="menu"
-      className="absolute top-full left-0 mt-2 w-64 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl py-1 z-50 backdrop-blur-md max-h-72 overflow-y-auto animate-in fade-in zoom-in-95 duration-100"
+      className="absolute top-full left-0 mt-2 w-64 bg-[var(--surface)] border border-[var(--line)] rounded-2xl shadow-2xl py-1.5 z-50 backdrop-blur-md max-h-72 overflow-y-auto animate-in fade-in zoom-in-95 duration-100"
     >
-      <div className="px-3 py-1.5 border-b border-[var(--line)] text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
-        {isEn ? 'Select Category' : 'Выберите категорию'}
+      <div className="px-3.5 py-1.5 border-b border-[var(--line)] text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
+        {isEn ? 'Filter by Section' : 'Раздел каталога'}
       </div>
       {CATEGORIES_ORDER.map((cat) => {
         const isSelected = currentCategory === cat;
@@ -103,7 +113,7 @@ export const Header: React.FC<HeaderProps> = ({
               onSelectCategory(cat);
               setCategoriesOpen(false);
             }}
-            className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between gap-2 transition-colors cursor-pointer ${
+            className={`w-full text-left px-3.5 py-2 text-xs flex items-center justify-between gap-2 transition-colors cursor-pointer ${
               isSelected
                 ? 'font-bold text-[var(--blue)] bg-[var(--soft)]'
                 : 'text-[var(--ink)] hover:bg-[var(--raised)]'
@@ -187,8 +197,8 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Main Slim Sticky Header */}
       <header className="sticky top-0 z-40 border-b border-[var(--line)] bg-[var(--canvas)]/90 backdrop-blur-md transition-colors shadow-2xs">
-        <div className="max-w-[1240px] mx-auto px-4 md:px-6 py-2.5">
-          <div className="flex items-center justify-between gap-2.5 sm:gap-4">
+        <div className="max-w-[1240px] mx-auto px-3 sm:px-4 md:px-6 py-2 md:py-2.5">
+          <div className="flex items-center justify-between gap-2 sm:gap-3">
             {/* Logo */}
             <button
               type="button"
@@ -203,8 +213,8 @@ export const Header: React.FC<HeaderProps> = ({
               />
             </button>
 
-            {/* Desktop Unified Search Bar (visible on md+) */}
-            <div className="hidden md:flex flex-1 max-w-xl mx-2">
+            {/* Desktop Unified Search Capsule (visible on md+) */}
+            <div className="hidden md:flex flex-1 max-w-xl mx-2 min-w-0">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -213,17 +223,17 @@ export const Header: React.FC<HeaderProps> = ({
                 className="w-full flex items-center bg-[var(--surface)] hover:bg-[var(--surface)]/95 focus-within:bg-[var(--canvas)] border border-[var(--line)] focus-within:border-[var(--blue)] focus-within:ring-2 focus-within:ring-[var(--focus)] rounded-xl transition-all h-9 px-1 shadow-2xs relative"
               >
                 {/* Category Picker Popover Trigger */}
-                <div className="relative" ref={desktopRef}>
+                <div className="relative shrink-0" ref={desktopRef}>
                   <button
                     type="button"
                     onClick={() => setCategoriesOpen((prev) => !prev)}
                     aria-expanded={categoriesOpen}
                     aria-haspopup="true"
-                    title={isEn ? 'Filter search by category' : 'Фильтр поиска по разделу'}
-                    className="h-7 px-2 rounded-lg flex items-center gap-1.5 text-xs font-semibold text-[var(--ink)] hover:bg-[var(--raised)] transition-colors cursor-pointer select-none shrink-0"
+                    title={isEn ? 'Filter search by section' : 'Фильтр поиска по разделу'}
+                    className="h-7 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold text-[var(--ink)] hover:bg-[var(--raised)] transition-colors cursor-pointer select-none"
                   >
                     <span>{CATEGORY_ICONS[currentCategory] || '📁'}</span>
-                    <span className="max-w-[110px] truncate">{getCategoryLabel(currentCategory)}</span>
+                    <span className="max-w-[95px] lg:max-w-[120px] truncate">{getCategoryLabel(currentCategory)}</span>
                     <svg
                       className={`w-3 h-3 text-[var(--muted)] transition-transform duration-200 ${
                         categoriesOpen ? 'rotate-180' : ''
@@ -240,24 +250,12 @@ export const Header: React.FC<HeaderProps> = ({
                   {categoriesOpen && renderCategoryDropdownMenu()}
                 </div>
 
-                {/* Subtle Divider */}
+                {/* Vertical Divider */}
                 <div className="w-[1px] h-4 bg-[var(--line)] my-auto mx-1 shrink-0" />
 
-                {/* Search Input */}
+                {/* Reactive Live Search Input */}
                 <div className="flex-1 flex items-center relative min-w-0">
-                  <svg
-                    className="w-3.5 h-3.5 text-[var(--muted)] ml-1 mr-1.5 shrink-0"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2.5"
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    />
-                  </svg>
+                  <span className="text-[var(--muted)] text-xs pl-1.5 pr-1 shrink-0 select-none">🔍</span>
                   <input
                     type="search"
                     value={searchQuery}
@@ -276,30 +274,23 @@ export const Header: React.FC<HeaderProps> = ({
                     <button
                       type="button"
                       onClick={() => onSearchChange('')}
-                      className="text-[var(--muted)] hover:text-[var(--ink)] text-xs px-1 cursor-pointer shrink-0"
+                      aria-label="Очистить поиск"
+                      className="text-[var(--muted)] hover:text-[var(--ink)] text-xs p-1 hover:bg-[var(--raised)] rounded-md cursor-pointer shrink-0 mr-1"
                     >
                       ✕
                     </button>
                   )}
                 </div>
-
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  className="h-7 px-3 rounded-lg bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white text-xs font-bold transition-all shadow-xs shrink-0 cursor-pointer active:scale-95"
-                >
-                  {t('nav.search_btn')}
-                </button>
               </form>
             </div>
 
             {/* Actions Bar: Controls, Theme, Lang, Key, Publish */}
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              {/* Thematic Face Switcher */}
+              {/* Thematic Face Switcher (всегда виден) */}
               <FaceSwitcher currentFace={currentFace} onSelectFace={onSelectFace} />
 
-              {/* Location Select (hidden on smaller screens) */}
-              <div className="hidden lg:flex items-center gap-1 text-xs text-[var(--muted)] bg-[var(--surface)] border border-[var(--line)] px-2 py-1 rounded-lg h-8">
+              {/* Location Select (видно на больших экранах >= xl) */}
+              <div className="hidden xl:flex items-center gap-1 text-xs text-[var(--muted)] bg-[var(--surface)] border border-[var(--line)] px-2 py-1 rounded-lg h-8">
                 <span>📍</span>
                 <select
                   aria-label={t('nav.location')}
@@ -314,18 +305,18 @@ export const Header: React.FC<HeaderProps> = ({
                 </select>
               </div>
 
-              {/* Theme Switcher */}
-              <ThemeToggle />
+              {/* Theme & Language (видно на экранах >= lg) */}
+              <div className="hidden lg:flex items-center gap-1.5">
+                <ThemeToggle />
+                <LangToggle />
+              </div>
 
-              {/* Language Switcher */}
-              <LangToggle />
-
-              {/* Connection Status Button */}
+              {/* Connection Status Button (всегда виден) */}
               <button
                 type="button"
                 onClick={onOpenApiKey}
                 title={hasApiKey ? t('nav.key_saved') : t('nav.key_needed')}
-                className={`font-semibold text-xs h-8 px-2 sm:px-2.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs ${
+                className={`font-semibold text-xs h-8 px-2 sm:px-2.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs shrink-0 ${
                   hasApiKey
                     ? 'bg-[var(--surface)] border-emerald-500/40 text-[var(--ink)] hover:bg-[var(--raised)]'
                     : 'bg-blue-50 dark:bg-blue-950/40 border-blue-300 dark:border-blue-800 text-blue-800 dark:text-blue-300 hover:bg-blue-100'
@@ -338,19 +329,69 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="hidden sm:inline font-bold">{t('nav.key')}</span>
               </button>
 
-              {/* Publish Action Button */}
+              {/* Overflow More Options Menu (для экранов < lg, чтобы ничего не терялось) */}
+              <div className="relative lg:hidden shrink-0" ref={moreMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setMoreMenuOpen((prev) => !prev)}
+                  title={isEn ? 'More options' : 'Дополнительные настройки'}
+                  aria-label={isEn ? 'More options' : 'Дополнительные настройки'}
+                  aria-expanded={moreMenuOpen}
+                  className="h-8 w-8 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--raised)] text-[var(--ink)] flex items-center justify-center font-bold text-sm transition-colors cursor-pointer select-none"
+                >
+                  ⋯
+                </button>
+
+                {moreMenuOpen && (
+                  <div
+                    role="menu"
+                    className="absolute right-0 top-full mt-2 w-56 bg-[var(--surface)] border border-[var(--line)] rounded-2xl shadow-2xl p-2 z-50 backdrop-blur-md animate-in fade-in zoom-in-95 duration-100 flex flex-col gap-2"
+                  >
+                    <div className="px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] border-b border-[var(--line)]">
+                      {isEn ? 'Preferences' : 'Настройки'}
+                    </div>
+
+                    {/* Location in More Menu */}
+                    <div className="flex items-center justify-between px-2 py-1 text-xs">
+                      <span className="text-[var(--muted)] flex items-center gap-1">
+                        <span>📍</span>
+                        <span>{t('nav.location')}</span>
+                      </span>
+                      <select
+                        aria-label={t('nav.location')}
+                        value={selectedLocality}
+                        onChange={(e) => onLocalityChange(e.target.value)}
+                        className="bg-[var(--raised)] text-[var(--ink)] font-semibold rounded-md px-1.5 py-0.5 text-xs outline-none cursor-pointer"
+                      >
+                        <option value="all">{t('nav.all_regions')}</option>
+                        <option value="Казань">Казань</option>
+                        <option value="Москва">Москва</option>
+                        <option value="Санкт-Петербург">Санкт-Петербург</option>
+                      </select>
+                    </div>
+
+                    {/* Theme & Lang in More Menu */}
+                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-[var(--line)] px-1">
+                      <ThemeToggle className="flex-1 justify-center" />
+                      <LangToggle className="flex-1 justify-center" />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Publish Action Button (всегда виден) */}
               <button
                 type="button"
                 onClick={onOpenPublish}
-                className="bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white font-bold text-xs h-8 px-3 rounded-lg transition-all cursor-pointer shadow-xs hover:shadow-md flex items-center gap-1 active:scale-98 shrink-0"
+                className="bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white font-bold text-xs h-8 px-2.5 sm:px-3 rounded-lg transition-all cursor-pointer shadow-xs hover:shadow-md flex items-center gap-1 active:scale-98 shrink-0"
               >
-                <span>＋</span>
+                <span className="text-sm font-semibold">＋</span>
                 <span className="hidden sm:inline whitespace-nowrap">{t('nav.publish')}</span>
               </button>
             </div>
           </div>
 
-          {/* Mobile Search Row (compact on screens < md) */}
+          {/* Mobile Search Row (аккуратно на экранах < md) */}
           <div className="mt-2 md:hidden">
             <form
               onSubmit={(e) => {
@@ -360,7 +401,7 @@ export const Header: React.FC<HeaderProps> = ({
               className="w-full flex items-center bg-[var(--surface)] border border-[var(--line)] focus-within:border-[var(--blue)] rounded-xl h-8 px-1 shadow-2xs relative"
             >
               {/* Category Picker Popover Trigger (Mobile) */}
-              <div className="relative" ref={mobileRef}>
+              <div className="relative shrink-0" ref={mobileRef}>
                 <button
                   type="button"
                   onClick={() => setCategoriesOpen((prev) => !prev)}
@@ -386,6 +427,8 @@ export const Header: React.FC<HeaderProps> = ({
 
               <div className="w-[1px] h-3.5 bg-[var(--line)] my-auto mx-1 shrink-0" />
 
+              <span className="text-[var(--muted)] text-[10px] pl-1 pr-1 select-none">🔍</span>
+
               <input
                 type="search"
                 value={searchQuery}
@@ -398,18 +441,12 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   type="button"
                   onClick={() => onSearchChange('')}
-                  className="text-[var(--muted)] text-xs px-1 cursor-pointer"
+                  aria-label="Очистить"
+                  className="text-[var(--muted)] hover:text-[var(--ink)] text-xs px-1 cursor-pointer"
                 >
                   ✕
                 </button>
               )}
-
-              <button
-                type="submit"
-                className="h-6 px-2 rounded-md bg-[var(--blue)] text-white text-xs font-bold shrink-0 ml-1"
-              >
-                🔍
-              </button>
             </form>
           </div>
         </div>
