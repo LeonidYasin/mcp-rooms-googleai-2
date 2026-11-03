@@ -48,6 +48,11 @@ export const translations = {
     'face.services': 'Мастера & Услуги',
     'face.logistics': 'Курьеры & Грузы',
     'face.real_estate': 'Недвижимость & Локации',
+    'face.equipment': 'Спецоборудование & Аренда',
+    'face.procurement': 'B2B Закупки & Аукционы',
+    'face.mentoring': 'Эксперты & Консалтинг',
+    'face.barter': 'Бартер & Сообщества',
+    'face.m2m_agents': 'M2M Агентное Облако',
 
     // Language
     'lang.current': 'Русский',
@@ -294,6 +299,11 @@ export const translations = {
     'face.services': 'Local Pros & Services',
     'face.logistics': 'Couriers & Cargo',
     'face.real_estate': 'Real Estate & Spaces',
+    'face.equipment': 'Equipment & Rental',
+    'face.procurement': 'B2B Procurement & Auctions',
+    'face.mentoring': 'Mentors & Advisory',
+    'face.barter': 'Barter & Communities',
+    'face.m2m_agents': 'M2M Autonomous Cloud',
 
     // Language
     'lang.current': 'English',

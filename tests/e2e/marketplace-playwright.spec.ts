@@ -44,5 +44,6 @@ test.describe('MCP Rooms Marketplace E2E Visual & Functional Flow', () => {
     await investOption.click();
 
     expect(page.url()).toContain('face=invest');
+    await expect(page.locator('html')).toHaveAttribute('data-face', 'invest');
   });
 });

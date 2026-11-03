@@ -33,7 +33,7 @@ describe('Thematic Multi-Face UI & Kernel Vertical Modules', () => {
   });
 
   describe('FACES_REGISTRY Frontend Configuration', () => {
-    it('defines all 8 required marketplace faces', () => {
+    it('defines all 13 required marketplace faces', () => {
       const requiredFaces = [
         'general',
         'ai_dev',
@@ -43,7 +43,13 @@ describe('Thematic Multi-Face UI & Kernel Vertical Modules', () => {
         'services',
         'logistics',
         'real_estate',
+        'equipment',
+        'procurement',
+        'mentoring',
+        'barter',
+        'm2m_agents',
       ];
+      expect(ALL_FACES.length).toBe(13);
       for (const faceId of requiredFaces) {
         expect(FACES_REGISTRY[faceId as keyof typeof FACES_REGISTRY]).toBeDefined();
         const config = getFaceConfig(faceId);
@@ -77,6 +83,12 @@ describe('Thematic Multi-Face UI & Kernel Vertical Modules', () => {
 
       const aiDev = getFaceConfig('ai_dev');
       expect(aiDev.specialFeature.type).toBe('compute');
+
+      const equipment = getFaceConfig('equipment');
+      expect(equipment.specialFeature.type).toBe('equipment');
+
+      const procurement = getFaceConfig('procurement');
+      expect(procurement.specialFeature.type).toBe('procurement');
     });
   });
 
@@ -86,13 +98,18 @@ describe('Thematic Multi-Face UI & Kernel Vertical Modules', () => {
       expect(res.status).toBe(200);
       const faces = await res.json();
       expect(Array.isArray(faces)).toBe(true);
-      expect(faces.length).toBe(8);
+      expect(faces.length).toBe(13);
 
       const ids = faces.map((f: any) => f.id);
       expect(ids).toContain('general');
       expect(ids).toContain('invest');
       expect(ids).toContain('dating');
       expect(ids).toContain('taxi');
+      expect(ids).toContain('equipment');
+      expect(ids).toContain('procurement');
+      expect(ids).toContain('mentoring');
+      expect(ids).toContain('barter');
+      expect(ids).toContain('m2m_agents');
     });
 
     it('GET /api/listings?face=taxi filters listings strictly by rides category', async () => {
@@ -125,6 +142,26 @@ describe('Thematic Multi-Face UI & Kernel Vertical Modules', () => {
       expect(listings.length).toBeGreaterThan(0);
       for (const item of listings) {
         expect(['business', 'jobs', 'communities']).toContain(item.content.category);
+      }
+    });
+
+    it('GET /api/listings?face=equipment filters listings by things/services category', async () => {
+      const res = await fetch(`${baseUrl}/api/listings?face=equipment`);
+      expect(res.status).toBe(200);
+      const listings = await res.json();
+      expect(Array.isArray(listings)).toBe(true);
+      for (const item of listings) {
+        expect(['things', 'services']).toContain(item.content.category);
+      }
+    });
+
+    it('GET /api/listings?face=barter filters listings by communities/things category', async () => {
+      const res = await fetch(`${baseUrl}/api/listings?face=barter`);
+      expect(res.status).toBe(200);
+      const listings = await res.json();
+      expect(Array.isArray(listings)).toBe(true);
+      for (const item of listings) {
+        expect(['communities', 'things']).toContain(item.content.category);
       }
     });
   });
