@@ -237,6 +237,36 @@ html.dark[data-face="m2m_agents"] {
   --focus: #22d3ee;
 }
 
+/* 🛍️ Ozon Style Marketplace: Iconic Cobalt & Magenta */
+html[data-face="ozon_market"] {
+  --blue: #005bff;
+  --blue-hover: #004edb;
+  --soft: #ebf3ff;
+  --focus: #005bff;
+}
+html[data-theme="dark"][data-face="ozon_market"],
+html.dark[data-face="ozon_market"] {
+  --blue: #38bdf8;
+  --blue-hover: #7dd3fc;
+  --soft: #0c4a6e;
+  --focus: #38bdf8;
+}
+
+/* 🏠 Yandex Realty: Architectural Amber & Graphite */
+html[data-face="yandex_realty"] {
+  --blue: #d97706;
+  --blue-hover: #b45309;
+  --soft: #fef3c7;
+  --focus: #f59e0b;
+}
+html[data-theme="dark"][data-face="yandex_realty"],
+html.dark[data-face="yandex_realty"] {
+  --blue: #fbbf24;
+  --blue-hover: #fcd34d;
+  --soft: #451a03;
+  --focus: #f59e0b;
+}
+
 body {
   margin: 0;
   background-color: var(--canvas);
@@ -280,3 +310,45 @@ textarea:focus-visible {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Modern Ambient Glow & Glassmorphism System */
+.ambient-mesh-glow {
+  position: relative;
+  overflow: hidden;
+}
+
+.ambient-mesh-glow::before {
+  content: '';
+  position: absolute;
+  top: -80px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 900px;
+  height: 320px;
+  background: radial-gradient(circle, var(--blue) 0%, transparent 70%);
+  opacity: 0.08;
+  filter: blur(70px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.glass-card {
+  background: color-mix(in srgb, var(--canvas) 90%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--line);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-card:hover {
+  border-color: var(--blue);
+  box-shadow: 0 12px 30px -8px color-mix(in srgb, var(--blue) 18%, transparent);
+  transform: translateY(-2px);
+}
+
+.dark .glass-card,
+html[data-theme="dark"] .glass-card {
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+}
+

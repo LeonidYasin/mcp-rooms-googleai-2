@@ -38,6 +38,17 @@ export const VerticalModuleWidget: React.FC<VerticalModuleWidgetProps> = ({
   const [gpuSelected, setGpuSelected] = useState('H100');
   const [nodeBooked, setNodeBooked] = useState(false);
 
+  // Ozon State
+  const [ozonCategory, setOzonCategory] = useState<'electronics' | 'fashion' | 'home' | 'deals'>('deals');
+  const [ozonExpressOnly, setOzonExpressOnly] = useState(true);
+  const [ozonOrderSuccess, setOzonOrderSuccess] = useState(false);
+
+  // Yandex Realty State
+  const [realtyRooms, setRealtyRooms] = useState<'studio' | '1' | '2' | '3+'>('1');
+  const [realtyType, setRealtyType] = useState<'rent' | 'secondary' | 'newbuild'>('newbuild');
+  const [realtyMetro, setRealtyMetro] = useState('ст. Кремлёвская / Центр');
+  const [realtyReserved, setRealtyReserved] = useState(false);
+
   if (currentFace === 'general') {
     return null;
   }
@@ -461,6 +472,204 @@ export const VerticalModuleWidget: React.FC<VerticalModuleWidgetProps> = ({
             <span className="text-[10px] text-[var(--muted)] block font-bold">{isEn ? 'Allowed Operating Hours' : 'Лимит моточасов'}</span>
             <span className="text-sm font-bold">8 ч / день</span>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 7. OZON MARKETPLACE WIDGET
+  if (currentFace === 'ozon_market') {
+    return (
+      <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-blue-600/10 border border-blue-600/30 text-[var(--ink)] shadow-xs transition-all animate-in fade-in">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 border-b border-blue-600/20 pb-2.5">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🛍️</span>
+            <div>
+              <h3 className="font-black text-sm sm:text-base text-[var(--ink)] tracking-tight">
+                {isEn ? 'Ozon Express & Agent Courier Dispatch' : 'Ozon Express & Быстрый заказ через курьеров'}
+              </h3>
+              <p className="text-[11px] text-[var(--muted)]">
+                {isEn ? 'Instant 15-30 min delivery, authentic goods, and points cashback.' : 'Доставка от 15 минут через локальных агентов-курьеров, гарантия оригинала и кешбэк.'}
+              </p>
+            </div>
+          </div>
+          <span className="text-[10px] uppercase font-extrabold bg-[#005bff] text-white px-2.5 py-0.5 rounded-full self-start sm:self-auto font-mono">
+            ⚡ OZON EXPRESS
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs mb-3">
+          <div>
+            <label className="block text-[10px] font-bold text-[var(--muted)] uppercase mb-1">
+              {isEn ? 'Product Category:' : 'Категория товаров:'}
+            </label>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => setOzonCategory('deals')}
+                className={`flex-1 h-9 rounded-lg font-bold text-xs border cursor-pointer ${
+                  ozonCategory === 'deals' ? 'bg-[#005bff] text-white border-blue-700 shadow-xs' : 'bg-[var(--surface)] border-[var(--line)]'
+                }`}
+              >
+                {isEn ? '🔥 Deals' : '🔥 Скидки'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setOzonCategory('electronics')}
+                className={`flex-1 h-9 rounded-lg font-bold text-xs border cursor-pointer ${
+                  ozonCategory === 'electronics' ? 'bg-[#005bff] text-white border-blue-700 shadow-xs' : 'bg-[var(--surface)] border-[var(--line)]'
+                }`}
+              >
+                {isEn ? '📱 Tech' : '📱 Гаджеты'}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-bold text-[var(--muted)] uppercase mb-1">
+              {isEn ? 'Delivery Speed:' : 'Скорость доставки:'}
+            </label>
+            <div
+              onClick={() => setOzonExpressOnly((prev) => !prev)}
+              className="h-9 px-3 rounded-lg border border-[var(--line)] bg-[var(--surface)] flex items-center justify-between cursor-pointer select-none"
+            >
+              <span className="font-semibold text-xs text-[var(--ink)]">
+                {ozonExpressOnly ? (isEn ? '⚡ Express 15-30 min' : '⚡ Экспресс 15-30 мин') : (isEn ? '📦 Standard Pickup' : '📦 Пункт выдачи')}
+              </span>
+              <span className="text-[10px] text-emerald-600 font-bold">{isEn ? 'Active' : 'Вкл'}</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-bold text-[var(--muted)] uppercase mb-1">
+              {isEn ? 'Ozon Reward Points:' : 'Кешбэк баллами:'}
+            </label>
+            <div className="h-9 px-3 rounded-lg border border-[var(--line)] bg-[var(--surface)] flex items-center justify-between">
+              <span className="font-bold text-xs text-[#005bff]">Ozon Карта: 5%</span>
+              <span className="text-[10px] text-[var(--muted)]">+250 баллов</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-blue-600/20">
+          <div className="text-xs text-[var(--muted)]">
+            {ozonOrderSuccess
+              ? (isEn ? '✅ Agent courier room created! Tracking live delivery.' : '✅ Комната заказа с курьером создана! Трекинг доставки активен.')
+              : (isEn ? '🔒 Deal room automatically locks price and escrow.' : '🔒 Комната сделки автоматически фиксирует цену и условия доставки.')}
+          </div>
+          <button
+            type="button"
+            onClick={() => setOzonOrderSuccess(true)}
+            className="w-full sm:w-auto h-9 px-4 rounded-xl bg-[#005bff] hover:bg-[#004edb] text-white font-bold text-xs transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+          >
+            <span>🛍️</span>
+            <span>{isEn ? 'Order via Protected MCP Room' : 'Оформить через защищенную комнату'}</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 8. YANDEX REALTY WIDGET
+  if (currentFace === 'yandex_realty') {
+    return (
+      <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-[var(--ink)] shadow-xs transition-all animate-in fade-in">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 border-b border-amber-500/20 pb-2.5">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🏠</span>
+            <div>
+              <h3 className="font-black text-sm sm:text-base text-[var(--ink)] tracking-tight">
+                {isEn ? 'Yandex Real Estate & 6% Subsidized Mortgage' : 'Яндекс Недвижимость — Умный подбор & Ипотека 6%'}
+              </h3>
+              <p className="text-[11px] text-[var(--muted)]">
+                {isEn ? 'Verified owners, proximity to metro, deed checks, and lease Term Sheet.' : 'Проверенные собственники, поиск у станций метро, проверка ЕГРН и договор в комнате.'}
+              </p>
+            </div>
+          </div>
+          <span className="text-[10px] uppercase font-extrabold bg-[#f5a623] text-black px-2.5 py-0.5 rounded-full self-start sm:self-auto font-mono">
+            ⭐ YANDEX REALTY
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 text-xs mb-3">
+          <div>
+            <label className="block text-[10px] font-bold text-[var(--muted)] uppercase mb-1">
+              {isEn ? 'Rooms:' : 'Комнатность:'}
+            </label>
+            <div className="grid grid-cols-4 gap-1">
+              {(['studio', '1', '2', '3+'] as const).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setRealtyRooms(r)}
+                  className={`h-9 rounded-lg font-bold text-xs border cursor-pointer ${
+                    realtyRooms === r
+                      ? 'bg-amber-500 text-black border-amber-600 shadow-xs'
+                      : 'bg-[var(--surface)] border-[var(--line)] text-[var(--ink)]'
+                  }`}
+                >
+                  {r === 'studio' ? (isEn ? 'St' : 'Ст') : r}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-bold text-[var(--muted)] uppercase mb-1">
+              {isEn ? 'Market Type:' : 'Тип рынка:'}
+            </label>
+            <select
+              value={realtyType}
+              onChange={(e) => setRealtyType(e.target.value as any)}
+              className="w-full h-9 px-2.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] font-semibold outline-none cursor-pointer"
+            >
+              <option value="newbuild">{isEn ? 'New Builds (from 6%)' : 'Новостройки (от 6%)'}</option>
+              <option value="secondary">{isEn ? 'Secondary Market' : 'Вторичка'}</option>
+              <option value="rent">{isEn ? 'Long-term Rent' : 'Долгосрочная аренда'}</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-bold text-[var(--muted)] uppercase mb-1">
+              {isEn ? 'Metro Station:' : 'Метро / Район:'}
+            </label>
+            <input
+              type="text"
+              value={realtyMetro}
+              onChange={(e) => setRealtyMetro(e.target.value)}
+              className="w-full h-9 px-2.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] font-semibold outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-bold text-[var(--muted)] uppercase mb-1">
+              {isEn ? 'Est. Monthly Payment:' : 'Расчет платежа:'}
+            </label>
+            <div className="h-9 px-2.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] flex items-center justify-between">
+              <span className="font-extrabold text-xs text-amber-700 dark:text-amber-400">
+                {realtyType === 'rent' ? '35 000 ₽/мес' : '~32 400 ₽/мес'}
+              </span>
+              <span className="text-[10px] font-bold bg-amber-500/20 text-amber-800 dark:text-amber-300 px-1.5 py-0.5 rounded">
+                {realtyType === 'rent' ? 'Залог 1 мес' : 'Ставка 6%'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-amber-500/20">
+          <div className="text-xs text-[var(--muted)]">
+            {realtyReserved
+              ? (isEn ? '✅ Reservation request locked! Agent contact initiated.' : '✅ Заявка на бронь зафиксирована! Чат с собственником открыт.')
+              : (isEn ? '🏢 Automated lease/sale Term Sheet in protected room.' : '🏢 Фиксация бронирования и условий сделки в защищенной комнате.')}
+          </div>
+          <button
+            type="button"
+            onClick={() => setRealtyReserved(true)}
+            className="w-full sm:w-auto h-9 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-black font-extrabold text-xs transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+          >
+            <span>🏠</span>
+            <span>{isEn ? 'Lock Reservation in Room' : 'Зафиксировать бронь в комнате'}</span>
+          </button>
         </div>
       </div>
     );

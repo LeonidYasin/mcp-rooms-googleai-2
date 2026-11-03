@@ -100,6 +100,8 @@ listingsRouter.get('/api/faces', (_req, res) => {
     { id: 'mentoring', name: 'Эксперты & Консалтинг', nameEn: 'Mentors & Advisory', emoji: '🎓', primaryCategories: ['jobs', 'services'] },
     { id: 'barter', name: 'Бартер & Сообщества', nameEn: 'Barter & Communities', emoji: '🤝', primaryCategories: ['communities', 'things'] },
     { id: 'm2m_agents', name: 'M2M Агентное Облако', nameEn: 'M2M Autonomous Cloud', emoji: '🤖', primaryCategories: ['business', 'services', 'other'] },
+    { id: 'ozon_market', name: 'Товары & E-Commerce (Озон)', nameEn: 'Goods & E-Commerce (Ozon)', emoji: '🛍️', primaryCategories: ['things', 'delivery'] },
+    { id: 'yandex_realty', name: 'Яндекс Недвижимость', nameEn: 'Yandex Real Estate', emoji: '🏠', primaryCategories: ['real_estate'] },
   ]);
 });
 
@@ -125,6 +127,8 @@ listingsRouter.get('/api/listings', (req, res) => {
         mentoring: ['jobs', 'services'],
         barter: ['communities', 'things'],
         m2m_agents: ['business', 'services', 'other'],
+        ozon_market: ['things', 'delivery'],
+        yandex_realty: ['real_estate'],
       };
       categoryList = faceCategoryMap[face];
     }

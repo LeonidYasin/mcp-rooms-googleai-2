@@ -44,9 +44,9 @@ export const FaceBanner: React.FC<FaceBannerProps> = ({
             <button
               type="button"
               onClick={onOpenPublish}
-              className="bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-xs active:scale-98"
+              className="bg-[var(--surface)] hover:bg-[var(--raised)] border border-[var(--line)] hover:border-[var(--blue)] text-[var(--ink)] text-xs font-semibold px-3 py-1.5 rounded-xl transition-all cursor-pointer shadow-2xs active:scale-98"
             >
-              ＋ {isEn ? 'Publish Listing' : 'Подать объявление'}
+              ＋ {isEn ? 'Create Listing' : 'Создать объявление'}
             </button>
           </div>
         </div>

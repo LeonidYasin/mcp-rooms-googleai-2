@@ -32,9 +32,10 @@ export const ListingCard: React.FC<ListingCardProps> = ({ listing, onOpen, onDel
     .map((m) => t(`mode.${m}` as TranslationKey))
     .join(locale === 'en' ? ' or ' : ' или ');
   const locationText = [content.locality, modesText].filter(Boolean).join(' · ');
+  const isAgent = Boolean(author_name?.startsWith('agent:') || author_name?.toLowerCase().includes('agent'));
 
   return (
-    <article className="border border-[var(--line)] rounded-2xl p-5 md:p-6 bg-[var(--canvas)] hover:border-[var(--blue)] hover:shadow-lg transition-all flex flex-col md:flex-row justify-between gap-5 items-start md:items-center shadow-xs group">
+    <article className="glass-card rounded-2xl p-5 md:p-6 flex flex-col md:flex-row justify-between gap-5 items-start md:items-center shadow-xs group">
       <div className="flex-1 min-w-0">
         <div className="flex flex-wrap items-center gap-2 mb-2">
           <span
@@ -124,12 +125,17 @@ export const ListingCard: React.FC<ListingCardProps> = ({ listing, onOpen, onDel
           {formatPrice(content.price_minor, content.currency, t('card.free'))}
         </div>
         {photos && photos.length > 0 ? (
-          <div className="mt-2 text-xs text-[var(--muted)] flex items-center gap-1">
+          <div className="mt-2 text-xs text-[var(--muted)] flex items-center gap-1 bg-[var(--surface)] px-2 py-0.5 rounded-md border border-[var(--line)]">
             <span>📷 {locale === 'en' ? 'Photos:' : 'Фото:'} {photos.length}</span>
           </div>
+        ) : isAgent ? (
+          <div className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span>{locale === 'en' ? 'Live MCP Agent' : 'Автономный AI-агент'}</span>
+          </div>
         ) : (
-          <div className="text-xs text-[var(--muted)] mt-1">
-            {locale === 'en' ? 'No photos' : 'Без фото'}
+          <div className="mt-2 text-[11px] font-medium text-[var(--muted)] flex items-center gap-1 bg-[var(--surface)] px-2 py-0.5 rounded-md border border-[var(--line)]">
+            <span>⚡ {locale === 'en' ? 'Fast Response' : 'Быстрый отклик'}</span>
           </div>
         )}
       </div>

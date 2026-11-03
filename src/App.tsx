@@ -481,8 +481,8 @@ export const App: React.FC = () => {
         onSelectFace={handleSelectFace}
       />
 
-      {/* Main Content Area */}
-      <main className="flex-1">
+      {/* Main Content Area with Ambient Mesh Glow */}
+      <main className="flex-1 ambient-mesh-glow">
         {currentTab === 'rooms' ? (
           <RoomsHub
             rooms={localizedRooms}

@@ -53,6 +53,7 @@ export const Header: React.FC<HeaderProps> = ({
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const desktopRef = useRef<HTMLDivElement>(null);
   const mobileRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Mobile / Tablet "More Options" Menu Popover
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
@@ -78,11 +79,15 @@ export const Header: React.FC<HeaderProps> = ({
         setCategoriesOpen(false);
         setMoreMenuOpen(false);
       }
+      if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+      }
     }
 
+    document.addEventListener('keydown', handleKeyDown);
     if (categoriesOpen || moreMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('keydown', handleKeyDown);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
@@ -257,6 +262,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className="flex-1 flex items-center relative min-w-0">
                   <span className="text-[var(--muted)] text-xs pl-1.5 pr-1 shrink-0 select-none">🔍</span>
                   <input
+                    ref={searchInputRef}
                     type="search"
                     value={searchQuery}
                     onChange={(e) => onSearchChange(e.target.value)}
@@ -272,6 +278,11 @@ export const Header: React.FC<HeaderProps> = ({
                     maxLength={120}
                     className="w-full bg-transparent text-xs text-[var(--ink)] placeholder-[var(--muted)] outline-none py-1 pr-1 truncate"
                   />
+                  {!searchQuery && (
+                    <div className="hidden sm:flex items-center gap-0.5 text-[10px] text-[var(--muted)] font-mono bg-[var(--surface)] border border-[var(--line)] px-1.5 py-0.5 rounded select-none mr-1">
+                      <span className="text-[11px]">⌘</span>K
+                    </div>
+                  )}
                   {searchQuery && (
                     <button
                       type="button"
