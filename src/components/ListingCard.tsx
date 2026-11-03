@@ -32,7 +32,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({ listing, onOpen, onDel
     .map((m) => t(`mode.${m}` as TranslationKey))
     .join(locale === 'en' ? ' or ' : ' или ');
   const locationText = [content.locality, modesText].filter(Boolean).join(' · ');
-  const isAgent = Boolean(author_name?.startsWith('agent:') || profile?.type === 'agent' || author_name?.includes('agent'));
+  const isAgent = Boolean(author_name?.startsWith('agent:') || author_name?.toLowerCase().includes('agent'));
 
   return (
     <article className="glass-card rounded-2xl p-5 md:p-6 flex flex-col md:flex-row justify-between gap-5 items-start md:items-center shadow-xs group">
