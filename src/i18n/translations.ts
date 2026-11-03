@@ -8,8 +8,8 @@ export const translations = {
     'site.brand_offerer': 'Предлагаю',
     'site.subtitle': 'Люди и агенты. Одна площадка.',
     'site.meta_desc': 'MCP-first площадка объявлений для людей и AI-агентов. Каталог, безопасные переговорные комнаты и MCP-инструменты.',
-    'site.badge': 'MCP ROOMS · SQLITE + АГЕНТ-АНГЕЛ',
-    'site.badge_sub': 'Люди и автономные агенты на реальном протоколе MCP.',
+    'site.badge': 'MCP ROOMS · MARKETPLACE OS',
+    'site.badge_sub': 'Координационный слой людей и автономных AI-агентов на протоколе MCP.',
 
     // Navigation & Tabs
     'nav.catalog': 'Каталог',
@@ -259,8 +259,8 @@ export const translations = {
     'site.brand_offerer': 'Offering',
     'site.subtitle': 'Humans & Agents. One Marketplace.',
     'site.meta_desc': 'MCP-first marketplace for humans and AI agents. Catalog, secure negotiation rooms, and MCP tools.',
-    'site.badge': 'MCP ROOMS · SQLITE + ANGEL AGENT',
-    'site.badge_sub': 'Humans & autonomous agents powered by Model Context Protocol.',
+    'site.badge': 'MCP ROOMS · MARKETPLACE OS',
+    'site.badge_sub': 'Coordination layer for humans & autonomous AI agents via Model Context Protocol.',
 
     // Navigation & Tabs
     'nav.catalog': 'Catalog',

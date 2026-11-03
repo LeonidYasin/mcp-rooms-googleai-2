@@ -13,7 +13,9 @@ export type FaceId =
   | 'procurement'
   | 'mentoring'
   | 'barter'
-  | 'm2m_agents';
+  | 'm2m_agents'
+  | 'ozon_market'
+  | 'yandex_realty';
 
 export type SpecialFeatureType =
   | 'standard'
@@ -25,7 +27,9 @@ export type SpecialFeatureType =
   | 'procurement'
   | 'mentoring'
   | 'barter'
-  | 'm2m_agents';
+  | 'm2m_agents'
+  | 'ozon_market'
+  | 'yandex_realty';
 
 export interface QuickChip {
   labelRu: string;
@@ -573,6 +577,80 @@ export const FACES_REGISTRY: Record<FaceId, FaceConfig> = {
       labelEn: 'Zero-Human Consensus',
       infoRu: 'Мгновенное автоматическое согласование JSON-схем и контрольных сумм алгоритмическими агентами.',
       infoEn: 'Instant automated schema negotiation and checksum verification by algorithmic agents.',
+    },
+  },
+  ozon_market: {
+    id: 'ozon_market',
+    nameRu: 'Товары & E-Commerce (Озон)',
+    nameEn: 'Goods & E-Commerce (Ozon)',
+    emoji: '🛍️',
+    badgeRu: 'OZON STYLE · ТОВАРЫ & МАРКЕТПЛЕЙС',
+    badgeEn: 'OZON STYLE · GOODS & RETAIL',
+    taglineRu: 'Миллионы товаров, Ozon Express от 15 минут и скидки дня.',
+    taglineEn: 'Millions of goods, Ozon Express in 15 mins, and daily deals.',
+    descriptionRu: 'Оригинальные товары, экспресс-доставка через сеть курьеров-агентов, кешбэк баллами и безопасные комнаты согласования заказов.',
+    descriptionEn: 'Authentic products, express courier-agent delivery from 15 minutes, points cashback, and secure deal rooms.',
+    accentColor: '#005bff',
+    borderAccent: 'border-blue-600/40',
+    bgTint: 'bg-blue-600/5',
+    primaryCategories: ['things', 'delivery'],
+    quickChips: [
+      { labelRu: '⚡ Ozon Express 15 мин', labelEn: '⚡ Ozon Express 15m', query: 'Express', category: 'delivery' },
+      { labelRu: '🔥 Скидки до 70%', labelEn: '🔥 Deals up to 70%', query: 'скидка', category: 'things' },
+      { labelRu: '📱 Электроника и гаджеты', labelEn: '📱 Electronics', query: 'электроника', category: 'things' },
+      { labelRu: '👟 Одежда и обувь', labelEn: '👟 Fashion & Shoes', query: 'одежда', category: 'things' },
+      { labelRu: '⭐ Оригинал 100%', labelEn: '⭐ 100% Authentic', query: 'оригинал', category: 'things' },
+    ],
+    publishPreset: {
+      defaultCategory: 'things',
+      titleHintRu: 'Например: Смартфон новый в заводской упаковке или Набор умного дома с датчиками',
+      titleHintEn: 'e.g.: Brand new sealed smartphone or Smart home automation sensor kit',
+      descHintRu: 'Укажите состояние, оригинальность, наличие гарантии, условия возврата и экспресс-доставки...',
+      descHintEn: 'Specify condition, authenticity, warranty, return policy, and courier delivery terms...',
+    },
+    specialFeature: {
+      type: 'ozon_market',
+      labelRu: 'Ozon Express & Кешбэк',
+      labelEn: 'Ozon Express & Cashback',
+      infoRu: 'Мгновенная доставка локальными агентами-курьерами от 15 минут и расчет кешбэка баллами.',
+      infoEn: 'Instant 15-30 min express delivery via local courier agents and reward points cashback.',
+    },
+  },
+  yandex_realty: {
+    id: 'yandex_realty',
+    nameRu: 'Яндекс Недвижимость',
+    nameEn: 'Yandex Real Estate',
+    emoji: '🏠',
+    badgeRu: 'YANDEX REALTY · ЖИЛЬЁ И ЛОКАЦИИ',
+    badgeEn: 'YANDEX REALTY · HOMES & SPACES',
+    taglineRu: 'Квартиры, новостройки и аренда с гарантией сделки.',
+    taglineEn: 'Apartments, developments, and rentals with deal security.',
+    descriptionRu: 'Проверенные собственники, льготная ипотека от 6%, фильтры по станциям метро, расчет платежа и защищенные комнаты бронирования.',
+    descriptionEn: 'Verified property owners, 6% subsidized mortgages, metro station filters, payment calculator, and secure lease rooms.',
+    accentColor: '#f5a623',
+    borderAccent: 'border-amber-500/40',
+    bgTint: 'bg-amber-500/5',
+    primaryCategories: ['real_estate'],
+    quickChips: [
+      { labelRu: '🚇 Рядом с метро', labelEn: '🚇 Near Metro', query: 'метро', category: 'real_estate' },
+      { labelRu: '🏢 Новостройки от 6%', labelEn: '🏢 New Builds 6%', query: 'новостройка', category: 'real_estate' },
+      { labelRu: '🛋️ Студии и 1-комнатные', labelEn: '🛋️ Studios & 1-Bed', query: 'студия', category: 'real_estate' },
+      { labelRu: '🔑 Долгосрочная аренда', labelEn: '🔑 Long-term Lease', query: 'аренда', category: 'real_estate' },
+      { labelRu: '⭐ Без комиссии риелтора', labelEn: '⭐ Zero Commission', query: 'собственник', category: 'real_estate' },
+    ],
+    publishPreset: {
+      defaultCategory: 'real_estate',
+      titleHintRu: 'Например: 2-комнатная квартира 56 м² в 5 мин от метро или Студия с новым ремонтом',
+      titleHintEn: 'e.g.: 2-bedroom apt 56 sqm 5 min to metro or Freshly renovated studio',
+      descHintRu: 'Укажите этаж, общую и жилую площадь, станцию метро, размер залога и условия проживания...',
+      descHintEn: 'Specify floor, area in sqm, nearby metro station, deposit amount, and lease terms...',
+    },
+    specialFeature: {
+      type: 'yandex_realty',
+      labelRu: 'Ипотека 6% & Фильтр комнат',
+      labelEn: '6% Mortgage & Room Selector',
+      infoRu: 'Автоматический расчет ежемесячного платежа, проверка ЕГРН и фиксация брони в комнате.',
+      infoEn: 'Automated monthly mortgage estimate, deed registry verification, and secure room lock.',
     },
   },
 };
