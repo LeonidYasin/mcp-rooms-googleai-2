@@ -48,7 +48,7 @@ async function main() {
   console.log(`Reason:    ${status.reason}`);
   console.log('--------------------------------------');
 
-  const allListings = getListingsFromDb();
+  const allListings = getListingsFromDb({});
   console.log(`Total listings in database: ${allListings.length}`);
 
   if (values['dry-run']) {

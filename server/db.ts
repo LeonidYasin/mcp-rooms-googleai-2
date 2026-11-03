@@ -845,7 +845,7 @@ export function getListingsFromDb(filters: {
   kind?: string;
   locality?: string;
   query?: string;
-}) {
+} = {}) {
   let sql = "SELECT * FROM listings WHERE status = 'active'";
   const params: any[] = [];
 

@@ -366,7 +366,7 @@ export async function reindexAllListings(options?: {
   const force = options?.force ?? false;
   const delayMs = options?.batchDelayMs ?? 50;
 
-  const allListings = getListingsFromDb();
+  const allListings = getListingsFromDb({});
   const total = allListings.length;
   let indexed = 0;
   let skipped = 0;
