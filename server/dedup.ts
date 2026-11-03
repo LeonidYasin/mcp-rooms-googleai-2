@@ -38,45 +38,42 @@ export interface DeduplicationReport {
 
 /**
  * Scans the database for duplicate listings (same owner, trimmed lowercase title, category, kind).
+ * Uses JavaScript Unicode normalization to safely handle Cyrillic and multilingual text.
  */
 export function findDuplicateListings(dbInstance: any = db): DuplicateGroup[] {
-  const groupsStmt = dbInstance.prepare(`
-    SELECT 
-      owner, 
-      LOWER(TRIM(title)) as normalized_title, 
-      category, 
-      kind, 
-      COUNT(*) as count
+  const allListings = dbInstance.prepare(`
+    SELECT id, owner, title, category, kind, locality, created_at, status, revision, embedding_json
     FROM listings
-    GROUP BY owner, LOWER(TRIM(title)), category, kind
-    HAVING COUNT(*) > 1
-  `);
-
-  const groups = groupsStmt.all() as Array<{
+    ORDER BY created_at ASC, id ASC
+  `).all() as Array<{
+    id: string;
     owner: string;
-    normalized_title: string;
+    title: string;
     category: string;
     kind: string;
-    count: number;
+    locality: string;
+    created_at: number;
+    status: string;
+    revision: number;
+    embedding_json: string | null;
   }>;
+
+  const groupMap = new Map<string, typeof allListings>();
+
+  for (const item of allListings) {
+    const normTitle = (item.title || '').trim().toLowerCase();
+    const key = `${item.owner}:::${item.category}:::${item.kind}:::${normTitle}`;
+    const list = groupMap.get(key);
+    if (!list) {
+      groupMap.set(key, [item]);
+    } else {
+      list.push(item);
+    }
+  }
 
   const results: DuplicateGroup[] = [];
 
-  const listingsStmt = dbInstance.prepare(`
-    SELECT id, created_at, status, revision
-    FROM listings
-    WHERE owner = ? AND LOWER(TRIM(title)) = ? AND category = ? AND kind = ?
-    ORDER BY created_at ASC, id ASC
-  `);
-
-  for (const g of groups) {
-    const items = listingsStmt.all(g.owner, g.normalized_title, g.category, g.kind) as Array<{
-      id: string;
-      created_at: number;
-      status: string;
-      revision: number;
-    }>;
-
+  for (const [, items] of groupMap.entries()) {
     if (items.length > 1) {
       // Prefer 'active' listings as canonical; otherwise oldest created
       const sorted = [...items].sort((a, b) => {
@@ -86,13 +83,13 @@ export function findDuplicateListings(dbInstance: any = db): DuplicateGroup[] {
       });
 
       const canonicalId = sorted[0].id;
-      const duplicateIds = items.filter((it) => it.id !== canonicalId).map((it) => it.id);
+      const duplicateIds = sorted.slice(1).map((it) => it.id);
 
       results.push({
-        owner: g.owner,
-        normalizedTitle: g.normalized_title,
-        category: g.category,
-        kind: g.kind,
+        owner: sorted[0].owner,
+        normalizedTitle: (sorted[0].title || '').trim().toLowerCase(),
+        category: sorted[0].category,
+        kind: sorted[0].kind,
         count: items.length,
         canonicalId,
         duplicateIds,
