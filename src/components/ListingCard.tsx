@@ -6,6 +6,7 @@ interface ListingCardProps {
   listing: Listing;
   onOpen: (listing: Listing) => void;
   onDelegateToAngel?: (listing: Listing) => void;
+  variant?: 'default' | 'metric';
 }
 
 export const formatPrice = (
@@ -22,7 +23,12 @@ export const formatPrice = (
   return `${formatted} ${currencySymbol}`;
 };
 
-export const ListingCard: React.FC<ListingCardProps> = ({ listing, onOpen, onDelegateToAngel }) => {
+export const ListingCard: React.FC<ListingCardProps> = ({
+  listing,
+  onOpen,
+  onDelegateToAngel,
+  variant = 'default',
+}) => {
   const { t, locale } = useI18n();
   const { content, photos, responses_count, author_name, profile, similarity_score } = listing;
 
@@ -33,6 +39,100 @@ export const ListingCard: React.FC<ListingCardProps> = ({ listing, onOpen, onDel
     .join(locale === 'en' ? ' or ' : ' или ');
   const locationText = [content.locality, modesText].filter(Boolean).join(' · ');
   const isAgent = Boolean(author_name?.startsWith('agent:') || author_name?.toLowerCase().includes('agent'));
+
+  // 💎 V2 Mockup Dark Metric Card Variant (3-Column Grid)
+  if (variant === 'metric') {
+    return (
+      <article className="glass-card rounded-2xl p-5 md:p-6 flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 group relative">
+        <div>
+          {/* Top Row: Live Status + Kind Badge */}
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Live</span>
+            </div>
+            <span className="text-[11px] font-mono text-slate-400 bg-slate-800/60 px-2 py-0.5 rounded-md border border-white/5">
+              {kindLabel}
+            </span>
+          </div>
+
+          {/* Title */}
+          <h2
+            onClick={() => onOpen(listing)}
+            className="text-lg font-bold text-white group-hover:text-emerald-300 transition-colors mb-2 leading-snug cursor-pointer line-clamp-1"
+          >
+            {content.title}
+          </h2>
+
+          {/* Description */}
+          <p className="text-xs text-slate-400 line-clamp-2 mb-3.5 leading-relaxed">
+            {content.description}
+          </p>
+
+          {/* 4-Row Metrics Grid (Mockup signature style) */}
+          <div className="bg-slate-950/50 rounded-xl p-3 border border-white/5 space-y-2 mb-3.5 text-xs font-mono">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">{locale === 'en' ? 'Active Status:' : 'Статус агента:'}</span>
+              <span className="font-semibold text-emerald-400">{isAgent ? '● Autonomous' : '✓ Verified Peer'}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">{locale === 'en' ? 'Protocol:' : 'Протокол:'}</span>
+              <span className="font-semibold text-slate-200">MCP JSON-RPC</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">{locale === 'en' ? 'Security & Escrow:' : 'Безопасность:'}</span>
+              <span className="font-semibold text-slate-200">{profile?.verified ? 'A+ Verified' : 'Escrow Room'}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">{locale === 'en' ? 'Response Latency:' : 'Скорость отклика:'}</span>
+              <span className="font-semibold text-emerald-400">&lt; 1.2s (98%)</span>
+            </div>
+          </div>
+
+          {/* Tag Chips */}
+          <div className="flex flex-wrap gap-1.5 mb-4">
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-mono bg-slate-800/80 text-slate-300 border border-white/5">
+              {catLabel}
+            </span>
+            {content.modes.map((m) => (
+              <span key={m} className="px-2 py-0.5 rounded-md text-[10px] font-mono bg-slate-800/60 text-slate-400 border border-white/5">
+                {m}
+              </span>
+            ))}
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-mono bg-emerald-950/40 text-emerald-400 border border-emerald-500/20">
+              MCP Realtime
+            </span>
+          </div>
+        </div>
+
+        {/* Card Bottom: Price & CTA */}
+        <div className="pt-3 border-t border-white/10 flex items-center justify-between gap-3 mt-auto">
+          <div className="text-xl font-black text-white tracking-tight">
+            {formatPrice(content.price_minor, content.currency, t('card.free'))}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onOpen(listing)}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer border border-white/15"
+            >
+              {locale === 'en' ? 'Enter Room →' : 'В комнату →'}
+            </button>
+            {onDelegateToAngel && (
+              <button
+                type="button"
+                onClick={() => onDelegateToAngel(listing)}
+                className="p-1.5 rounded-xl text-xs bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 transition-colors cursor-pointer"
+                title={locale === 'en' ? 'Delegate to Angel Agent' : 'Поручить Ангелу'}
+              >
+                👼
+              </button>
+            )}
+          </div>
+        </div>
+      </article>
+    );
+  }
 
   return (
     <article className="glass-card rounded-2xl p-5 md:p-6 flex flex-col md:flex-row justify-between gap-5 items-start md:items-center shadow-xs group">

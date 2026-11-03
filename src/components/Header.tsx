@@ -141,8 +141,9 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <>
-      {/* Top Utility Coordination Bar (scrolls away naturally, not sticky) */}
-      <div className="bg-[var(--surface)] border-b border-[var(--line)] py-1.5 px-3 sm:px-4 text-xs transition-colors">
+      {/* Top Utility Coordination Bar (scrolls away naturally, not sticky, hidden in Dark Glass V2) */}
+      {currentFace !== 'dark_glass' && (
+        <div className="bg-[var(--surface)] border-b border-[var(--line)] py-1.5 px-3 sm:px-4 text-xs transition-colors">
         <div className="max-w-[1240px] mx-auto flex items-center justify-between gap-2 sm:gap-3">
           {/* Left: Location Picker + Face / Slogan Badge */}
           <div className="flex items-center gap-2 sm:gap-3 truncate">
@@ -230,6 +231,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
       </div>
+      )}
 
       {/* Main Slim Sticky Header */}
       <header className="sticky top-0 z-40 border-b border-[var(--line)] bg-[var(--canvas)]/90 backdrop-blur-md transition-colors shadow-2xs">

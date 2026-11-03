@@ -50,8 +50,9 @@ describe('Thematic Multi-Face UI & Kernel Vertical Modules', () => {
         'm2m_agents',
         'ozon_market',
         'yandex_realty',
+        'dark_glass',
       ];
-      expect(ALL_FACES.length).toBe(15);
+      expect(ALL_FACES.length).toBe(16);
       for (const faceId of requiredFaces) {
         expect(FACES_REGISTRY[faceId as keyof typeof FACES_REGISTRY]).toBeDefined();
         const config = getFaceConfig(faceId);
@@ -99,6 +100,10 @@ describe('Thematic Multi-Face UI & Kernel Vertical Modules', () => {
       const yandex = getFaceConfig('yandex_realty');
       expect(yandex.specialFeature.type).toBe('yandex_realty');
       expect(yandex.primaryCategories).toContain('real_estate');
+
+      const darkGlass = getFaceConfig('dark_glass');
+      expect(darkGlass.specialFeature.type).toBe('dark_glass');
+      expect(darkGlass.primaryCategories).toContain('services');
     });
   });
 
@@ -108,7 +113,7 @@ describe('Thematic Multi-Face UI & Kernel Vertical Modules', () => {
       expect(res.status).toBe(200);
       const faces = await res.json();
       expect(Array.isArray(faces)).toBe(true);
-      expect(faces.length).toBe(15);
+      expect(faces.length).toBe(16);
 
       const ids = faces.map((f: any) => f.id);
       expect(ids).toContain('general');
@@ -122,6 +127,7 @@ describe('Thematic Multi-Face UI & Kernel Vertical Modules', () => {
       expect(ids).toContain('m2m_agents');
       expect(ids).toContain('ozon_market');
       expect(ids).toContain('yandex_realty');
+      expect(ids).toContain('dark_glass');
     });
 
     it('GET /api/listings?face=taxi filters listings strictly by rides category', async () => {

@@ -671,7 +671,7 @@ export const App: React.FC = () => {
               onSelectFace={handleSelectFace}
             />
 
-            {/* Elegant Horizontal Category Carousel */}
+            {/* Elegant Horizontal Category Carousel or Centered Floating Pill Dock */}
             <CategoryBar
               currentCategory={currentCategory}
               onSelectCategory={(cat) => {
@@ -679,6 +679,7 @@ export const App: React.FC = () => {
                 setSelectedListing(null);
               }}
               accentColor={currentFace !== 'general' ? getFaceConfig(currentFace).accentColor : undefined}
+              isFloatingDock={currentFace === 'dark_glass'}
             />
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
@@ -895,13 +896,20 @@ export const App: React.FC = () => {
 
             {/* Listings Grid / List */}
             {filteredListings.length > 0 ? (
-              <div className="space-y-4">
+              <div
+                className={
+                  currentFace === 'dark_glass'
+                    ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5'
+                    : 'space-y-4'
+                }
+              >
                 {filteredListings.map((listing) => (
                   <ListingCard
                     key={listing.id}
                     listing={listing}
                     onOpen={handleOpenListing}
                     onDelegateToAngel={handleDelegateToAngel}
+                    variant={currentFace === 'dark_glass' ? 'metric' : 'default'}
                   />
                 ))}
               </div>
