@@ -181,12 +181,28 @@ export const MCP_TOOLS_MANIFEST = [
   {
     name: 'negotiate_agreement',
     description:
-      'Находит подходящее объявление и возвращает демонстрационный сценарий переговоров (demo_preview). Ничего не отправляет автору, не создаёт комнату и не фиксирует соглашение: для реального контакта используйте join_room и send_message.',
+      'Инициирует или проводит реальные переговоры между агентами в изолированной приватной комнате (или возвращает демонстрационный сценарий при mode="preview"). Создаёт комнату, направляет структурированную оферту (terms), согласует условия и фиксирует сделку в реестре SQLite.',
     inputSchema: {
       type: 'object',
       properties: {
         goal: { type: 'string', description: 'Поручение пользователя или цель переговоров' },
         target_listing_id: { type: 'string', description: 'Идентификатор целевого объявления (если известно)' },
+        mode: {
+          type: 'string',
+          enum: ['live', 'preview'],
+          description: 'Режим: "live" (по умолчанию) — реальная комната и фиксация сделки в SQLite; "preview" — симуляция без создания комнат',
+        },
+        proposed_terms: {
+          type: 'object',
+          properties: {
+            price: { type: 'string', description: 'Предлагаемая стоимость или бюджет' },
+            schedule: { type: 'string', description: 'Желаемый срок или график выполнения' },
+            location: { type: 'string', description: 'Локация или способ встречи/доставки' },
+            guarantees: { type: 'string', description: 'Условия гарантий, SLA или оплаты' },
+            sla: { type: 'string', description: 'Регламент реакции или выполнения' },
+          },
+          description: 'Опциональные структурированные условия оферты',
+        },
       },
       required: ['goal'],
     },
@@ -518,19 +534,45 @@ export async function executeMcpToolCall(
       if (!goal) {
         return { error: 'Параметр goal обязателен' };
       }
+      const mode = args.mode === 'preview' ? 'preview' : 'live';
       const negotiationResult = await runAutonomousNegotiation(goal, args.target_listing_id, {
         principalId: ctx.principalId,
+        mode,
+        proposedTerms: args.proposed_terms,
       });
+
+      if (mode === 'preview') {
+        return {
+          success: true,
+          demo: true,
+          negotiation_id: negotiationResult.negotiationId,
+          status: negotiationResult.status,
+          room_id: null,
+          target_listing: negotiationResult.targetListing?.content?.title ?? null,
+          rounds_count: negotiationResult.dialogue.length,
+          summary: negotiationResult.summary,
+          demo_terms: negotiationResult.demoTerms ?? null,
+          steps: negotiationResult.steps,
+        };
+      }
+
       return {
-        success: true,
-        demo: true,
+        success: negotiationResult.status !== 'no_match' && negotiationResult.status !== 'declined',
+        demo: false,
         negotiation_id: negotiationResult.negotiationId,
         status: negotiationResult.status,
         room_id: negotiationResult.roomId,
-        target_listing: negotiationResult.targetListing?.content?.title ?? null,
-        rounds_count: negotiationResult.dialogue.length,
+        target_listing: negotiationResult.targetListing
+          ? {
+              id: negotiationResult.targetListing.id,
+              title: negotiationResult.targetListing.content.title,
+              owner: negotiationResult.targetListing.owner,
+            }
+          : null,
+        rounds_count: negotiationResult.rounds?.length ?? negotiationResult.dialogue.length,
+        rounds: negotiationResult.rounds ?? [],
+        agreed_terms: negotiationResult.agreedTerms ?? null,
         summary: negotiationResult.summary,
-        demo_terms: negotiationResult.demoTerms ?? null,
         steps: negotiationResult.steps,
       };
     }

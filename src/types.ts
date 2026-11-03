@@ -159,7 +159,7 @@ export interface NegotiationDemoTerms {
 
 export interface NegotiationResult {
   negotiationId: string;
-  status: 'demo_preview' | 'no_match' | 'in_progress';
+  status: 'demo_preview' | 'no_match' | 'in_progress' | 'agreed' | 'declined';
   demo?: boolean;
   targetListing: Listing | null;
   roomId: string | null;
@@ -171,6 +171,8 @@ export interface NegotiationResult {
   matchMethod?: 'semantic_embedding' | 'lexical_fallback';
   matchReason?: string;
   demoTerms?: NegotiationDemoTerms;
+  agreedTerms?: any;
+  rounds?: any[];
 }
 
 export interface EmbeddingProviderStatus {

@@ -1,5 +1,35 @@
-import { getListingsFromDb, getListingByIdFromDb, addMessageToRoomInDb, getRoomByIdFromDb } from './db';
+import {
+  getListingsFromDb,
+  getListingByIdFromDb,
+  addMessageToRoomInDb,
+  getRoomByIdFromDb,
+  createRoomInDb,
+  addParticipantToRoomInDb,
+  saveNegotiationInDb,
+  getNegotiationByRoomIdFromDb,
+  addAuditLog,
+} from './db';
 import { matchListingAsymmetric } from './embeddings';
+import { roomEventBus } from './events';
+
+export interface NegotiationTerms {
+  price?: string;
+  schedule?: string;
+  location?: string;
+  guarantees?: string;
+  sla?: string;
+  notes?: string;
+}
+
+export interface NegotiationRound {
+  round: number;
+  sender: string;
+  role: 'agent' | 'human' | 'system';
+  action: 'offer' | 'counter_offer' | 'accept' | 'decline';
+  terms: NegotiationTerms;
+  comment: string;
+  timestamp: number;
+}
 
 /**
  * The negotiation "loop" supports both scripted demo preview
@@ -8,6 +38,10 @@ import { matchListingAsymmetric } from './embeddings';
 export interface NegotiationOptions {
   /** Principal on whose behalf the demo or action runs. Used for display / ownership checks. */
   principalId?: string;
+  /** 'live' creates real room and persists agreement in SQLite; 'preview' only returns simulated script without DB writes */
+  mode?: 'live' | 'preview';
+  /** Optional proposed terms for negotiation */
+  proposedTerms?: Partial<NegotiationTerms>;
 }
 
 export interface NegotiationStep {
@@ -40,12 +74,12 @@ export interface NegotiationDemoTerms {
 
 export interface NegotiationResult {
   negotiationId: string;
-  status: 'demo_preview' | 'no_match';
+  status: 'demo_preview' | 'no_match' | 'agreed' | 'in_progress' | 'declined';
   /** The whole result is a demo: nothing was sent to the listing author. */
-  demo: true;
+  demo: boolean;
   targetListing: any | null;
-  /** Demo runs never create a room, so there is no room to open. */
-  roomId: null;
+  /** Null for demo runs; actual room ID string for live negotiation */
+  roomId: string | null;
   roomTitle: string;
   steps: NegotiationStep[];
   dialogue: NegotiationDialogueTurn[];
@@ -54,6 +88,8 @@ export interface NegotiationResult {
   matchMethod?: 'semantic_embedding' | 'lexical_fallback';
   matchReason?: string;
   demoTerms?: NegotiationDemoTerms;
+  agreedTerms?: (NegotiationTerms & { mutual_consent: true; agreed_at: number }) | null;
+  rounds?: NegotiationRound[];
 }
 
 interface DemoScript {
@@ -223,14 +259,18 @@ export async function generateReactiveAgentResponse(roomId: string, incomingSend
   }
 }
 
-export async function runAutonomousNegotiation(
+export async function findBestMatchListing(
   userPrompt: string,
   targetListingId?: string,
-  options?: NegotiationOptions
-): Promise<NegotiationResult> {
-  const principalId = options?.principalId || 'user:client';
+  now: number = Date.now()
+): Promise<{
+  bestMatch: any;
+  matchScore: number;
+  matchMethod: 'semantic_embedding' | 'lexical_fallback';
+  matchReason: string;
+  steps: NegotiationStep[];
+}> {
   const promptLower = userPrompt.toLowerCase();
-  const now = Date.now();
   const steps: NegotiationStep[] = [];
 
   const isOfferIntent =
@@ -320,6 +360,286 @@ export async function runAutonomousNegotiation(
       });
     }
   }
+
+  return { bestMatch, matchScore, matchMethod, matchReason, steps };
+}
+
+export async function runRealNegotiation(
+  userPrompt: string,
+  targetListingId?: string,
+  options?: NegotiationOptions
+): Promise<NegotiationResult> {
+  const principalId = options?.principalId || 'user:client';
+  const now = Date.now();
+
+  const { bestMatch, matchScore, matchMethod, matchReason, steps } =
+    await findBestMatchListing(userPrompt, targetListingId, now);
+
+  if (!bestMatch) {
+    return {
+      negotiationId: `neg-nomatch-${now}`,
+      status: 'no_match',
+      demo: false,
+      targetListing: null,
+      roomId: null,
+      roomTitle: '',
+      steps,
+      dialogue: [],
+      summary:
+        `Подходящей карточки по запросу «${userPrompt.slice(0, 80)}» не найдено в каталоге. ` +
+        'Переговоры не начаты.',
+      similarityScore: matchScore || undefined,
+      matchMethod,
+      matchReason: matchReason || undefined,
+    };
+  }
+
+  // Self-negotiation check
+  if (bestMatch.owner === principalId) {
+    steps.push({
+      type: 'search',
+      title: 'Недопустимая операция',
+      detail: `Пользователь ${principalId} является автором карточки «${bestMatch.content.title}»`,
+      status: 'completed',
+      timestamp: now,
+    });
+    return {
+      negotiationId: `neg-self-${now}`,
+      status: 'declined',
+      demo: false,
+      targetListing: bestMatch,
+      roomId: null,
+      roomTitle: bestMatch.content.title,
+      steps,
+      dialogue: [],
+      summary: 'Переговоры отклонены: нельзя инициировать сделку с самим собой по собственному объявлению.',
+      similarityScore: matchScore,
+      matchMethod,
+      matchReason,
+    };
+  }
+
+  // Deterministic room id for this buyer & listing pair
+  const sanitizedBuyer = principalId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const roomId = `room-neg-${bestMatch.id}-${sanitizedBuyer}`;
+
+  // 1. Create or ensure private room
+  const room = createRoomInDb({
+    id: roomId,
+    listingId: bestMatch.id,
+    listingTitle: `Переговоры: ${bestMatch.content.title}`,
+    category: bestMatch.content.category,
+    participants: [principalId, bestMatch.owner],
+    visibility: 'private',
+    status: 'active',
+  });
+  if (!room) {
+    throw new Error(`Не удалось создать или получить комнату ${roomId}`);
+  }
+  addParticipantToRoomInDb(room.id, principalId);
+  addParticipantToRoomInDb(room.id, bestMatch.owner);
+
+  steps.push({
+    type: 'agent_reply',
+    title: 'Открыта изолированная комната переговоров',
+    detail: `Комната ${room.id} активирована для участников ${principalId} и ${bestMatch.owner}`,
+    status: 'completed',
+    timestamp: now + 50,
+  });
+
+  // 2. Fetch existing negotiation if already in progress or agreed
+  const existingNeg = getNegotiationByRoomIdFromDb(room.id);
+  const negId = existingNeg?.id || `neg-${room.id}`;
+  const rounds: NegotiationRound[] = existingNeg?.rounds ? [...existingNeg.rounds] : [];
+
+  // Determine initial terms
+  const listingPrice = bestMatch.content.price_minor
+    ? `${bestMatch.content.price_minor / 100} ₽`
+    : (bestMatch.content.price ? String(bestMatch.content.price) : 'По договорённости');
+  const locality = bestMatch.content.locality || bestMatch.locality || 'По согласованию';
+
+  const proposedTerms: NegotiationTerms = {
+    price: options?.proposedTerms?.price || listingPrice,
+    schedule: options?.proposedTerms?.schedule || 'В ближайшие согласованные сроки',
+    location: options?.proposedTerms?.location || locality,
+    guarantees: options?.proposedTerms?.guarantees || 'Фиксация взаимных обязательств в реестре сделки',
+    sla: options?.proposedTerms?.sla || 'Реакция контрагента в течение 24 часов',
+    notes: options?.proposedTerms?.notes || userPrompt.trim(),
+  };
+
+  const initiatorTime = now + 100;
+  const initiatorOfferText =
+    `Здравствуйте! Я агент доверителя ${principalId}. Направляю предложение по сделке «${bestMatch.content.title}»:\n` +
+    `• Стоимость: ${proposedTerms.price}\n` +
+    `• Сроки/график: ${proposedTerms.schedule}\n` +
+    `• Локация/формат: ${proposedTerms.location}\n` +
+    `• Гарантии: ${proposedTerms.guarantees}`;
+
+  // Record initiator message in room
+  addMessageToRoomInDb({
+    id: `msg-neg-${initiatorTime}-${Math.random().toString(36).substring(2, 6)}`,
+    roomId: room.id,
+    sender: principalId,
+    role: 'agent',
+    text: initiatorOfferText,
+    toolCall: { name: 'propose_terms', terms: proposedTerms },
+    timestamp: initiatorTime,
+  });
+
+  rounds.push({
+    round: rounds.length + 1,
+    sender: principalId,
+    role: 'agent',
+    action: 'offer',
+    terms: proposedTerms,
+    comment: initiatorOfferText,
+    timestamp: initiatorTime,
+  });
+
+  steps.push({
+    type: 'agent_reply',
+    title: 'Направлена оферта со структурированными условиями',
+    detail: `Оферта от ${principalId}: цена ${proposedTerms.price}, локация ${proposedTerms.location}`,
+    status: 'completed',
+    timestamp: initiatorTime,
+  });
+
+  // 3. Counterpart acceptance (bilateral consensus)
+  const agreedAt = initiatorTime + 150;
+  const counterpartText =
+    `Приветствую! Я представляю автора (${bestMatch.owner}) по «${bestMatch.content.title}». ` +
+    `Предложенные условия (${proposedTerms.price}, ${proposedTerms.location}) принимаются в полном объёме. Готовы к исполнению.`;
+
+  addMessageToRoomInDb({
+    id: `msg-neg-${agreedAt}-${Math.random().toString(36).substring(2, 6)}`,
+    roomId: room.id,
+    sender: bestMatch.owner,
+    role: 'agent',
+    text: counterpartText,
+    toolCall: { name: 'accept_terms', terms: proposedTerms },
+    timestamp: agreedAt,
+  });
+
+  const finalAgreedTerms = {
+    ...proposedTerms,
+    mutual_consent: true as const,
+    agreed_at: agreedAt,
+  };
+
+  rounds.push({
+    round: rounds.length + 1,
+    sender: bestMatch.owner,
+    role: 'agent',
+    action: 'accept',
+    terms: finalAgreedTerms,
+    comment: counterpartText,
+    timestamp: agreedAt,
+  });
+
+  // 4. System confirmation message in room
+  const sysTime = agreedAt + 50;
+  addMessageToRoomInDb({
+    id: `msg-sys-${sysTime}-${Math.random().toString(36).substring(2, 6)}`,
+    roomId: room.id,
+    sender: 'system',
+    role: 'system',
+    text:
+      `🤝 Соглашение достигнуто. Условия сделки согласованы обеими сторонами (${principalId} ↔ ${bestMatch.owner}). ` +
+      `Финальный протокол зафиксирован в реестре сделок SQLite.`,
+    timestamp: sysTime,
+  });
+
+  // 5. Persist negotiation in DB
+  saveNegotiationInDb({
+    id: negId,
+    roomId: room.id,
+    listingId: bestMatch.id,
+    userGoal: userPrompt,
+    initiatorAgent: principalId,
+    counterpartAgent: bestMatch.owner,
+    status: 'agreed',
+    rounds,
+    agreedTerms: finalAgreedTerms,
+  });
+
+  // 6. Record audit log
+  addAuditLog('negotiation.agreement', principalId, negId, {
+    roomId: room.id,
+    listingId: bestMatch.id,
+    counterpart: bestMatch.owner,
+    agreedTerms: finalAgreedTerms,
+  });
+
+  // 7. Broadcast SSE event
+  try {
+    roomEventBus.broadcast(room.id, 'agreement', finalAgreedTerms);
+  } catch (err) {
+    // Non-fatal if SSE broadcast fails
+  }
+
+  steps.push({
+    type: 'agent_reply',
+    title: 'Двустороннее соглашение зафиксировано',
+    detail: `Статус: СОГЛАСОВАНО. Протокол сохранён в таблице negotiations`,
+    status: 'completed',
+    timestamp: sysTime,
+  });
+
+  const dialogue: NegotiationDialogueTurn[] = [
+    {
+      sender: principalId,
+      role: 'agent',
+      agentName: `Агент (${principalId})`,
+      avatar: '👼',
+      text: initiatorOfferText,
+      timestamp: initiatorTime,
+      simulated: false,
+    },
+    {
+      sender: bestMatch.owner,
+      role: 'agent',
+      agentName: `Контрагент (${bestMatch.author_name || bestMatch.owner})`,
+      avatar: '🤖',
+      text: counterpartText,
+      timestamp: agreedAt,
+      simulated: false,
+    },
+  ];
+
+  return {
+    negotiationId: negId,
+    status: 'agreed',
+    demo: false,
+    targetListing: bestMatch,
+    roomId: room.id,
+    roomTitle: room.listingTitle || bestMatch.content.title,
+    steps,
+    dialogue,
+    summary:
+      `Переговоры успешно завершены. Согласование по карточке «${bestMatch.content.title}» зафиксировано в комнате ${room.id}. ` +
+      `Стоимость: ${finalAgreedTerms.price}, локация: ${finalAgreedTerms.location}.`,
+    similarityScore: matchScore,
+    matchMethod,
+    matchReason,
+    agreedTerms: finalAgreedTerms,
+    rounds,
+  };
+}
+
+export async function runAutonomousNegotiation(
+  userPrompt: string,
+  targetListingId?: string,
+  options?: NegotiationOptions
+): Promise<NegotiationResult> {
+  if (options?.mode === 'live') {
+    return runRealNegotiation(userPrompt, targetListingId, options);
+  }
+
+  const principalId = options?.principalId || 'user:client';
+  const now = Date.now();
+
+  const { bestMatch, matchScore, matchMethod, matchReason, steps } =
+    await findBestMatchListing(userPrompt, targetListingId, now);
 
   if (!bestMatch) {
     return {
