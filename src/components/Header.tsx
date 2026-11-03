@@ -142,65 +142,92 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <>
       {/* Top Utility Coordination Bar (scrolls away naturally, not sticky) */}
-      <div className="bg-[var(--surface)] border-b border-[var(--line)] py-1.5 px-4 text-xs transition-colors">
-        <div className="max-w-[1240px] mx-auto flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 truncate">
-            <span className="text-sm leading-none">{activeFace.emoji}</span>
-            <strong className="text-[var(--blue)] font-bold text-[11px] sm:text-xs tracking-tight">
-              {currentFace !== 'general' ? (isEn ? activeFace.badgeEn : activeFace.badgeRu) : t('site.badge')}
-            </strong>
-            <span className="text-[var(--muted)] text-[11px] hidden lg:inline truncate">
-              {currentFace !== 'general' ? (isEn ? activeFace.taglineEn : activeFace.taglineRu) : t('site.badge_sub')}
-            </span>
+      <div className="bg-[var(--surface)] border-b border-[var(--line)] py-1.5 px-3 sm:px-4 text-xs transition-colors">
+        <div className="max-w-[1240px] mx-auto flex items-center justify-between gap-2 sm:gap-3">
+          {/* Left: Location Picker + Face / Slogan Badge */}
+          <div className="flex items-center gap-2 sm:gap-3 truncate">
+            {/* Location Selector (now positioned in Top Bar like Avito/CIAN) */}
+            <div className="flex items-center gap-1 text-[11px] font-semibold text-[var(--muted)] hover:text-[var(--ink)] bg-[var(--canvas)]/80 border border-[var(--line)] px-2 py-0.5 rounded-lg shrink-0">
+              <span className="text-xs">📍</span>
+              <select
+                aria-label={t('nav.location')}
+                value={selectedLocality}
+                onChange={(e) => onLocalityChange(e.target.value)}
+                className="bg-transparent text-[var(--ink)] font-bold outline-none cursor-pointer text-[11px]"
+              >
+                <option value="all">{t('nav.all_regions')}</option>
+                <option value="Казань">Казань</option>
+                <option value="Москва">Москва</option>
+                <option value="Санкт-Петербург">Санкт-Петербург</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2 truncate">
+              <span className="text-sm leading-none shrink-0">{activeFace.emoji}</span>
+              <strong className="text-[var(--blue)] font-bold text-[11px] sm:text-xs tracking-tight truncate">
+                {currentFace !== 'general' ? (isEn ? activeFace.badgeEn : activeFace.badgeRu) : t('site.badge')}
+              </strong>
+              <span className="text-[var(--muted)] text-[11px] hidden xl:inline truncate">
+                {currentFace !== 'general' ? (isEn ? activeFace.taglineEn : activeFace.taglineRu) : t('site.badge_sub')}
+              </span>
+            </div>
           </div>
 
-          {/* Quick Nav Links */}
-          <nav className="flex items-center gap-2.5 sm:gap-4 shrink-0 text-xs">
-            <button
-              type="button"
-              onClick={() => onChangeTab('rooms')}
-              className={`hover:underline cursor-pointer flex items-center gap-1 font-bold ${
-                currentTab === 'rooms' ? 'text-[var(--blue)]' : 'text-[var(--ink)]'
-              }`}
-            >
-              <span>{t('nav.rooms')}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => onChangeTab('chat')}
-              className={`hover:underline cursor-pointer flex items-center gap-1 font-bold ${
-                currentTab === 'chat' ? 'text-[var(--blue)]' : 'text-[var(--ink)]'
-              }`}
-            >
-              <span>{t('nav.chat')}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => onChangeTab('mcp')}
-              className={`hover:underline cursor-pointer ${
-                currentTab === 'mcp' ? 'font-bold text-[var(--blue)]' : 'text-[var(--muted)]'
-              }`}
-            >
-              {t('nav.mcp')}
-            </button>
-            <button
-              type="button"
-              onClick={() => onChangeTab('principles')}
-              className={`hover:underline cursor-pointer hidden md:inline ${
-                currentTab === 'principles' ? 'font-bold text-[var(--blue)]' : 'text-[var(--muted)]'
-              }`}
-            >
-              {t('nav.principles')}
-            </button>
-            <button
-              type="button"
-              onClick={onOpenAbout}
-              className="hover:underline cursor-pointer font-bold text-[var(--muted)] hover:text-[var(--ink)] flex items-center gap-1"
-            >
-              <span>ℹ️</span>
-              <span className="hidden sm:inline">{t('nav.about')}</span>
-            </button>
-          </nav>
+          {/* Right: Quick Nav Links + Sleek Theme & Lang Toggles */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0 text-xs">
+            <nav className="flex items-center gap-2 sm:gap-3.5 shrink-0 text-xs">
+              <button
+                type="button"
+                onClick={() => onChangeTab('rooms')}
+                className={`hover:underline cursor-pointer flex items-center gap-1 font-bold ${
+                  currentTab === 'rooms' ? 'text-[var(--blue)]' : 'text-[var(--ink)]'
+                }`}
+              >
+                <span>{t('nav.rooms')}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onChangeTab('chat')}
+                className={`hover:underline cursor-pointer flex items-center gap-1 font-bold ${
+                  currentTab === 'chat' ? 'text-[var(--blue)]' : 'text-[var(--ink)]'
+                }`}
+              >
+                <span>{t('nav.chat')}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onChangeTab('mcp')}
+                className={`hover:underline cursor-pointer hidden md:inline ${
+                  currentTab === 'mcp' ? 'font-bold text-[var(--blue)]' : 'text-[var(--muted)]'
+                }`}
+              >
+                {t('nav.mcp')}
+              </button>
+              <button
+                type="button"
+                onClick={() => onChangeTab('principles')}
+                className={`hover:underline cursor-pointer hidden md:inline ${
+                  currentTab === 'principles' ? 'font-bold text-[var(--blue)]' : 'text-[var(--muted)]'
+                }`}
+              >
+                {t('nav.principles')}
+              </button>
+              <button
+                type="button"
+                onClick={onOpenAbout}
+                className="hover:underline cursor-pointer font-bold text-[var(--muted)] hover:text-[var(--ink)] flex items-center gap-1"
+              >
+                <span>ℹ️</span>
+                <span className="hidden sm:inline">{t('nav.about')}</span>
+              </button>
+            </nav>
+
+            {/* Utility Toggles (Theme & Clean Lang) */}
+            <div className="hidden sm:flex items-center gap-1.5 pl-2 border-l border-[var(--line)]">
+              <ThemeToggle />
+              <LangToggle />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -223,7 +250,7 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             {/* Desktop Unified Search Capsule (visible on lg+) */}
-            <div className="hidden lg:flex flex-1 max-w-xl mx-2 min-w-0">
+            <div className="hidden lg:flex flex-1 max-w-2xl mx-3 min-w-[340px]">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -255,7 +282,7 @@ export const Header: React.FC<HeaderProps> = ({
                       : `Искать в «${getCategoryLabel(currentCategory)}»...`
                   }
                   maxLength={120}
-                  className="flex-1 bg-transparent text-xs text-[var(--ink)] placeholder-[var(--muted)] outline-none py-1 px-1 min-w-0 font-medium"
+                  className="flex-1 min-w-[120px] bg-transparent text-xs sm:text-sm text-[var(--ink)] placeholder-[var(--muted)] outline-none py-1 px-1 font-medium"
                 />
 
                 {searchQuery && (
@@ -288,7 +315,9 @@ export const Header: React.FC<HeaderProps> = ({
                     className="h-7 px-2 rounded-lg flex items-center gap-1 text-xs font-semibold text-[var(--ink)] hover:bg-[var(--raised)] transition-colors cursor-pointer select-none"
                   >
                     <span>{CATEGORY_ICONS[currentCategory] || '📁'}</span>
-                    <span className="hidden xl:inline max-w-[85px] truncate">{getCategoryLabel(currentCategory)}</span>
+                    <span className="hidden xl:inline max-w-[85px] truncate">
+                      {currentCategory === 'all' ? (isEn ? 'Sections' : 'Разделы') : getCategoryLabel(currentCategory)}
+                    </span>
                     <svg
                       className={`w-3 h-3 text-[var(--muted)] transition-transform duration-200 ${
                         categoriesOpen ? 'rotate-180' : ''
@@ -343,32 +372,10 @@ export const Header: React.FC<HeaderProps> = ({
               </form>
             </div>
 
-            {/* Actions Bar: Controls, Theme, Lang, Key, Publish */}
+            {/* Actions Bar: Face Switcher, ApiKey, Publish */}
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               {/* Thematic Face Switcher (всегда виден) */}
               <FaceSwitcher currentFace={currentFace} onSelectFace={onSelectFace} />
-
-              {/* Location Select (видно на больших экранах >= xl) */}
-              <div className="hidden xl:flex items-center gap-1 text-xs text-[var(--muted)] bg-[var(--surface)] border border-[var(--line)] px-2 py-1 rounded-lg h-8">
-                <span>📍</span>
-                <select
-                  aria-label={t('nav.location')}
-                  value={selectedLocality}
-                  onChange={(e) => onLocalityChange(e.target.value)}
-                  className="bg-transparent text-[var(--ink)] font-semibold outline-none cursor-pointer text-xs"
-                >
-                  <option value="all">{t('nav.all_regions')}</option>
-                  <option value="Казань">Казань</option>
-                  <option value="Москва">Москва</option>
-                  <option value="Санкт-Петербург">Санкт-Петербург</option>
-                </select>
-              </div>
-
-              {/* Theme & Language (видно на экранах >= lg) */}
-              <div className="hidden lg:flex items-center gap-1.5">
-                <ThemeToggle />
-                <LangToggle />
-              </div>
 
               {/* Connection Status Button (всегда виден) */}
               <button
@@ -503,7 +510,9 @@ export const Header: React.FC<HeaderProps> = ({
                   className="h-6.5 px-1.5 rounded-md flex items-center gap-1 text-[11px] font-semibold text-[var(--ink)] hover:bg-[var(--raised)] cursor-pointer select-none"
                 >
                   <span>{CATEGORY_ICONS[currentCategory] || '📁'}</span>
-                  <span className="max-w-[70px] truncate">{getCategoryLabel(currentCategory)}</span>
+                  <span className="max-w-[70px] truncate">
+                    {currentCategory === 'all' ? (isEn ? 'Sections' : 'Разделы') : getCategoryLabel(currentCategory)}
+                  </span>
                   <svg
                     className={`w-2.5 h-2.5 text-[var(--muted)] transition-transform duration-200 ${
                       categoriesOpen ? 'rotate-180' : ''

@@ -41,6 +41,13 @@ export const FaceSwitcher: React.FC<FaceSwitcherProps> = ({
     };
   }, [isOpen]);
 
+  const getButtonLabel = () => {
+    if (currentFace === 'general') {
+      return isEn ? 'All Themes' : 'Все темы';
+    }
+    return isEn ? activeConfig.nameEn : activeConfig.nameRu;
+  };
+
   return (
     <div className="relative inline-block text-left shrink-0" ref={dropdownRef}>
       {/* Trigger Button */}
@@ -57,9 +64,9 @@ export const FaceSwitcher: React.FC<FaceSwitcherProps> = ({
             : `bg-[var(--surface)] hover:bg-[var(--raised)] ${activeConfig.borderAccent} text-[var(--ink)] ring-1 ring-offset-0 ring-[var(--line)]`
         }`}
       >
-        <span className="text-sm sm:text-base leading-none shrink-0">{activeConfig.emoji}</span>
-        <span className="min-w-0 max-w-[85px] sm:max-w-[110px] xl:max-w-[140px] truncate font-bold">
-          {isEn ? activeConfig.nameEn : activeConfig.nameRu}
+        <span className="text-sm sm:text-base leading-none shrink-0">{currentFace === 'general' ? '🎭' : activeConfig.emoji}</span>
+        <span className="min-w-0 max-w-[85px] sm:max-w-[110px] xl:max-w-[130px] truncate font-bold">
+          {getButtonLabel()}
         </span>
         <span className="text-[10px] text-[var(--muted)] ml-0.5 shrink-0">▾</span>
       </button>
