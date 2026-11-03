@@ -139,12 +139,13 @@ export async function testGeminiApiKey(apiKey: string): Promise<{ valid: boolean
       },
     });
 
-    const response = await probeClient.models.embedContent({
+    const response: any = await probeClient.models.embedContent({
       model: process.env.EMBEDDING_MODEL || 'text-embedding-004',
       contents: 'mcp-rooms probe',
     });
 
-    if (response?.embedding?.values && response.embedding.values.length > 0) {
+    const values = response?.embeddings?.[0]?.values ?? response?.embedding?.values;
+    if (Array.isArray(values) && values.length > 0) {
       return { valid: true };
     }
     return { valid: false, error: 'Google AI не вернул вектор эмбеддинга' };
