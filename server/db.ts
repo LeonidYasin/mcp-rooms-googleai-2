@@ -1,6 +1,7 @@
 import DatabaseModule from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import { cleanupDuplicateListings } from './dedup';
 
 const Database = (DatabaseModule as any).default || DatabaseModule;
 
