@@ -188,7 +188,7 @@ describe('demo seed mode & deduplication (TASK-11)', () => {
 
       // 3. Link a negotiation to duplicate #3
       db.prepare(`
-        INSERT INTO negotiations (id, room_id, listing_id, user_goal, initiator_agent, counterpart_agent, round, max_rounds, status, created_at, updated_at)
+        INSERT INTO negotiations (id, room_id, listing_id, user_goal, initiator_agent, counterpart_agent, status, rounds_json, agreed_terms_json, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         'nego-dup-test-01',
@@ -197,9 +197,9 @@ describe('demo seed mode & deduplication (TASK-11)', () => {
         'Согласовать скидку',
         'agent:a',
         'agent:b',
-        1,
-        5,
-        'active',
+        'in_progress',
+        '[]',
+        null,
         now,
         now
       );
