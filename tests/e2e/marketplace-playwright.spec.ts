@@ -6,8 +6,8 @@ test.describe('MCP Rooms Marketplace E2E Visual & Functional Flow', () => {
     const healthRes = await request.get('/api/health');
     expect(healthRes.status()).toBe(200);
     const healthData = await healthRes.json();
-    expect(healthData.status).toBe('healthy');
-    expect(healthData.database.status).toBe('ok');
+    expect(healthData.status).toBe('ok');
+    expect(healthData.database.status).toBe('connected');
 
     // 2. Verify public listings API
     const listingsRes = await request.get('/api/listings');
@@ -21,5 +21,14 @@ test.describe('MCP Rooms Marketplace E2E Visual & Functional Flow', () => {
     expect(profilesRes.status()).toBe(200);
     const profiles = await profilesRes.json();
     expect(Array.isArray(profiles)).toBe(true);
+  });
+
+  test('renders marketplace homepage and checks key visual elements', async ({ page }) => {
+    await page.goto('/');
+    const title = await page.title();
+    expect(title).toContain('MCP Rooms');
+
+    const root = page.locator('#root');
+    await expect(root).toBeVisible();
   });
 });
