@@ -58,7 +58,7 @@ export const FaceSwitcher: React.FC<FaceSwitcherProps> = ({
         }`}
       >
         <span className="text-sm sm:text-base leading-none">{activeConfig.emoji}</span>
-        <span className="max-w-[110px] sm:max-w-[150px] md:max-w-none truncate font-bold">
+        <span className="max-w-[85px] sm:max-w-[120px] lg:max-w-[150px] truncate font-bold">
           {isEn ? activeConfig.nameEn : activeConfig.nameRu}
         </span>
         <span className="text-[10px] text-[var(--muted)] ml-0.5">▾</span>

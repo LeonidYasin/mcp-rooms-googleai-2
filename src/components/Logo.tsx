@@ -106,9 +106,9 @@ export const Logo: React.FC<LogoProps> = ({
 
       {/* Typography */}
       {showText && (
-        <div className="text-left flex flex-col justify-center">
+        <div className="text-left flex flex-col justify-center min-w-0">
           <div
-            className={`tracking-tight text-[var(--ink)] leading-tight ${titleSizes[size]} transition-colors`}
+            className={`tracking-tight text-[var(--ink)] leading-tight ${titleSizes[size]} transition-colors truncate`}
           >
             {title.includes('·') ? (
               <>
@@ -121,7 +121,7 @@ export const Logo: React.FC<LogoProps> = ({
             )}
           </div>
           {subtitle && (
-            <div className={`text-[var(--muted)] font-normal leading-tight mt-0.5 ${subtitleSizes[size]}`}>
+            <div className={`text-[var(--muted)] font-normal leading-tight mt-0.5 ${subtitleSizes[size]} truncate max-w-[200px]`}>
               {subtitle}
             </div>
           )}
