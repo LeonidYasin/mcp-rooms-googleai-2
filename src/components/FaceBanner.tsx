@@ -120,7 +120,7 @@ export const FaceBanner: React.FC<FaceBannerProps> = ({
             style={{ backgroundColor: face.accentColor }}
             className="text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-xs active:scale-98 hover:opacity-95"
           >
-            ＋ {isEn ? `Publish in ${face.nameEn}` : `Подать в ${face.nameRu}`}
+            ＋ {isEn ? `Publish in ${face.shortNameEn || face.nameEn}` : `Подать в ${face.shortNameRu || face.nameRu}`}
           </button>
           <button
             type="button"

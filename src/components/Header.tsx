@@ -6,7 +6,6 @@ import { ThemeToggle } from './ThemeToggle';
 import { LangToggle } from './LangToggle';
 import { FaceSwitcher } from './FaceSwitcher';
 import { FaceId, getFaceConfig } from '../lib/faces';
-import { CATEGORY_ICONS, CATEGORIES_ORDER } from './CategoryBar';
 
 interface HeaderProps {
   currentCategory: ListingCategory | 'all';
@@ -53,10 +52,6 @@ export const Header: React.FC<HeaderProps> = ({
   const isEn = locale === 'en';
   const activeFace = getFaceConfig(currentFace);
 
-  // Category Popover State with Click-Outside detection
-  const [categoriesOpen, setCategoriesOpen] = useState(false);
-  const desktopRef = useRef<HTMLDivElement>(null);
-  const mobileRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Mobile / Tablet "More Options" Menu Popover
@@ -66,13 +61,8 @@ export const Header: React.FC<HeaderProps> = ({
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       const target = event.target as Node;
-      const isOutsideDesktop = !desktopRef.current || !desktopRef.current.contains(target);
-      const isOutsideMobile = !mobileRef.current || !mobileRef.current.contains(target);
       const isOutsideMore = !moreMenuRef.current || !moreMenuRef.current.contains(target);
 
-      if (isOutsideDesktop && isOutsideMobile) {
-        setCategoriesOpen(false);
-      }
       if (isOutsideMore) {
         setMoreMenuOpen(false);
       }
@@ -80,7 +70,6 @@ export const Header: React.FC<HeaderProps> = ({
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
-        setCategoriesOpen(false);
         setMoreMenuOpen(false);
       }
       if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
@@ -90,54 +79,29 @@ export const Header: React.FC<HeaderProps> = ({
     }
 
     document.addEventListener('keydown', handleKeyDown);
-    if (categoriesOpen || moreMenuOpen) {
+    if (moreMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [categoriesOpen, moreMenuOpen]);
+  }, [moreMenuOpen]);
 
   const getCategoryLabel = (cat: ListingCategory | 'all'): string => {
     return t(`cat.${cat}` as TranslationKey);
   };
 
-  const renderCategoryDropdownMenu = () => (
-    <div
-      role="menu"
-      className="absolute top-full left-0 mt-2 w-64 bg-[var(--surface)] border border-[var(--line)] rounded-2xl shadow-2xl py-1.5 z-50 backdrop-blur-md max-h-72 overflow-y-auto animate-in fade-in zoom-in-95 duration-100"
-    >
-      <div className="px-3.5 py-1.5 border-b border-[var(--line)] text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
-        {isEn ? 'Filter by Section' : 'Раздел каталога'}
-      </div>
-      {CATEGORIES_ORDER.map((cat) => {
-        const isSelected = currentCategory === cat;
-        return (
-          <button
-            key={cat}
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              onSelectCategory(cat);
-              setCategoriesOpen(false);
-            }}
-            className={`w-full text-left px-3.5 py-2 text-xs flex items-center justify-between gap-2 transition-colors cursor-pointer ${
-              isSelected
-                ? 'font-bold text-[var(--blue)] bg-[var(--soft)]'
-                : 'text-[var(--ink)] hover:bg-[var(--raised)]'
-            }`}
-          >
-            <span className="flex items-center gap-2 truncate">
-              <span className="text-sm">{CATEGORY_ICONS[cat]}</span>
-              <span className="truncate">{getCategoryLabel(cat)}</span>
-            </span>
-            {isSelected && <span className="text-xs text-[var(--blue)] font-bold">✓</span>}
-          </button>
-        );
-      })}
-    </div>
-  );
+  const getSearchPlaceholder = (): string => {
+    if (currentCategory !== 'all') {
+      return isEn
+        ? `Search in ${getCategoryLabel(currentCategory)}...`
+        : `Искать в «${getCategoryLabel(currentCategory)}»...`;
+    }
+    return isEn
+      ? (activeFace.searchPlaceholderEn || 'Search listings, services, goods...')
+      : (activeFace.searchPlaceholderRu || 'Поиск объявлений, услуг, товаров...');
+  };
 
   return (
     <>
@@ -165,7 +129,10 @@ export const Header: React.FC<HeaderProps> = ({
 
             <div className="flex items-center gap-2 truncate">
               <span className="text-sm leading-none shrink-0">{activeFace.emoji}</span>
-              <strong className="text-[var(--blue)] font-bold text-[11px] sm:text-xs tracking-tight truncate">
+              <strong
+                className="font-bold text-[11px] sm:text-xs tracking-tight truncate"
+                style={{ color: currentFace !== 'general' ? activeFace.accentColor : 'var(--blue)' }}
+              >
                 {currentFace !== 'general' ? (isEn ? activeFace.badgeEn : activeFace.badgeRu) : t('site.badge')}
               </strong>
               <span className="text-[var(--muted)] text-[11px] hidden xl:inline truncate">
@@ -258,7 +225,7 @@ export const Header: React.FC<HeaderProps> = ({
                   e.preventDefault();
                   onSearchSubmit();
                 }}
-                className="w-full flex items-center bg-[var(--surface)] hover:bg-[var(--surface)]/95 focus-within:bg-[var(--canvas)] border border-[var(--line)] focus-within:border-[var(--blue)] focus-within:ring-2 focus-within:ring-[var(--focus)] rounded-xl transition-all h-9.5 pl-2.5 pr-1 shadow-2xs relative gap-1.5"
+                className="w-full flex items-center bg-[var(--surface)] hover:bg-[var(--surface)]/95 focus-within:bg-[var(--canvas)] border border-[var(--line)] focus-within:border-[var(--blue)] focus-within:ring-2 focus-within:ring-[var(--focus)] rounded-xl transition-all h-9.5 pl-3 pr-1 shadow-2xs relative gap-2"
               >
                 {/* 1. Leading Search Icon */}
                 <div className="text-[var(--muted)] shrink-0 flex items-center select-none" aria-hidden="true">
@@ -274,17 +241,9 @@ export const Header: React.FC<HeaderProps> = ({
                   type="search"
                   value={searchQuery}
                   onChange={(e) => onSearchChange(e.target.value)}
-                  placeholder={
-                    currentCategory === 'all'
-                      ? isEn
-                        ? 'Search listings, services, goods...'
-                        : 'Поиск объявлений, услуг, товаров...'
-                      : isEn
-                      ? `Search in ${getCategoryLabel(currentCategory)}...`
-                      : `Искать в «${getCategoryLabel(currentCategory)}»...`
-                  }
+                  placeholder={getSearchPlaceholder()}
                   maxLength={120}
-                  className="flex-1 min-w-[120px] bg-transparent text-xs sm:text-sm text-[var(--ink)] placeholder-[var(--muted)] outline-none py-1 px-1 font-medium"
+                  className="flex-1 min-w-[160px] bg-transparent text-xs sm:text-sm text-[var(--ink)] placeholder-[var(--muted)] outline-none py-1 px-1 font-medium"
                 />
 
                 {searchQuery && (
@@ -300,48 +259,17 @@ export const Header: React.FC<HeaderProps> = ({
 
                 {/* 3. Keyboard Shortcut Badge */}
                 {!searchQuery && (
-                  <div className="hidden xl:flex items-center gap-0.5 text-[10px] text-[var(--muted)] font-mono bg-[var(--raised)] border border-[var(--line)] px-1.5 py-0.5 rounded select-none shrink-0">
+                  <div className="hidden 2xl:flex items-center gap-0.5 text-[10px] text-[var(--muted)] font-mono bg-[var(--raised)] border border-[var(--line)] px-1.5 py-0.5 rounded select-none shrink-0">
                     <span className="text-[11px]">⌘</span>K
                   </div>
                 )}
 
-                {/* 4. Category Filter Popover Trigger */}
-                <div className="relative shrink-0 flex items-center" ref={desktopRef}>
-                  <div className="w-[1px] h-4 bg-[var(--line)] mr-1 shrink-0" />
-                  <button
-                    type="button"
-                    onClick={() => setCategoriesOpen((prev) => !prev)}
-                    aria-expanded={categoriesOpen}
-                    aria-haspopup="true"
-                    title={isEn ? `Section: ${getCategoryLabel(currentCategory)}. Click to switch.` : `Раздел: ${getCategoryLabel(currentCategory)}. Нажмите для выбора.`}
-                    className="h-7 px-2 rounded-lg flex items-center gap-1 text-xs font-semibold text-[var(--ink)] hover:bg-[var(--raised)] transition-colors cursor-pointer select-none"
-                  >
-                    <span>{CATEGORY_ICONS[currentCategory] || '📁'}</span>
-                    <span className="hidden xl:inline max-w-[85px] truncate">
-                      {currentCategory === 'all' ? (isEn ? 'Sections' : 'Разделы') : getCategoryLabel(currentCategory)}
-                    </span>
-                    <svg
-                      className={`w-3 h-3 text-[var(--muted)] transition-transform duration-200 ${
-                        categoriesOpen ? 'rotate-180' : ''
-                      }`}
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-
-                  {/* Desktop Dropdown Popover */}
-                  {categoriesOpen && renderCategoryDropdownMenu()}
-                </div>
-
-                {/* 5. Advanced Search & Filters Button with Active Filter Count Badge */}
+                {/* 4. Advanced Search & Filters Button with Active Filter Count Badge */}
                 <button
                   type="button"
                   onClick={onOpenAdvancedSearch}
                   title={isEn ? 'Advanced search & filters' : 'Расширенный поиск и фильтры'}
-                  className={`h-7.5 px-2 rounded-lg flex items-center gap-1 text-xs font-semibold transition-all cursor-pointer shrink-0 select-none ${
+                  className={`h-7.5 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold transition-all cursor-pointer shrink-0 select-none ${
                     activeFilterCount > 0
                       ? 'bg-[var(--soft)] text-[var(--blue)] font-bold border border-[var(--blue)]/30 shadow-2xs'
                       : 'text-[var(--ink)] hover:bg-[var(--raised)] border border-[var(--line)]'
@@ -350,7 +278,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <svg className="w-3.5 h-3.5 text-[var(--muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                   </svg>
-                  <span className="hidden xl:inline">{isEn ? 'Filters' : 'Фильтры'}</span>
+                  <span className="hidden sm:inline">{isEn ? 'Filters' : 'Фильтры'}</span>
                   {activeFilterCount > 0 && (
                     <span className="min-w-4 h-4 px-1 rounded-full bg-[var(--blue)] text-white text-[10px] font-black flex items-center justify-center leading-none">
                       {activeFilterCount}
@@ -358,12 +286,13 @@ export const Header: React.FC<HeaderProps> = ({
                   )}
                 </button>
 
-                {/* 6. Prominent High-Contrast "Найти" CTA Button */}
+                {/* 5. Prominent High-Contrast "Найти" CTA Button */}
                 <button
                   type="submit"
                   aria-label={isEn ? 'Search' : 'Найти'}
                   title={isEn ? 'Search' : 'Найти'}
-                  className="h-7.5 px-3 rounded-lg bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white font-black text-xs flex items-center gap-1.5 transition-all shadow-xs hover:shadow-md active:scale-98 cursor-pointer shrink-0"
+                  style={currentFace !== 'general' ? { backgroundColor: activeFace.accentColor } : undefined}
+                  className="h-7.5 px-3.5 rounded-lg bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white font-black text-xs flex items-center gap-1.5 transition-all shadow-xs hover:shadow-md active:scale-98 cursor-pointer shrink-0"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="11" cy="11" r="8" />
@@ -451,6 +380,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={onOpenPublish}
+                style={currentFace !== 'general' ? { backgroundColor: activeFace.accentColor } : undefined}
                 className="bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white font-bold text-xs h-8 px-2.5 sm:px-3 rounded-lg transition-all cursor-pointer shadow-xs hover:shadow-md flex items-center gap-1 active:scale-98 shrink-0"
               >
                 <span className="text-sm font-semibold">＋</span>
@@ -466,7 +396,7 @@ export const Header: React.FC<HeaderProps> = ({
                 e.preventDefault();
                 onSearchSubmit();
               }}
-              className="w-full flex items-center bg-[var(--surface)] border border-[var(--line)] focus-within:border-[var(--blue)] focus-within:ring-2 focus-within:ring-[var(--focus)] rounded-xl h-9 pl-2 pr-1 shadow-2xs relative gap-1.5"
+              className="w-full flex items-center bg-[var(--surface)] border border-[var(--line)] focus-within:border-[var(--blue)] focus-within:ring-2 focus-within:ring-[var(--focus)] rounded-xl h-9 pl-2.5 pr-1 shadow-2xs relative gap-1.5"
             >
               {/* Leading Magnifier Icon */}
               <div className="text-[var(--muted)] shrink-0 flex items-center select-none" aria-hidden="true">
@@ -480,15 +410,7 @@ export const Header: React.FC<HeaderProps> = ({
                 type="search"
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
-                placeholder={
-                  currentCategory === 'all'
-                    ? isEn
-                      ? 'Search listings...'
-                      : 'Поиск объявлений...'
-                    : isEn
-                    ? `Search in ${getCategoryLabel(currentCategory)}...`
-                    : `Искать в «${getCategoryLabel(currentCategory)}»...`
-                }
+                placeholder={getSearchPlaceholder()}
                 className="flex-1 bg-transparent text-xs text-[var(--ink)] placeholder-[var(--muted)] outline-none py-1 px-1 min-w-0 font-medium"
               />
 
@@ -502,34 +424,6 @@ export const Header: React.FC<HeaderProps> = ({
                   ✕
                 </button>
               )}
-
-              {/* Category Picker Popover Trigger (Mobile/Tablet on the right) */}
-              <div className="relative shrink-0 flex items-center" ref={mobileRef}>
-                <div className="w-[1px] h-3.5 bg-[var(--line)] mr-1 shrink-0" />
-                <button
-                  type="button"
-                  onClick={() => setCategoriesOpen((prev) => !prev)}
-                  className="h-6.5 px-1.5 rounded-md flex items-center gap-1 text-[11px] font-semibold text-[var(--ink)] hover:bg-[var(--raised)] cursor-pointer select-none"
-                >
-                  <span>{CATEGORY_ICONS[currentCategory] || '📁'}</span>
-                  <span className="max-w-[70px] truncate">
-                    {currentCategory === 'all' ? (isEn ? 'Sections' : 'Разделы') : getCategoryLabel(currentCategory)}
-                  </span>
-                  <svg
-                    className={`w-2.5 h-2.5 text-[var(--muted)] transition-transform duration-200 ${
-                      categoriesOpen ? 'rotate-180' : ''
-                    }`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-
-                {/* Mobile Dropdown Popover */}
-                {categoriesOpen && renderCategoryDropdownMenu()}
-              </div>
 
               {/* Mobile Filter Button */}
               <button
@@ -557,6 +451,7 @@ export const Header: React.FC<HeaderProps> = ({
                 type="submit"
                 aria-label={isEn ? 'Search' : 'Найти'}
                 title={isEn ? 'Search' : 'Найти'}
+                style={currentFace !== 'general' ? { backgroundColor: activeFace.accentColor } : undefined}
                 className="h-7 px-2.5 rounded-lg bg-[var(--blue)] hover:bg-[var(--blue-hover)] text-white font-black text-xs flex items-center gap-1 transition-all shadow-xs cursor-pointer shrink-0"
               >
                 <span>{isEn ? 'Search' : 'Найти'}</span>
