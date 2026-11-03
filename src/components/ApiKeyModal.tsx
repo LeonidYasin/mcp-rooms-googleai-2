@@ -24,6 +24,17 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSav
   const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<'profile' | 'ai' | 'mcp'>('profile');
 
+  // Close on Escape key
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   // Profile Tab state
   const [keyValue, setKeyValue] = useState('');
   const [showKeyValue, setShowKeyValue] = useState(false);

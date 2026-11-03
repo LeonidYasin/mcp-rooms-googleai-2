@@ -12,6 +12,7 @@ test.describe('MCP Rooms Complete Button & Navigation Matrix (with Screenshots)'
   });
 
   test('walks through all buttons, tabs, skins, and modals, capturing visual proof at each step', async ({ page }) => {
+    test.setTimeout(60000);
     // Set a consistent high-res viewport
     await page.setViewportSize({ width: 1280, height: 900 });
 

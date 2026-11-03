@@ -44,6 +44,17 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const [photos, setPhotos] = useState<ListingPhoto[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Close on Escape key
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleModeToggle = (mode: FulfilmentMode) => {
