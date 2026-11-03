@@ -891,9 +891,9 @@ export function createListingInDb(listing: any) {
     )
   `);
 
-  const modesStr = Array.isArray(listing.content.modes)
+  const modesStr = Array.isArray(listing.content?.modes)
     ? JSON.stringify(listing.content.modes)
-    : listing.content.modes;
+    : (listing.content?.modes || '["online"]');
 
   const photosStr = Array.isArray(listing.photos)
     ? JSON.stringify(listing.photos)

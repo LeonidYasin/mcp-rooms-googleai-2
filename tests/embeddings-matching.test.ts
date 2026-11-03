@@ -141,6 +141,7 @@ describe('Asymmetric Matching & Embeddings Engine', () => {
           category: 'services',
           kind: 'offer',
           locality: 'Москва',
+          modes: ['online'],
         },
       });
 
