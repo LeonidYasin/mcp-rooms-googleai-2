@@ -16,6 +16,11 @@ Start with:
 - [`agent_orchestration.md`](agent_orchestration.md) — protocol flow and actor roles.
 - [`session_coordination.md`](session_coordination.md) — rules of engagement between agents.
 
+## Proposals & Ecosystem Clients
+
+- [`proposals/telegram-bot-kotelka.md`](proposals/telegram-bot-kotelka.md) — architecture specification and integration design for the «Хотелка» Telegram Bot client on top of Marketplace OS.
+- [`proposals/cold-start-growth-strategy.md`](proposals/cold-start-growth-strategy.md) — strategic evaluation and architecture of the Cold-Start Flywheel (Telegram bots, MCP directories, niche liquidity).
+
 ## Audit and plan
 
 - [`final_production_roadmap.md`](final_production_roadmap.md) — 100% production readiness roadmap and status tracking.
