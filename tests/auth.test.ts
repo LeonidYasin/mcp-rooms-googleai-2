@@ -295,5 +295,54 @@ describe('API keys, room isolation and public read-only catalogue', () => {
       expect(typeof data.text).toBe('string');
       expect(Array.isArray(data.executedTools)).toBe(true);
     });
+
+    describe('Bot user registration endpoint (POST /api/bot/register-user)', () => {
+      it('rejects registration when X-Bot-Secret header is missing or incorrect', async () => {
+        const res = await fetch(`${baseUrl}/api/bot/register-user`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tg_id: 12345, name: 'Test User' }),
+        });
+        expect(res.status).toBe(403);
+      });
+
+      it('rejects registration when tg_id is missing', async () => {
+        process.env.BOT_SHARED_SECRET = 'test-bot-secret-xyz';
+        const res = await fetch(`${baseUrl}/api/bot/register-user`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Bot-Secret': 'test-bot-secret-xyz',
+          },
+          body: JSON.stringify({ name: 'Anonymous' }),
+        });
+        expect(res.status).toBe(400);
+      });
+
+      it('issues a valid key and creates principal when correct X-Bot-Secret is provided', async () => {
+        process.env.BOT_SHARED_SECRET = 'test-bot-secret-xyz';
+        const res = await fetch(`${baseUrl}/api/bot/register-user`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Bot-Secret': 'test-bot-secret-xyz',
+          },
+          body: JSON.stringify({ tg_id: 88776655, name: 'Civis Citizen Alexander' }),
+        });
+        expect(res.status).toBe(201);
+        const data = await res.json();
+        expect(data.success).toBe(true);
+        expect(data.principalId).toBe('user:tg-88776655');
+        expect(data.key).toMatch(/^mcr_/);
+
+        // Verify the issued key works against authenticated endpoints
+        const meRes = await fetch(`${baseUrl}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${data.key}` },
+        });
+        const meData = await meRes.json();
+        expect(meData.authenticated).toBe(true);
+        expect(meData.principal.principalId).toBe('user:tg-88776655');
+      });
+    });
   });
 });
