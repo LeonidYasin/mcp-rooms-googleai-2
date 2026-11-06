@@ -25,6 +25,7 @@ services:
       - RATE_LIMIT_MESSAGES_PER_MINUTE=${RATE_LIMIT_MESSAGES_PER_MINUTE:-120}
       - RATE_LIMIT_MATCH_PER_MINUTE=${RATE_LIMIT_MATCH_PER_MINUTE:-60}
       - RATE_LIMIT_MCP_PER_MINUTE=${RATE_LIMIT_MCP_PER_MINUTE:-240}
+      - BOT_SHARED_SECRET=${BOT_SHARED_SECRET:-}
     volumes:
       # Persistent SQLite storage on host disk.
       # The container runs as UID/GID 1000 (`node`), so this directory must be

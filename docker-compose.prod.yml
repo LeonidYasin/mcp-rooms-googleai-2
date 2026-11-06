@@ -42,6 +42,7 @@ services:
       - DATABASE_PATH=/app/data/mcp_rooms.db
       - DEMO_SEED=${DEMO_SEED:-0}
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-}
+      - BOT_SHARED_SECRET=${BOT_SHARED_SECRET:-}
     volumes:
       - ./data:/app/data
     deploy:

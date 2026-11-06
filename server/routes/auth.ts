@@ -42,3 +42,58 @@ authRouter.get('/api/auth/me', (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+function safeCompareSecrets(provided: unknown, expected: string | undefined): boolean {
+  if (typeof provided !== 'string' || !expected) return false;
+  const a = Buffer.from(provided, 'utf-8');
+  const b = Buffer.from(expected, 'utf-8');
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
+/**
+ * Internal registration endpoint for companion bots (e.g. Civis Telegram Bot).
+ * Protected by secret header X-Bot-Secret matching process.env.BOT_SHARED_SECRET.
+ * Automatically provisions an isolated principal `user:tg-<tg_id>` and issues a Bearer key.
+ */
+authRouter.post('/api/bot/register-user', rateLimit('bot_reg', 'RATE_LIMIT_CHAT_PER_MINUTE', 60), (req, res) => {
+  try {
+    const secretHeader = req.headers['x-bot-secret'];
+    const expectedSecret = process.env.BOT_SHARED_SECRET;
+
+    if (!expectedSecret || !safeCompareSecrets(secretHeader, expectedSecret)) {
+      res.status(403).json({ error: 'forbidden', message: 'Неверный или отсутствующий заголовок X-Bot-Secret' });
+      return;
+    }
+
+    const { tg_id, name } = req.body || {};
+    if (!tg_id) {
+      res.status(400).json({ error: 'invalid_params', message: 'Параметр tg_id обязателен' });
+      return;
+    }
+
+    const cleanTgId = String(tg_id).replace(/[^a-zA-Z0-9_-]/g, '').toLowerCase();
+    if (!cleanTgId) {
+      res.status(400).json({ error: 'invalid_params', message: 'Некорректный формат tg_id' });
+      return;
+    }
+
+    const principalId = `user:tg-${cleanTgId}`;
+    const keyName =
+      name && typeof name === 'string' && name.trim().length >= 2
+        ? `Civis: ${name.trim().substring(0, 100)}`
+        : `Civis Citizen ${cleanTgId}`;
+
+    const issued = issueApiKey(principalId, keyName, ['*']);
+    addAuditLog('auth.bot_register', issued.principalId, issued.id);
+    res.status(201).json({
+      success: true,
+      key: issued.key,
+      principalId: issued.principalId,
+      keyId: issued.id,
+      name: issued.name,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
