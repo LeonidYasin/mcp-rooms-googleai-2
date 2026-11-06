@@ -17,6 +17,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.0
         env:
           VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
+          BOT_SHARED_SECRET: ${{ secrets.BOT_SHARED_SECRET }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
@@ -24,7 +25,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           passphrase: ${{ secrets.VPS_PASSPHRASE }}
           port: ${{ secrets.VPS_PORT || 22 }}
-          envs: VPS_PASSWORD
+          envs: VPS_PASSWORD,BOT_SHARED_SECRET
           script: |
             set -e
             echo "🚀 Starting automated deployment..."
@@ -74,6 +75,15 @@ jobs:
             if [ ! -f ".env" ]; then
               cp .env.example .env
               echo "DOMAIN=${{ secrets.VPS_HOST }}" >> .env
+            fi
+
+            # Inject BOT_SHARED_SECRET if passed from GitHub Secrets
+            if [ -n "$BOT_SHARED_SECRET" ]; then
+              if grep -q "BOT_SHARED_SECRET=" .env; then
+                sed -i "s|^BOT_SHARED_SECRET=.*|BOT_SHARED_SECRET=\"$BOT_SHARED_SECRET\"|" .env
+              else
+                echo "BOT_SHARED_SECRET=\"$BOT_SHARED_SECRET\"" >> .env
+              fi
             fi
 
             # Ensure persistent directories
