@@ -43,6 +43,14 @@ authRouter.get('/api/auth/me', (req, res) => {
   }
 });
 
+function safeCompareSecrets(provided: unknown, expected: string | undefined): boolean {
+  if (typeof provided !== 'string' || !expected) return false;
+  const a = Buffer.from(provided, 'utf-8');
+  const b = Buffer.from(expected, 'utf-8');
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
 /**
  * Internal registration endpoint for companion bots (e.g. Civis Telegram Bot).
  * Protected by secret header X-Bot-Secret matching process.env.BOT_SHARED_SECRET.
@@ -53,7 +61,7 @@ authRouter.post('/api/bot/register-user', rateLimit('bot_reg', 'RATE_LIMIT_CHAT_
     const secretHeader = req.headers['x-bot-secret'];
     const expectedSecret = process.env.BOT_SHARED_SECRET;
 
-    if (!expectedSecret || secretHeader !== expectedSecret) {
+    if (!expectedSecret || !safeCompareSecrets(secretHeader, expectedSecret)) {
       res.status(403).json({ error: 'forbidden', message: 'Неверный или отсутствующий заголовок X-Bot-Secret' });
       return;
     }
