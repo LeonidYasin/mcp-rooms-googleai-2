@@ -19,6 +19,7 @@ Start with:
 ## Proposals & Ecosystem Clients
 
 - [`proposals/telegram-bot-kotelka.md`](proposals/telegram-bot-kotelka.md) — architecture specification and integration design for the «Хотелка» Telegram Bot client on top of Marketplace OS.
+- [`proposals/cold-start-growth-strategy.md`](proposals/cold-start-growth-strategy.md) — strategic evaluation and architecture of the Cold-Start Flywheel (Telegram bots, MCP directories, niche liquidity).
 
 ## Audit and plan
 
