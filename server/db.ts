@@ -13,7 +13,11 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
-export const db = new Database(dbPath);
+const sqliteNativeBinding =
+  process.env.SQLITE_BINDING_PATH ||
+  (fs.existsSync('/tmp/node_addons/linux-arm64.node') ? '/tmp/node_addons/linux-arm64.node' : undefined);
+
+export const db = new Database(dbPath, sqliteNativeBinding ? { nativeBinding: sqliteNativeBinding } : undefined);
 
 // Enable WAL mode for high performance and concurrency
 db.pragma('journal_mode = WAL');
@@ -208,6 +212,67 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback_tickets(status);
 
     CREATE INDEX IF NOT EXISTS idx_listings_owner_title ON listings(owner, category, kind, title);
+
+    CREATE TABLE IF NOT EXISTS scout_profiles (
+      id TEXT PRIMARY KEY,
+      source_url TEXT NOT NULL UNIQUE,
+      platform TEXT NOT NULL,
+      author_handle TEXT NOT NULL,
+      title TEXT NOT NULL,
+      offer_summary TEXT NOT NULL,
+      offer_category TEXT NOT NULL,
+      offer_vector_text TEXT NOT NULL,
+      want_summary TEXT NOT NULL,
+      want_category TEXT NOT NULL,
+      want_urgency TEXT NOT NULL DEFAULT 'medium',
+      want_vector_text TEXT NOT NULL,
+      budget_or_terms TEXT,
+      deal_breakers TEXT,
+      negotiation_constraints_json TEXT,
+      offer_embedding_json TEXT,
+      want_embedding_json TEXT,
+      raw_content TEXT,
+      matched INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_scout_profiles_platform ON scout_profiles(platform);
+    CREATE INDEX IF NOT EXISTS idx_scout_profiles_matched ON scout_profiles(matched);
+    CREATE INDEX IF NOT EXISTS idx_scout_profiles_created ON scout_profiles(created_at);
+
+    CREATE TABLE IF NOT EXISTS public_deals (
+      id TEXT PRIMARY KEY,
+      room_id TEXT NOT NULL,
+      actor_a_id TEXT NOT NULL,
+      actor_a_handle TEXT NOT NULL,
+      actor_a_source_url TEXT NOT NULL,
+      actor_a_platform TEXT NOT NULL,
+      actor_a_offer TEXT NOT NULL,
+      actor_a_want TEXT NOT NULL,
+      actor_b_id TEXT NOT NULL,
+      actor_b_handle TEXT NOT NULL,
+      actor_b_source_url TEXT NOT NULL,
+      actor_b_platform TEXT NOT NULL,
+      actor_b_offer TEXT NOT NULL,
+      actor_b_want TEXT NOT NULL,
+      exchange_summary TEXT NOT NULL,
+      compatibility_score REAL NOT NULL,
+      match_reasons_json TEXT NOT NULL DEFAULT '[]',
+      dialogue_json TEXT NOT NULL DEFAULT '[]',
+      verdict TEXT NOT NULL DEFAULT 'agreed',
+      deal_protocol_markdown TEXT NOT NULL,
+      outreach_message_a TEXT NOT NULL,
+      outreach_message_b TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'published',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY(room_id) REFERENCES rooms(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_public_deals_created ON public_deals(created_at);
+    CREATE INDEX IF NOT EXISTS idx_public_deals_status ON public_deals(status);
+    CREATE INDEX IF NOT EXISTS idx_public_deals_score ON public_deals(compatibility_score);
 
   `);
 
@@ -2222,6 +2287,379 @@ export function getRoomEventsSinceInDb(roomId: string, lastEventId?: string): Pe
     payload: JSON.parse(r.payload_json),
     timestamp: r.timestamp,
   }));
+}
+
+export interface ScoutProfileRecord {
+  id: string;
+  sourceUrl: string;
+  platform: 'github' | 'hackernews' | 'reddit' | string;
+  authorHandle: string;
+  title: string;
+  offer: {
+    summary: string;
+    category: string;
+    vector_text: string;
+  };
+  want: {
+    summary: string;
+    category: string;
+    urgency: 'high' | 'medium' | 'low' | string;
+    vector_text: string;
+  };
+  negotiationConstraints: {
+    budget_or_terms?: string;
+    deal_breakers?: string[];
+  };
+  offerEmbedding?: number[];
+  wantEmbedding?: number[];
+  rawContent?: string;
+  matched?: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface PublicDealRecord {
+  id: string;
+  roomId: string;
+  actorA: {
+    id: string;
+    handle: string;
+    sourceUrl: string;
+    platform: string;
+    offer: string;
+    want: string;
+  };
+  actorB: {
+    id: string;
+    handle: string;
+    sourceUrl: string;
+    platform: string;
+    offer: string;
+    want: string;
+  };
+  exchangeSummary: string;
+  compatibilityScore: number;
+  matchReasons: string[];
+  dialogue: Array<{
+    round: number;
+    speaker: string;
+    speakerRole: 'actor_a' | 'actor_b' | 'mediator';
+    avatar: string;
+    text: string;
+    timestamp: number;
+  }>;
+  verdict: 'agreed' | 'conditional_draft' | 'declined';
+  dealProtocolMarkdown: string;
+  outreachMessageA: string;
+  outreachMessageB: string;
+  status: 'published' | 'draft' | 'archived';
+  createdAt: number;
+  updatedAt: number;
+}
+
+export function saveScoutProfileInDb(profile: ScoutProfileRecord): void {
+  const now = Date.now();
+  const dealBreakersJson = JSON.stringify(profile.negotiationConstraints?.deal_breakers || []);
+  const constraintsJson = JSON.stringify(profile.negotiationConstraints || {});
+  const offerEmbJson = profile.offerEmbedding ? JSON.stringify(profile.offerEmbedding) : null;
+  const wantEmbJson = profile.wantEmbedding ? JSON.stringify(profile.wantEmbedding) : null;
+
+  db.prepare(`
+    INSERT INTO scout_profiles (
+      id, source_url, platform, author_handle, title,
+      offer_summary, offer_category, offer_vector_text,
+      want_summary, want_category, want_urgency, want_vector_text,
+      budget_or_terms, deal_breakers, negotiation_constraints_json,
+      offer_embedding_json, want_embedding_json, raw_content,
+      matched, created_at, updated_at
+    ) VALUES (
+      ?, ?, ?, ?, ?,
+      ?, ?, ?,
+      ?, ?, ?, ?,
+      ?, ?, ?,
+      ?, ?, ?,
+      ?, ?, ?
+    )
+    ON CONFLICT(source_url) DO UPDATE SET
+      offer_summary = excluded.offer_summary,
+      offer_category = excluded.offer_category,
+      offer_vector_text = excluded.offer_vector_text,
+      want_summary = excluded.want_summary,
+      want_category = excluded.want_category,
+      want_urgency = excluded.want_urgency,
+      want_vector_text = excluded.want_vector_text,
+      budget_or_terms = excluded.budget_or_terms,
+      deal_breakers = excluded.deal_breakers,
+      negotiation_constraints_json = excluded.negotiation_constraints_json,
+      offer_embedding_json = COALESCE(excluded.offer_embedding_json, scout_profiles.offer_embedding_json),
+      want_embedding_json = COALESCE(excluded.want_embedding_json, scout_profiles.want_embedding_json),
+      raw_content = excluded.raw_content,
+      updated_at = excluded.updated_at
+  `).run(
+    profile.id,
+    profile.sourceUrl,
+    profile.platform,
+    profile.authorHandle,
+    profile.title,
+    profile.offer.summary,
+    profile.offer.category,
+    profile.offer.vector_text,
+    profile.want.summary,
+    profile.want.category,
+    profile.want.urgency,
+    profile.want.vector_text,
+    profile.negotiationConstraints?.budget_or_terms || null,
+    dealBreakersJson,
+    constraintsJson,
+    offerEmbJson,
+    wantEmbJson,
+    profile.rawContent || '',
+    profile.matched ? 1 : 0,
+    profile.createdAt || now,
+    profile.updatedAt || now
+  );
+}
+
+function mapScoutRow(row: any): ScoutProfileRecord {
+  let dealBreakers: string[] = [];
+  try {
+    dealBreakers = row.deal_breakers ? JSON.parse(row.deal_breakers) : [];
+  } catch {
+    dealBreakers = [];
+  }
+
+  let constraints: any = {};
+  try {
+    constraints = row.negotiation_constraints_json ? JSON.parse(row.negotiation_constraints_json) : {};
+  } catch {
+    constraints = {};
+  }
+
+  let offerEmb: number[] | undefined;
+  if (row.offer_embedding_json) {
+    try {
+      offerEmb = JSON.parse(row.offer_embedding_json);
+    } catch {
+      offerEmb = undefined;
+    }
+  }
+
+  let wantEmb: number[] | undefined;
+  if (row.want_embedding_json) {
+    try {
+      wantEmb = JSON.parse(row.want_embedding_json);
+    } catch {
+      wantEmb = undefined;
+    }
+  }
+
+  return {
+    id: row.id,
+    sourceUrl: row.source_url,
+    platform: row.platform,
+    authorHandle: row.author_handle,
+    title: row.title,
+    offer: {
+      summary: row.offer_summary,
+      category: row.offer_category,
+      vector_text: row.offer_vector_text,
+    },
+    want: {
+      summary: row.want_summary,
+      category: row.want_category,
+      urgency: row.want_urgency,
+      vector_text: row.want_vector_text,
+    },
+    negotiationConstraints: {
+      budget_or_terms: row.budget_or_terms || constraints.budget_or_terms,
+      deal_breakers: dealBreakers.length > 0 ? dealBreakers : constraints.deal_breakers,
+    },
+    offerEmbedding: offerEmb,
+    wantEmbedding: wantEmb,
+    rawContent: row.raw_content,
+    matched: Boolean(row.matched),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function getScoutProfilesFromDb(options?: { platform?: string; matched?: boolean; limit?: number }): ScoutProfileRecord[] {
+  let query = 'SELECT * FROM scout_profiles WHERE 1=1';
+  const params: any[] = [];
+
+  if (options?.platform && options.platform !== 'all') {
+    query += ' AND platform = ?';
+    params.push(options.platform);
+  }
+
+  if (typeof options?.matched === 'boolean') {
+    query += ' AND matched = ?';
+    params.push(options.matched ? 1 : 0);
+  }
+
+  query += ' ORDER BY created_at DESC';
+
+  if (options?.limit) {
+    query += ' LIMIT ?';
+    params.push(options.limit);
+  }
+
+  const rows = db.prepare(query).all(...params) as any[];
+  return rows.map(mapScoutRow);
+}
+
+export function getScoutProfileByIdFromDb(id: string): ScoutProfileRecord | null {
+  const row = db.prepare('SELECT * FROM scout_profiles WHERE id = ?').get(id) as any;
+  if (!row) return null;
+  return mapScoutRow(row);
+}
+
+export function markScoutProfileMatchedInDb(id: string): void {
+  db.prepare('UPDATE scout_profiles SET matched = 1, updated_at = ? WHERE id = ?').run(Date.now(), id);
+}
+
+export function countScoutProfilesInDb(): number {
+  const res = db.prepare('SELECT COUNT(*) as count FROM scout_profiles').get() as { count: number };
+  return res?.count || 0;
+}
+
+export function savePublicDealInDb(deal: PublicDealRecord): void {
+  const now = Date.now();
+  db.prepare(`
+    INSERT INTO public_deals (
+      id, room_id,
+      actor_a_id, actor_a_handle, actor_a_source_url, actor_a_platform, actor_a_offer, actor_a_want,
+      actor_b_id, actor_b_handle, actor_b_source_url, actor_b_platform, actor_b_offer, actor_b_want,
+      exchange_summary, compatibility_score, match_reasons_json, dialogue_json,
+      verdict, deal_protocol_markdown, outreach_message_a, outreach_message_b,
+      status, created_at, updated_at
+    ) VALUES (
+      ?, ?,
+      ?, ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?, ?,
+      ?, ?, ?, ?,
+      ?, ?, ?, ?,
+      ?, ?, ?
+    )
+    ON CONFLICT(id) DO UPDATE SET
+      dialogue_json = excluded.dialogue_json,
+      verdict = excluded.verdict,
+      deal_protocol_markdown = excluded.deal_protocol_markdown,
+      outreach_message_a = excluded.outreach_message_a,
+      outreach_message_b = excluded.outreach_message_b,
+      status = excluded.status,
+      updated_at = excluded.updated_at
+  `).run(
+    deal.id,
+    deal.roomId,
+    deal.actorA.id,
+    deal.actorA.handle,
+    deal.actorA.sourceUrl,
+    deal.actorA.platform,
+    deal.actorA.offer,
+    deal.actorA.want,
+    deal.actorB.id,
+    deal.actorB.handle,
+    deal.actorB.sourceUrl,
+    deal.actorB.platform,
+    deal.actorB.offer,
+    deal.actorB.want,
+    deal.exchangeSummary,
+    deal.compatibilityScore,
+    JSON.stringify(deal.matchReasons || []),
+    JSON.stringify(deal.dialogue || []),
+    deal.verdict || 'agreed',
+    deal.dealProtocolMarkdown || '',
+    deal.outreachMessageA || '',
+    deal.outreachMessageB || '',
+    deal.status || 'published',
+    deal.createdAt || now,
+    deal.updatedAt || now
+  );
+}
+
+function mapDealRow(row: any): PublicDealRecord {
+  let matchReasons: string[] = [];
+  try {
+    matchReasons = row.match_reasons_json ? JSON.parse(row.match_reasons_json) : [];
+  } catch {
+    matchReasons = [];
+  }
+
+  let dialogue: any[] = [];
+  try {
+    dialogue = row.dialogue_json ? JSON.parse(row.dialogue_json) : [];
+  } catch {
+    dialogue = [];
+  }
+
+  return {
+    id: row.id,
+    roomId: row.room_id,
+    actorA: {
+      id: row.actor_a_id,
+      handle: row.actor_a_handle,
+      sourceUrl: row.actor_a_source_url,
+      platform: row.actor_a_platform,
+      offer: row.actor_a_offer,
+      want: row.actor_a_want,
+    },
+    actorB: {
+      id: row.actor_b_id,
+      handle: row.actor_b_handle,
+      sourceUrl: row.actor_b_source_url,
+      platform: row.actor_b_platform,
+      offer: row.actor_b_offer,
+      want: row.actor_b_want,
+    },
+    exchangeSummary: row.exchange_summary,
+    compatibilityScore: Number(row.compatibility_score),
+    matchReasons,
+    dialogue,
+    verdict: row.verdict as any,
+    dealProtocolMarkdown: row.deal_protocol_markdown,
+    outreachMessageA: row.outreach_message_a,
+    outreachMessageB: row.outreach_message_b,
+    status: row.status as any,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function getPublicDealsFromDb(options?: { status?: string; limit?: number; offset?: number }): PublicDealRecord[] {
+  let query = 'SELECT * FROM public_deals WHERE 1=1';
+  const params: any[] = [];
+
+  if (options?.status && options.status !== 'all') {
+    query += ' AND status = ?';
+    params.push(options.status);
+  }
+
+  query += ' ORDER BY created_at DESC';
+
+  if (options?.limit) {
+    query += ' LIMIT ?';
+    params.push(options.limit);
+  }
+
+  if (options?.offset) {
+    query += ' OFFSET ?';
+    params.push(options.offset);
+  }
+
+  const rows = db.prepare(query).all(...params) as any[];
+  return rows.map(mapDealRow);
+}
+
+export function getPublicDealByIdFromDb(id: string): PublicDealRecord | null {
+  const row = db.prepare('SELECT * FROM public_deals WHERE id = ?').get(id) as any;
+  if (!row) return null;
+  return mapDealRow(row);
+}
+
+export function countPublicDealsInDb(): number {
+  const res = db.prepare('SELECT COUNT(*) as count FROM public_deals').get() as { count: number };
+  return res?.count || 0;
 }
 
 export * from './dedup';
