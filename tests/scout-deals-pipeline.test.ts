@@ -47,7 +47,7 @@ describe('Autonomous Scout & Public Ledger Pipeline', () => {
     expect(extracted.offer.category).toBe('services');
     expect(extracted.negotiation_constraints.budget_or_terms).toContain('Equity / Rev-share');
     expect(extracted.negotiation_constraints.deal_breakers.some((d) => d.includes('Remote'))).toBe(true);
-    expect(extracted.offer.vector_text).toContain('alice_dev');
+    expect(extracted.offer.vector_text).toContain('Looking for contributors');
   });
 
   it('finds complementary asymmetric matches between Offer and Want', () => {
