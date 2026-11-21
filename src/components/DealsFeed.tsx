@@ -17,12 +17,13 @@ export const DealsFeed: React.FC<DealsFeedProps> = ({ onOpenRoom, onOpenMcpGuide
   const [isRunningScout, setIsRunningScout] = useState<boolean>(false);
   const [scoutMessage, setScoutMessage] = useState<string | null>(null);
   const [platformFilter, setPlatformFilter] = useState<string>('all');
+  const [verdictFilter, setVerdictFilter] = useState<string>('all');
   const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const fetchDeals = useCallback(async () => {
     try {
-      const res = await fetch(`/api/scout/deals?limit=50&platform=${platformFilter}`);
+      const res = await fetch(`/api/scout/deals?limit=50&platform=${platformFilter}&verdict=${verdictFilter}`);
       if (res.ok) {
         const data = await res.json();
         setDeals(data.deals || []);
@@ -32,7 +33,7 @@ export const DealsFeed: React.FC<DealsFeedProps> = ({ onOpenRoom, onOpenMcpGuide
     } finally {
       setLoading(false);
     }
-  }, [platformFilter]);
+  }, [platformFilter, verdictFilter]);
 
   useEffect(() => {
     fetchDeals();
@@ -204,43 +205,99 @@ export const DealsFeed: React.FC<DealsFeedProps> = ({ onOpenRoom, onOpenMcpGuide
 
       {/* Filter Chips Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-neutral-400 font-medium uppercase tracking-wider">
-            {isEn ? 'Platform:' : 'Платформа:'}
-          </span>
-          <button
-            type="button"
-            onClick={() => setPlatformFilter('all')}
-            className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
-              platformFilter === 'all'
-                ? 'bg-blue-600 text-white'
-                : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
-            }`}
-          >
-            {isEn ? 'All Sources' : 'Все платформы'}
-          </button>
-          <button
-            type="button"
-            onClick={() => setPlatformFilter('github')}
-            className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
-              platformFilter === 'github'
-                ? 'bg-blue-600 text-white'
-                : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
-            }`}
-          >
-            GitHub
-          </button>
-          <button
-            type="button"
-            onClick={() => setPlatformFilter('hackernews')}
-            className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
-              platformFilter === 'hackernews'
-                ? 'bg-blue-600 text-white'
-                : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
-            }`}
-          >
-            Hacker News
-          </button>
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Status Filter */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-neutral-400 font-medium uppercase tracking-wider mr-1">
+              {isEn ? 'Status:' : 'Статус:'}
+            </span>
+            <button
+              type="button"
+              onClick={() => setVerdictFilter('all')}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                verdictFilter === 'all'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
+              }`}
+            >
+              {isEn ? 'All' : 'Все'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setVerdictFilter('agreed')}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                verdictFilter === 'agreed'
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-neutral-800 text-emerald-300 hover:bg-neutral-700'
+              }`}
+            >
+              {isEn ? '✅ Agreed' : '✅ Согласовано'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setVerdictFilter('declined')}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                verdictFilter === 'declined'
+                  ? 'bg-rose-600 text-white'
+                  : 'bg-neutral-800 text-rose-300 hover:bg-neutral-700'
+              }`}
+            >
+              {isEn ? '❌ Declined' : '❌ Отклонено'}
+            </button>
+          </div>
+
+          <div className="h-4 w-px bg-neutral-700 hidden sm:block"></div>
+
+          {/* Platform Filter */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-neutral-400 font-medium uppercase tracking-wider mr-1">
+              {isEn ? 'Platform:' : 'Платформа:'}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPlatformFilter('all')}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                platformFilter === 'all'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
+              }`}
+            >
+              {isEn ? 'All' : 'Все'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPlatformFilter('github')}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                platformFilter === 'github'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
+              }`}
+            >
+              GitHub
+            </button>
+            <button
+              type="button"
+              onClick={() => setPlatformFilter('hackernews')}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                platformFilter === 'hackernews'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
+              }`}
+            >
+              Hacker News
+            </button>
+            <button
+              type="button"
+              onClick={() => setPlatformFilter('reddit')}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                platformFilter === 'reddit'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
+              }`}
+            >
+              Reddit
+            </button>
+          </div>
         </div>
 
         <div className="text-xs text-neutral-400">
@@ -315,10 +372,24 @@ export const DealsFeed: React.FC<DealsFeedProps> = ({ onOpenRoom, onOpenMcpGuide
                     </div>
                   </div>
 
-                  {/* Compatibility Badge */}
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                    <span>🎯</span>
-                    <span>{scorePct}% {isEn ? 'Match' : 'Совместимость'}</span>
+                  {/* Verdict & Compatibility Badges */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {deal.verdict === 'agreed' ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                        <span>✅</span>
+                        <span>{isEn ? 'Agreed' : 'Согласовано'}</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/30">
+                        <span>❌</span>
+                        <span>{isEn ? 'Declined' : 'Отклонено'}</span>
+                      </span>
+                    )}
+
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-neutral-800 text-neutral-300 border border-neutral-700">
+                      <span>🎯</span>
+                      <span>{scorePct}% {isEn ? 'Match' : 'Совместимость'}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -385,13 +456,16 @@ export const DealsFeed: React.FC<DealsFeedProps> = ({ onOpenRoom, onOpenMcpGuide
                     {deal.dialogue?.map((turn, tIdx) => {
                       const isA = turn.speakerRole === 'actor_a';
                       const isMediator = turn.speakerRole === 'mediator';
+                      const isDeclined = deal.verdict === 'declined';
 
                       return (
                         <div
                           key={tIdx}
                           className={`p-3 rounded-xl text-xs sm:text-sm leading-relaxed ${
                             isMediator
-                              ? 'bg-emerald-950/30 border border-emerald-800/40 text-emerald-200'
+                              ? isDeclined
+                                ? 'bg-rose-950/30 border border-rose-800/40 text-rose-200'
+                                : 'bg-emerald-950/30 border border-emerald-800/40 text-emerald-200'
                               : isA
                               ? 'bg-blue-950/20 border border-blue-900/30 text-blue-100 mr-4 sm:mr-10'
                               : 'bg-purple-950/20 border border-purple-900/30 text-purple-100 ml-4 sm:ml-10'
@@ -413,8 +487,22 @@ export const DealsFeed: React.FC<DealsFeedProps> = ({ onOpenRoom, onOpenMcpGuide
 
                 {/* Deal Protocol Box */}
                 <div className="mt-4 p-4 rounded-xl bg-neutral-950/90 border border-neutral-800 text-xs sm:text-sm text-neutral-300">
-                  <div className="font-bold text-white mb-2 flex items-center gap-2">
-                    <span>📜</span> {isEn ? 'Agreed Deal Protocol Draft' : 'Протокол согласованной сделки (Draft)'}
+                  <div className="font-bold text-white mb-2 flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <span>{deal.verdict === 'agreed' ? '📜' : '⚖️'}</span>
+                      {deal.verdict === 'agreed'
+                        ? (isEn ? 'Agreed Deal Protocol Draft' : 'Протокол согласованной сделки (Agreed Draft)')
+                        : (isEn ? 'Negotiation Protocol (Declined: Terms Mismatch)' : 'Протокол завершения переговоров (Отклонено: несовпадение условий)')}
+                    </span>
+                    <span
+                      className={`text-xs px-2.5 py-0.5 rounded font-mono font-semibold uppercase tracking-wider ${
+                        deal.verdict === 'agreed'
+                          ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-700/50'
+                          : 'bg-rose-900/40 text-rose-300 border border-rose-700/50'
+                      }`}
+                    >
+                      {deal.verdict === 'agreed' ? (isEn ? 'Agreed' : 'Согласовано') : (isEn ? 'Declined' : 'Отклонено')}
+                    </span>
                   </div>
                   <div className="whitespace-pre-wrap font-mono text-xs bg-neutral-900 p-3 rounded-lg border border-neutral-800/60 leading-relaxed overflow-x-auto text-neutral-200">
                     {deal.dealProtocolMarkdown}

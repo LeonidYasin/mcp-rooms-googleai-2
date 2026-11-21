@@ -20,6 +20,7 @@ scoutRouter.get('/api/scout/deals', (req, res) => {
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 30));
     const offset = Math.max(0, Number(req.query.offset) || 0);
     const platform = (req.query.platform as string) || 'all';
+    const verdict = (req.query.verdict as string) || 'all';
 
     let deals = getPublicDealsFromDb({ status: 'published', limit, offset });
     if (platform !== 'all') {
@@ -28,6 +29,9 @@ scoutRouter.get('/api/scout/deals', (req, res) => {
           d.actorA.platform.toLowerCase() === platform.toLowerCase() ||
           d.actorB.platform.toLowerCase() === platform.toLowerCase()
       );
+    }
+    if (verdict !== 'all') {
+      deals = deals.filter((d) => d.verdict === verdict);
     }
 
     res.json({

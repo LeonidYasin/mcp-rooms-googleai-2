@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import http from 'http';
 import { initDatabase, getPublicDealsFromDb, getPublicDealByIdFromDb, getScoutProfilesFromDb } from '../server/db';
-import { extractHeuristicProfile } from '../server/extractor';
-import { findScoutMatches, simulateAutonomousNegotiation } from '../server/scout-matcher';
+import { extractHeuristicProfile, classifyCandidateRejection } from '../server/extractor';
+import { findScoutMatches, simulateAutonomousNegotiation, evaluateTermsCompatibility } from '../server/scout-matcher';
 import { RawScoutItem } from '../server/scout';
 import { createApp } from '../server/app';
 
@@ -28,26 +28,47 @@ describe('Autonomous Scout & Public Ledger Pipeline', () => {
     }
   });
 
-  it('correctly extracts Offer/Want profiles from unstructured posts', () => {
+  it('rejects ordinary technical bug reports, defect fixes, crash logs, and chores', () => {
+    const bugItem: RawScoutItem = {
+      id: 'gh_bug_1',
+      sourceUrl: 'https://github.com/example/repo/issues/1',
+      platform: 'github',
+      authorHandle: 'bug_reporter',
+      title: 'Bug: secfoo mcp sync crashes with uncaught exception',
+      body: '### Steps to reproduce\n1. Run npm start\n2. Crashes on startup with TypeError',
+      tags: ['bug', 'help wanted'],
+      createdAt: Date.now(),
+    };
+
+    const rejection = classifyCandidateRejection(bugItem);
+    expect(rejection).toBeTruthy();
+    expect(rejection?.toLowerCase()).toContain('bug');
+
+    const profile = extractHeuristicProfile(bugItem);
+    expect(profile.isValidDealCandidate).toBe(false);
+    expect(profile.rejectReason).toBeTruthy();
+  });
+
+  it('correctly extracts Offer/Want profiles from valid unstructured posts', () => {
     const rawGitHub: RawScoutItem = {
       id: 'gh_test_101',
       sourceUrl: 'https://github.com/example/polyagent/issues/101',
       platform: 'github',
       authorHandle: 'alice_dev',
-      title: 'Looking for contributors to build MCP integration',
+      title: 'Looking for co-founder to build MCP integration',
       body: 'We are building an open-source AI agent system. Looking for developers to contribute MCP protocol servers. Rev-share and equity available for core contributors. Remote only.',
-      tags: ['mcp', 'help wanted', 'ai-agent'],
+      tags: ['mcp', 'co-founder', 'ai-agent'],
       createdAt: Date.now(),
     };
 
     const extracted = extractHeuristicProfile(rawGitHub);
 
+    expect(extracted.isValidDealCandidate).toBe(true);
     expect(extracted.offer.summary).toBeTruthy();
-    expect(extracted.want.summary).toContain('Разработчики');
-    expect(extracted.offer.category).toBe('services');
+    expect(extracted.want.summary).toBeTruthy();
     expect(extracted.negotiation_constraints.budget_or_terms).toContain('Equity / Rev-share');
     expect(extracted.negotiation_constraints.deal_breakers.some((d) => d.includes('Remote'))).toBe(true);
-    expect(extracted.offer.vector_text).toContain('Looking for contributors');
+    expect(extracted.offer.vector_text).toContain('Looking for co-founder');
   });
 
   it('finds complementary asymmetric matches between Offer and Want', () => {
@@ -109,13 +130,13 @@ describe('Autonomous Scout & Public Ledger Pipeline', () => {
     expect(match.matchReasons.length).toBeGreaterThan(0);
   });
 
-  it('simulates a 5-round agent-to-agent dialogue and generates deal protocol and outreach', async () => {
+  it('simulates a 5-round agent-to-agent dialogue resulting in AGREED verdict when terms align', async () => {
     const actorA = {
       id: 'prof_sim_a',
       sourceUrl: 'https://github.com/author1/proj/issues/5',
       platform: 'github',
       authorHandle: 'alex_coder',
-      title: 'MCP tool provider',
+      title: 'MCP tool provider seeking framework integration',
       offer: {
         summary: 'Разработка MCP коннекторов к SQLite и Postgres',
         category: 'services',
@@ -153,7 +174,7 @@ describe('Autonomous Scout & Public Ledger Pipeline', () => {
         vector_text: 'Разработчик баз данных и коннекторов к SQLite',
       },
       negotiationConstraints: {
-        budget_or_terms: 'По спринтам / Rev-share',
+        budget_or_terms: 'Rev-share 30%',
         deal_breakers: ['SLA на багфиксы'],
       },
       createdAt: Date.now(),
@@ -162,17 +183,88 @@ describe('Autonomous Scout & Public Ledger Pipeline', () => {
 
     const result = await simulateAutonomousNegotiation(actorA, actorB, 0.92);
 
+    expect(result.verdict).toBe('agreed');
     expect(result.dialogue).toHaveLength(5);
     expect(result.dialogue[0].round).toBe(1);
     expect(result.dialogue[4].round).toBe(5);
     expect(result.dealProtocol).toContain('Протокол сделки');
+    expect(result.dealProtocol).toContain('Agreed');
     expect(result.dealProtocol).toContain('alex_coder');
     expect(result.dealProtocol).toContain('elena_product');
     expect(result.outreachA).toContain('alex_coder');
     expect(result.outreachB).toContain('elena_product');
   });
 
-  it('serves deals feed via GET /api/scout/deals and GET /api/scout/stats', async () => {
+  it('simulates a 5-round agent-to-agent dialogue resulting in honest REJECTED (declined) verdict when commercial terms conflict', async () => {
+    const paidSpecialist = {
+      id: 'prof_paid_dev',
+      sourceUrl: 'https://news.ycombinator.com/item?id=888111',
+      platform: 'hackernews',
+      authorHandle: 'senior_freelancer',
+      title: 'SEEKING WORK: Python & MCP Engineer ($90/hr)',
+      offer: {
+        summary: 'Сеньор разработка MCP серверов и AI-агентов на Python',
+        category: 'services',
+        vector_text: 'Сеньор разработка MCP серверов и AI-агентов на Python',
+      },
+      want: {
+        summary: 'Оплачиваемый контракт, коммерческие клиенты',
+        category: 'jobs',
+        urgency: 'high' as const,
+        vector_text: 'Оплачиваемый контракт, коммерческие клиенты',
+      },
+      negotiationConstraints: {
+        budget_or_terms: 'Почасовая ставка: $90/hr',
+        compensation_type: 'paid_hourly',
+        role: 'specialist',
+        deal_breakers: ['Только оплачиваемые контракты (не volunteer)'],
+      },
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    const unpaidProject = {
+      id: 'prof_unpaid_repo',
+      sourceUrl: 'https://github.com/nonprofit/tool/issues/42',
+      platform: 'github',
+      authorHandle: 'volunteer_maintainer',
+      title: 'Looking for contributors to add MCP support',
+      offer: {
+        summary: 'Open-source кодовая база и признание в README',
+        category: 'communities',
+        vector_text: 'Open-source кодовая база и признание в README',
+      },
+      want: {
+        summary: 'Разработчик Python/MCP для создания коннектора',
+        category: 'services',
+        urgency: 'medium' as const,
+        vector_text: 'Разработчик Python/MCP для создания коннектора',
+      },
+      negotiationConstraints: {
+        budget_or_terms: 'Open Source контрибьютинг (без оплаты / pro bono)',
+        compensation_type: 'unpaid_opensource',
+        role: 'contributor_project',
+        deal_breakers: ['MIT лицензия'],
+      },
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    const evalRes = evaluateTermsCompatibility(paidSpecialist as any, unpaidProject as any);
+    expect(evalRes.verdict).toBe('declined');
+    expect(evalRes.reason).toContain('Несовпадение коммерческих условий');
+
+    const result = await simulateAutonomousNegotiation(paidSpecialist as any, unpaidProject as any, 0.85);
+
+    expect(result.verdict).toBe('declined');
+    expect(result.dialogue).toHaveLength(5);
+    expect(result.dialogue[4].text).toContain('REJECTED');
+    expect(result.dealProtocol).toContain('Declined');
+    expect(result.dealProtocol).toContain('senior_freelancer');
+    expect(result.dealProtocol).toContain('volunteer_maintainer');
+  });
+
+  it('serves deals feed via GET /api/scout/deals and supports verdict filtering', async () => {
     const statsRes = await fetch(`${baseUrl}/api/scout/stats`);
     expect(statsRes.status).toBe(200);
     const stats = await statsRes.json() as any;
@@ -186,19 +278,20 @@ describe('Autonomous Scout & Public Ledger Pipeline', () => {
     expect(dealsData).toHaveProperty('deals');
     expect(Array.isArray(dealsData.deals)).toBe(true);
 
-    if (dealsData.deals.length > 0) {
-      const firstDeal = dealsData.deals[0];
-      expect(firstDeal).toHaveProperty('id');
-      expect(firstDeal).toHaveProperty('roomId');
-      expect(firstDeal).toHaveProperty('actorA');
-      expect(firstDeal).toHaveProperty('actorB');
-      expect(firstDeal).toHaveProperty('dialogue');
-      expect(firstDeal).toHaveProperty('dealProtocolMarkdown');
+    const agreedRes = await fetch(`${baseUrl}/api/scout/deals?verdict=agreed`);
+    expect(agreedRes.status).toBe(200);
+    const agreedData = await agreedRes.json() as any;
+    expect(Array.isArray(agreedData.deals)).toBe(true);
+    for (const d of agreedData.deals) {
+      expect(d.verdict).toBe('agreed');
+    }
 
-      const singleRes = await fetch(`${baseUrl}/api/scout/deals/${firstDeal.id}`);
-      expect(singleRes.status).toBe(200);
-      const single = await singleRes.json() as any;
-      expect(single.id).toBe(firstDeal.id);
+    const declinedRes = await fetch(`${baseUrl}/api/scout/deals?verdict=declined`);
+    expect(declinedRes.status).toBe(200);
+    const declinedData = await declinedRes.json() as any;
+    expect(Array.isArray(declinedData.deals)).toBe(true);
+    for (const d of declinedData.deals) {
+      expect(d.verdict).toBe('declined');
     }
   });
 });

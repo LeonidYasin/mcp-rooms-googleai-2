@@ -50,3 +50,10 @@ Known boundaries, which must stay visible in docs and UI:
   you report. Link the run; do not claim more than the run proves.
 - Green CI ≠ live TEST ≠ production. No live deployment is implied.
 - **PR Status Commenting:** Upon finishing work on a branch or PR, the agent MUST leave a clear comment stating whether the PR has been verified and is ready to merge, OR listing the remaining tasks/fixes required before it can be merged.
+
+## GitHub & Environment Tooling
+
+- GitHub CLI (`gh`) and GitHub MCP server are configured and authenticated.
+- Environment variables (`GITHUB_TOKEN`, `GH_TOKEN`) are sourced from `~/.secrets.env` via `~/.bashrc`.
+- Never read, echo, print, or output secrets or tokens from `~/.secrets.env` into the chat.
+- Use `gh` or available MCP tools for GitHub interactions (pull requests, issues, repo management).

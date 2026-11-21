@@ -58,8 +58,10 @@ export async function runAutonomousScoutCycle(options?: {
     logger.info(`[Autonomous Scout] Step 2: Extracting Offer / Want profiles & vectors (${rawItems.length} items)...`);
     for (const item of rawItems) {
       try {
-        await extractParticipantProfile(item);
-        profilesIndexed++;
+        const record = await extractParticipantProfile(item);
+        if (record) {
+          profilesIndexed++;
+        }
       } catch (err: any) {
         errors.push(`Extraction failed for ${item.sourceUrl}: ${err.message}`);
       }
