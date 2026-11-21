@@ -42,12 +42,22 @@ export function extractHeuristicProfile(item: RawScoutItem): ExtractedParticipan
   }
 
   // 2. Classify intent: Seeking Work vs Hiring/Seeking Contributors vs Co-founder
+  const isLookingForHelp =
+    lower.includes('looking for contributor') ||
+    lower.includes('looking for developer') ||
+    lower.includes('looking for engineers') ||
+    lower.includes('help wanted') ||
+    lower.includes('we are looking for') ||
+    lower.includes('seeking contributor') ||
+    lower.includes('seeking developer');
+
   const isSeekingWork =
-    lower.includes('seeking work') ||
-    lower.includes('for hire') ||
-    lower.includes('available for') ||
-    lower.includes('portfolio') ||
-    lower.includes('who wants to be hired');
+    !isLookingForHelp &&
+    (lower.includes('seeking work') ||
+      lower.includes('for hire') ||
+      lower.includes('available for hire') ||
+      lower.includes('portfolio') ||
+      lower.includes('who wants to be hired'));
 
   const isCoFounder =
     lower.includes('co-founder') ||
