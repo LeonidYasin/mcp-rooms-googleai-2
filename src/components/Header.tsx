@@ -15,8 +15,8 @@ interface HeaderProps {
   onSearchSubmit: () => void;
   onOpenPublish: () => void;
   onGoHome: () => void;
-  currentTab: 'catalog' | 'rooms' | 'mcp' | 'principles' | 'chat';
-  onChangeTab: (tab: 'catalog' | 'rooms' | 'mcp' | 'principles' | 'chat') => void;
+  currentTab: 'catalog' | 'rooms' | 'mcp' | 'principles' | 'chat' | 'feed';
+  onChangeTab: (tab: 'catalog' | 'rooms' | 'mcp' | 'principles' | 'chat' | 'feed') => void;
   selectedLocality: string;
   onLocalityChange: (loc: string) => void;
   hasApiKey: boolean;
@@ -148,6 +148,24 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Right: Quick Nav Links + Sleek Theme & Lang Toggles */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0 text-xs">
             <nav className="flex items-center gap-2 sm:gap-3.5 shrink-0 text-xs">
+              <button
+                type="button"
+                onClick={() => onChangeTab('feed')}
+                title={
+                  isEn
+                    ? 'Public Ledger of Deals: live feed of autonomous agent-to-agent negotiations and agreed protocols'
+                    : 'Публичный реестр сделок: живая лента автономных переговоров ИИ-агентов и согласованных протоколов'
+                }
+                className={`hover:underline cursor-pointer flex items-center gap-1.5 font-bold ${
+                  currentTab === 'feed' ? 'text-[var(--blue)] font-black' : 'text-[var(--ink)]'
+                }`}
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span>{isEn ? 'Deals (Ledger)' : 'Сделки (Ledger)'}</span>
+              </button>
               <button
                 type="button"
                 onClick={() => onChangeTab('rooms')}

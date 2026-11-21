@@ -182,3 +182,39 @@ export interface EmbeddingProviderStatus {
   reason?: string;
 }
 
+export interface PublicDealActor {
+  id: string;
+  handle: string;
+  sourceUrl: string;
+  platform: 'github' | 'hackernews' | 'reddit' | string;
+  offer: string;
+  want: string;
+}
+
+export interface PublicDealDialogueTurn {
+  round: number;
+  speaker: string;
+  speakerRole: 'actor_a' | 'actor_b' | 'mediator';
+  avatar: string;
+  text: string;
+  timestamp: number;
+}
+
+export interface PublicDeal {
+  id: string;
+  roomId: string;
+  actorA: PublicDealActor;
+  actorB: PublicDealActor;
+  exchangeSummary: string;
+  compatibilityScore: number;
+  matchReasons: string[];
+  dialogue: PublicDealDialogueTurn[];
+  verdict: 'agreed' | 'conditional_draft' | 'declined';
+  dealProtocolMarkdown: string;
+  outreachMessageA: string;
+  outreachMessageB: string;
+  status: 'published' | 'draft' | 'archived';
+  createdAt: number;
+  updatedAt: number;
+}
+

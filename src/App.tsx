@@ -20,6 +20,7 @@ import { McpChat } from './components/McpChat';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { AboutModal } from './components/AboutModal';
 import { RoomsHub } from './components/RoomsHub';
+import { DealsFeed } from './components/DealsFeed';
 import { FaceBanner } from './components/FaceBanner';
 import { VerticalModuleWidget } from './components/VerticalModuleWidget';
 import { CategoryBar } from './components/CategoryBar';
@@ -58,7 +59,18 @@ export const App: React.FC = () => {
   }, []);
 
   // Navigation and filters
-  const [currentTab, setCurrentTab] = useState<'catalog' | 'rooms' | 'mcp' | 'principles' | 'chat'>('catalog');
+  const [currentTab, setCurrentTab] = useState<'catalog' | 'rooms' | 'mcp' | 'principles' | 'chat' | 'feed'>(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      if (path === '/feed' || path.startsWith('/feed/')) return 'feed';
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam === 'feed' || tabParam === 'rooms' || tabParam === 'mcp' || tabParam === 'chat' || tabParam === 'principles') {
+        return tabParam;
+      }
+    }
+    return 'catalog';
+  });
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [currentCategory, setCurrentCategory] = useState<ListingCategory | 'all'>('all');
@@ -604,6 +616,12 @@ export const App: React.FC = () => {
           }
           setCurrentTab(tab);
           setSelectedListing(null);
+          if (typeof window !== 'undefined') {
+            const targetUrl = tab === 'feed' ? '/feed' : '/';
+            if (window.location.pathname !== targetUrl && (tab === 'feed' || window.location.pathname === '/feed')) {
+              window.history.pushState(null, '', targetUrl);
+            }
+          }
         }}
         selectedLocality={selectedLocality}
         onLocalityChange={setSelectedLocality}
@@ -628,6 +646,11 @@ export const App: React.FC = () => {
             onOpenListing={handleOpenListing}
             onCreateRoom={handleCreateRoom}
             onRequireKey={(reason) => openApiKeyModal(reason)}
+          />
+        ) : currentTab === 'feed' ? (
+          <DealsFeed
+            onOpenRoom={(roomId) => handleOpenRoom(roomId)}
+            onOpenMcpGuide={() => setCurrentTab('mcp')}
           />
         ) : currentTab === 'chat' ? (
           <McpChat
@@ -1061,6 +1084,19 @@ export const App: React.FC = () => {
               className="hover:underline cursor-pointer font-bold text-[var(--ink)]"
             >
               ℹ️ {t('nav.about')}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedListing(null);
+                setSelectedRoomId('');
+                setCurrentTab('feed');
+                if (typeof window !== 'undefined') window.history.pushState(null, '', '/feed');
+              }}
+              title={locale === 'en' ? 'Public Ledger of Deals: live autonomous negotiations' : 'Публичный реестр сделок: живая лента переговоров'}
+              className="hover:underline cursor-pointer font-bold text-emerald-400 flex items-center gap-1"
+            >
+              <span className="text-[10px]">●</span> {locale === 'en' ? 'Deals Ledger' : 'Сделки (Ledger)'}
             </button>
             <button
               type="button"

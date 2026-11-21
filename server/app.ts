@@ -19,6 +19,8 @@ import { negotiationsRouter } from './routes/negotiations';
 import { webhooksRouter } from './routes/webhooks';
 import { feedbackRouter } from './routes/feedback';
 import { chatRouter } from './routes/chat';
+import { scoutRouter } from './routes/scout';
+import { startScoutBackgroundWorker } from './scout-worker';
 
 /**
  * Creates and configures the Express application with all middlewares and route controllers.
@@ -53,6 +55,12 @@ export function createApp(): express.Express {
   app.use(webhooksRouter);
   app.use(feedbackRouter);
   app.use(chatRouter);
+  app.use(scoutRouter);
+
+  // Start background scout worker if enabled in configuration
+  if (process.env.NODE_ENV !== 'test') {
+    startScoutBackgroundWorker();
+  }
 
   // Body-parser failures (413/400) and uncaught route errors end here instead of
   // Express' default HTML page. Registered at module load so tests see it too.
